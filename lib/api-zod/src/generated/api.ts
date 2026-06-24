@@ -17,6 +17,107 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Register a new user
+ */
+export const RegisterBody = zod.object({
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "password": zod.string(),
+  "phone": zod.string().nullish()
+})
+
+
+/**
+ * @summary Login with email/password
+ */
+export const LoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginResponse = zod.object({
+  "user": zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "isGuest": zod.boolean(),
+  "rewardPoints": zod.number(),
+  "referralCode": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}),
+  "token": zod.string()
+})
+
+
+/**
+ * @summary Login as guest
+ */
+export const LoginAsGuestResponse = zod.object({
+  "user": zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "isGuest": zod.boolean(),
+  "rewardPoints": zod.number(),
+  "referralCode": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+}),
+  "token": zod.string()
+})
+
+
+/**
+ * @summary Get current user profile
+ */
+export const GetProfileQueryParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const GetProfileResponse = zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "isGuest": zod.boolean(),
+  "rewardPoints": zod.number(),
+  "referralCode": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
+ * @summary Update user profile
+ */
+export const UpdateProfileBody = zod.object({
+  "fullName": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "isGuest": zod.boolean(),
+  "rewardPoints": zod.number(),
+  "referralCode": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+
+
+/**
  * @summary List all categories
  */
 export const ListCategoriesResponseItem = zod.object({
@@ -116,6 +217,66 @@ export const GetProductResponse = zod.object({
   "isNew": zod.boolean().optional(),
   "deliveryDays": zod.number().nullish(),
   "tags": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Update a product
+ */
+export const UpdateProductParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateProductBody = zod.object({
+  "nameAr": zod.string(),
+  "nameEn": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "price": zod.number(),
+  "discountPrice": zod.number().nullish(),
+  "categoryId": zod.number(),
+  "storeId": zod.number(),
+  "imageUrl": zod.string(),
+  "brand": zod.string().nullish(),
+  "stockQuantity": zod.number().nullish(),
+  "isFeatured": zod.boolean().optional(),
+  "deliveryDays": zod.number().nullish()
+})
+
+export const UpdateProductResponse = zod.object({
+  "id": zod.number(),
+  "nameAr": zod.string(),
+  "nameEn": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "price": zod.number(),
+  "discountPrice": zod.number().nullish(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullish(),
+  "storeId": zod.number(),
+  "storeName": zod.string().nullish(),
+  "imageUrl": zod.string(),
+  "images": zod.array(zod.string()).optional(),
+  "brand": zod.string().nullish(),
+  "inStock": zod.boolean(),
+  "stockQuantity": zod.number().nullish(),
+  "rating": zod.number(),
+  "reviewCount": zod.number(),
+  "isFeatured": zod.boolean().optional(),
+  "isNew": zod.boolean().optional(),
+  "deliveryDays": zod.number().nullish(),
+  "tags": zod.array(zod.string()).optional()
+})
+
+
+/**
+ * @summary Delete a product
+ */
+export const DeleteProductParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteProductResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string().nullish()
 })
 
 
@@ -423,7 +584,7 @@ export const ListOrdersResponseItem = zod.object({
   "deliveryAddress": zod.string().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
-  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer']).optional(),
+  "paymentMethod": zod.string().optional(),
   "couponCode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -447,9 +608,10 @@ export const CreateOrderBody = zod.object({
   "deliveryAddress": zod.string(),
   "customerName": zod.string(),
   "customerPhone": zod.string(),
-  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer']),
+  "paymentMethod": zod.enum(['cash_on_delivery', 'jaib', 'flousy', 'mobile_money', 'jawali', 'cash', 'one_cash', 'bank_transfer']),
   "couponCode": zod.string().nullish(),
-  "notes": zod.string().nullish()
+  "notes": zod.string().nullish(),
+  "userId": zod.number().nullish()
 })
 
 
@@ -470,7 +632,7 @@ export const GetOrderResponse = zod.object({
   "deliveryAddress": zod.string().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
-  "paymentMethod": zod.enum(['cash_on_delivery', 'bank_transfer']).optional(),
+  "paymentMethod": zod.string().optional(),
   "couponCode": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -482,6 +644,108 @@ export const GetOrderResponse = zod.object({
   "quantity": zod.number(),
   "imageUrl": zod.string()
 }))
+})
+
+
+/**
+ * @summary Update order status (vendor/admin)
+ */
+export const UpdateOrderStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateOrderStatusBody = zod.object({
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered'])
+})
+
+export const UpdateOrderStatusResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.string(),
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered']),
+  "total": zod.number(),
+  "deliveryFee": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "deliveryAddress": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "paymentMethod": zod.string().optional(),
+  "couponCode": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "imageUrl": zod.string()
+}))
+})
+
+
+/**
+ * @summary List favorites for a user
+ */
+export const ListFavoritesQueryParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const ListFavoritesResponseItem = zod.object({
+  "id": zod.number(),
+  "nameAr": zod.string(),
+  "nameEn": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "price": zod.number(),
+  "discountPrice": zod.number().nullish(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullish(),
+  "storeId": zod.number(),
+  "storeName": zod.string().nullish(),
+  "imageUrl": zod.string(),
+  "images": zod.array(zod.string()).optional(),
+  "brand": zod.string().nullish(),
+  "inStock": zod.boolean(),
+  "stockQuantity": zod.number().nullish(),
+  "rating": zod.number(),
+  "reviewCount": zod.number(),
+  "isFeatured": zod.boolean().optional(),
+  "isNew": zod.boolean().optional(),
+  "deliveryDays": zod.number().nullish(),
+  "tags": zod.array(zod.string()).optional()
+})
+export const ListFavoritesResponse = zod.array(ListFavoritesResponseItem)
+
+
+/**
+ * @summary Toggle product favorite
+ */
+export const ToggleFavoriteBody = zod.object({
+  "userId": zod.number(),
+  "productId": zod.number()
+})
+
+export const ToggleFavoriteResponse = zod.object({
+  "isFavorite": zod.boolean()
+})
+
+
+/**
+ * @summary Get user rewards balance
+ */
+export const GetRewardsQueryParams = zod.object({
+  "userId": zod.coerce.number()
+})
+
+export const GetRewardsResponse = zod.object({
+  "userId": zod.number(),
+  "points": zod.number(),
+  "pointsValue": zod.number(),
+  "transactions": zod.array(zod.object({
+  "id": zod.number(),
+  "points": zod.number(),
+  "description": zod.string(),
+  "createdAt": zod.string()
+})).optional()
 })
 
 
@@ -554,10 +818,199 @@ export const GetDashboardStatsResponse = zod.object({
   "totalStores": zod.number(),
   "totalOrders": zod.number(),
   "totalCategories": zod.number(),
-  "featuredProductsCount": zod.number(),
-  "newArrivalsCount": zod.number(),
-  "topCategory": zod.string().nullish(),
-  "activePromotions": zod.number().optional()
+  "totalUsers": zod.number(),
+  "totalRevenue": zod.number(),
+  "featuredProductsCount": zod.number().optional(),
+  "newArrivalsCount": zod.number().optional(),
+  "activePromotions": zod.number().optional(),
+  "pendingOrders": zod.number().optional()
+})
+
+
+/**
+ * @summary List all users
+ */
+export const AdminListUsersResponseItem = zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "address": zod.string().nullish(),
+  "isGuest": zod.boolean(),
+  "rewardPoints": zod.number(),
+  "referralCode": zod.string().nullish(),
+  "createdAt": zod.string().optional()
+})
+export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
+
+
+/**
+ * @summary List all orders
+ */
+export const AdminListOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.string(),
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered']),
+  "total": zod.number(),
+  "deliveryFee": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "deliveryAddress": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "paymentMethod": zod.string().optional(),
+  "couponCode": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "imageUrl": zod.string()
+}))
+})
+export const AdminListOrdersResponse = zod.array(AdminListOrdersResponseItem)
+
+
+/**
+ * @summary List all coupons
+ */
+export const AdminListCouponsResponseItem = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "discountType": zod.string(),
+  "discountValue": zod.number(),
+  "minCartTotal": zod.number().nullish(),
+  "isActive": zod.boolean(),
+  "usageCount": zod.number().optional(),
+  "usageLimit": zod.number().nullish()
+})
+export const AdminListCouponsResponse = zod.array(AdminListCouponsResponseItem)
+
+
+/**
+ * @summary Create coupon
+ */
+export const AdminCreateCouponBody = zod.object({
+  "code": zod.string(),
+  "discountType": zod.string(),
+  "discountValue": zod.number(),
+  "minCartTotal": zod.number().nullish(),
+  "usageLimit": zod.number().nullish()
+})
+
+
+/**
+ * @summary List vendor's own products
+ */
+export const VendorListProductsQueryParams = zod.object({
+  "storeId": zod.coerce.number()
+})
+
+export const VendorListProductsResponseItem = zod.object({
+  "id": zod.number(),
+  "nameAr": zod.string(),
+  "nameEn": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "price": zod.number(),
+  "discountPrice": zod.number().nullish(),
+  "categoryId": zod.number(),
+  "categoryName": zod.string().nullish(),
+  "storeId": zod.number(),
+  "storeName": zod.string().nullish(),
+  "imageUrl": zod.string(),
+  "images": zod.array(zod.string()).optional(),
+  "brand": zod.string().nullish(),
+  "inStock": zod.boolean(),
+  "stockQuantity": zod.number().nullish(),
+  "rating": zod.number(),
+  "reviewCount": zod.number(),
+  "isFeatured": zod.boolean().optional(),
+  "isNew": zod.boolean().optional(),
+  "deliveryDays": zod.number().nullish(),
+  "tags": zod.array(zod.string()).optional()
+})
+export const VendorListProductsResponse = zod.array(VendorListProductsResponseItem)
+
+
+/**
+ * @summary List vendor's orders
+ */
+export const VendorListOrdersQueryParams = zod.object({
+  "storeId": zod.coerce.number()
+})
+
+export const VendorListOrdersResponseItem = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.string(),
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered']),
+  "total": zod.number(),
+  "deliveryFee": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "deliveryAddress": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "paymentMethod": zod.string().optional(),
+  "couponCode": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "imageUrl": zod.string()
+}))
+})
+export const VendorListOrdersResponse = zod.array(VendorListOrdersResponseItem)
+
+
+/**
+ * @summary Get vendor statistics
+ */
+export const VendorGetStatsQueryParams = zod.object({
+  "storeId": zod.coerce.number()
+})
+
+export const VendorGetStatsResponse = zod.object({
+  "storeId": zod.number(),
+  "totalProducts": zod.number(),
+  "totalOrders": zod.number(),
+  "totalRevenue": zod.number(),
+  "pendingOrders": zod.number(),
+  "thisMonthRevenue": zod.number().optional()
+})
+
+
+/**
+ * @summary Vendor login
+ */
+export const VendorLoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
+})
+
+export const VendorLoginResponse = zod.object({
+  "store": zod.object({
+  "id": zod.number(),
+  "nameAr": zod.string(),
+  "nameEn": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "logoUrl": zod.string(),
+  "coverUrl": zod.string().nullish(),
+  "rating": zod.number(),
+  "reviewCount": zod.number(),
+  "isOpen": zod.boolean(),
+  "workingHours": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "location": zod.string().nullish(),
+  "isFeatured": zod.boolean().optional(),
+  "productCount": zod.number().optional()
+}),
+  "token": zod.string()
 })
 
 

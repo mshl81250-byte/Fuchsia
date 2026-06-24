@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
@@ -77,9 +77,38 @@ router.post("/", async (req, res) => {
 
     await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
 
+    // Award 10 points per 1000 YER spent
+    if (userId) {
+      const points = Math.floor(total / 1000) * 10;
+      if (points > 0) {
+        await db.update(usersTable).set({ rewardPoints: db.$count(rewardTransactionsTable) }).where(eq(usersTable.id, userId));
+        await db.insert(rewardTransactionsTable).values({
+          userId,
+          points,
+          description: `نقاط طلب رقم ${order.id}`,
+          orderId: order.id,
+        });
+      }
+    }
+
     res.status(201).json(await buildOrder(order));
   } catch (err) {
     req.log.error({ err }, "Failed to create order");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: "status required" });
+
+    const [order] = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id)).returning();
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    res.json(await buildOrder(order));
+  } catch (err) {
+    req.log.error({ err }, "Failed to update order status");
     res.status(500).json({ error: "Internal server error" });
   }
 });

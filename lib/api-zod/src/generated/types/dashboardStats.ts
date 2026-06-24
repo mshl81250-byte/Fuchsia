@@ -11,9 +11,10 @@ export interface DashboardStats {
   totalStores: number;
   totalOrders: number;
   totalCategories: number;
-  featuredProductsCount: number;
-  newArrivalsCount: number;
-  /** @nullable */
-  topCategory?: string | null;
+  totalUsers: number;
+  totalRevenue: number;
+  featuredProductsCount?: number;
+  newArrivalsCount?: number;
   activePromotions?: number;
+  pendingOrders?: number;
 }

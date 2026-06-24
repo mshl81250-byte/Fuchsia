@@ -9,6 +9,58 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface SuccessMessage {
+  success: boolean;
+  /** @nullable */
+  message?: string | null;
+}
+
+export interface RegisterInput {
+  fullName: string;
+  email: string;
+  password: string;
+  /** @nullable */
+  phone?: string | null;
+}
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+export interface User {
+  id: number;
+  fullName: string;
+  email: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  address?: string | null;
+  isGuest: boolean;
+  rewardPoints: number;
+  /** @nullable */
+  referralCode?: string | null;
+  createdAt?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+export interface UpdateProfileInput {
+  /** @nullable */
+  fullName?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  address?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
 export interface Category {
   id: number;
   nameAr: string;
@@ -160,14 +212,6 @@ export const OrderStatus = {
   delivered: 'delivered',
 } as const;
 
-export type OrderPaymentMethod = typeof OrderPaymentMethod[keyof typeof OrderPaymentMethod];
-
-
-export const OrderPaymentMethod = {
-  cash_on_delivery: 'cash_on_delivery',
-  bank_transfer: 'bank_transfer',
-} as const;
-
 export interface OrderItem {
   id: number;
   productId: number;
@@ -190,7 +234,7 @@ export interface Order {
   customerName?: string | null;
   /** @nullable */
   customerPhone?: string | null;
-  paymentMethod?: OrderPaymentMethod;
+  paymentMethod?: string;
   /** @nullable */
   couponCode?: string | null;
   /** @nullable */
@@ -204,6 +248,12 @@ export type OrderInputPaymentMethod = typeof OrderInputPaymentMethod[keyof typeo
 
 export const OrderInputPaymentMethod = {
   cash_on_delivery: 'cash_on_delivery',
+  jaib: 'jaib',
+  flousy: 'flousy',
+  mobile_money: 'mobile_money',
+  jawali: 'jawali',
+  cash: 'cash',
+  one_cash: 'one_cash',
   bank_transfer: 'bank_transfer',
 } as const;
 
@@ -217,6 +267,45 @@ export interface OrderInput {
   couponCode?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  userId?: number | null;
+}
+
+export type OrderStatusUpdateStatus = typeof OrderStatusUpdateStatus[keyof typeof OrderStatusUpdateStatus];
+
+
+export const OrderStatusUpdateStatus = {
+  received: 'received',
+  preparing: 'preparing',
+  delivering: 'delivering',
+  delivered: 'delivered',
+} as const;
+
+export interface OrderStatusUpdate {
+  status: OrderStatusUpdateStatus;
+}
+
+export interface FavoriteInput {
+  userId: number;
+  productId: number;
+}
+
+export interface FavoriteResult {
+  isFavorite: boolean;
+}
+
+export interface RewardTransaction {
+  id: number;
+  points: number;
+  description: string;
+  createdAt: string;
+}
+
+export interface RewardsInfo {
+  userId: number;
+  points: number;
+  pointsValue: number;
+  transactions?: RewardTransaction[];
 }
 
 export interface Review {
@@ -268,17 +357,59 @@ export interface CouponValidateResult {
   message?: string | null;
 }
 
+export interface Coupon {
+  id: number;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  /** @nullable */
+  minCartTotal?: number | null;
+  isActive: boolean;
+  usageCount?: number;
+  /** @nullable */
+  usageLimit?: number | null;
+}
+
+export interface CouponInput {
+  code: string;
+  discountType: string;
+  discountValue: number;
+  /** @nullable */
+  minCartTotal?: number | null;
+  /** @nullable */
+  usageLimit?: number | null;
+}
+
 export interface DashboardStats {
   totalProducts: number;
   totalStores: number;
   totalOrders: number;
   totalCategories: number;
-  featuredProductsCount: number;
-  newArrivalsCount: number;
-  /** @nullable */
-  topCategory?: string | null;
+  totalUsers: number;
+  totalRevenue: number;
+  featuredProductsCount?: number;
+  newArrivalsCount?: number;
   activePromotions?: number;
+  pendingOrders?: number;
 }
+
+export interface VendorStats {
+  storeId: number;
+  totalProducts: number;
+  totalOrders: number;
+  totalRevenue: number;
+  pendingOrders: number;
+  thisMonthRevenue?: number;
+}
+
+export interface VendorAuthResponse {
+  store: Store;
+  token: string;
+}
+
+export type GetProfileParams = {
+userId: number;
+};
 
 export type ListProductsParams = {
 /**
@@ -311,7 +442,27 @@ export type ListOrdersParams = {
 sessionId: string;
 };
 
+export type ListFavoritesParams = {
+userId: number;
+};
+
+export type GetRewardsParams = {
+userId: number;
+};
+
 export type ListReviewsParams = {
 productId: number;
+};
+
+export type VendorListProductsParams = {
+storeId: number;
+};
+
+export type VendorListOrdersParams = {
+storeId: number;
+};
+
+export type VendorGetStatsParams = {
+storeId: number;
 };
 
