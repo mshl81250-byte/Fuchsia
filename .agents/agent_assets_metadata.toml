@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "gILjl7T1clI25nZgCnCI0"
+uri = "file://artifacts/lamsa/public/assets/banner1.png"
+type = "image"
+title = "luxury beauty store glowing background"
+
+[[generated]]
+id = "adwSTlYVjiQSFzFobMp4V"
+uri = "file://artifacts/lamsa/public/assets/perfume1.png"
+type = "image"
+title = "rose gold perfume bottle"
+
+[[generated]]
+id = "mXsLL5lCpVTY595Efatr6"
+uri = "file://artifacts/lamsa/public/assets/gift1.png"
+type = "image"
+title = "gift box wrapped black ribbon"
+
+[[generated]]
+id = "B8cjoRRN8r20oPNJlu-4W"
+uri = "file://artifacts/lamsa/public/assets/makeup1.png"
+type = "image"
+title = "luxury makeup palette"
+
+[[generated]]
+id = "NSemap6xEbWCoBylIg4Kg"
+uri = "file://artifacts/lamsa/public/assets/store-logo1.png"
+type = "image"
+title = "luxury store logo mark"

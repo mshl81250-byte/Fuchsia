@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "لمسة - توصيل تجميل وهدايا"
+version = "1.0.0"
+id = "artifacts/lamsa"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19029
+
+[services.development]
+run = "pnpm --filter @workspace/lamsa run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lamsa", "run", "build" ]
+publicDir = "artifacts/lamsa/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19029"
+BASE_PATH = "/"
