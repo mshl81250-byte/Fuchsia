@@ -17,4 +17,6 @@ export interface OrderInput {
   couponCode?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  userId?: number | null;
 }

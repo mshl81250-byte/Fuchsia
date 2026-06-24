@@ -1,115 +1,141 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Search, User, Home, Package, Menu } from "lucide-react";
+import { ShoppingBag, Search, User, Home, LayoutGrid, Heart } from "lucide-react";
 import { Logo } from "./Logo";
 import { useSession } from "@/hooks/use-session";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { toArabicNumerals } from "@/lib/format";
 import { Button } from "./ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
+import { motion } from "framer-motion";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { sessionId, isReady } = useSession();
-  
+
   const { data: cart } = useGetCart(
-    { sessionId }, 
+    { sessionId },
     { query: { enabled: isReady, queryKey: getGetCartQueryKey({ sessionId }) } }
   );
 
   const cartItemCount = cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
 
+  const navItems = [
+    { href: "/", label: "الرئيسية", icon: Home },
+    { href: "/search", label: "التصنيفات", icon: LayoutGrid },
+    { href: "/cart", label: "السلة", icon: ShoppingBag, badge: cartItemCount },
+    { href: "/favorites", label: "المفضلة", icon: Heart },
+    { href: "/profile", label: "حسابي", icon: User },
+  ];
+
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground font-sans">
-      <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-md">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b border-[#E8E0D0] bg-white/90 backdrop-blur-md shadow-sm">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden text-primary">
-                  <Menu className="w-6 h-6" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[300px] sm:w-[400px] border-l-border bg-card">
-                <div className="flex flex-col gap-6 py-6">
-                  <Link href="/" className="flex items-center gap-3">
-                    <Logo className="w-10 h-10" />
-                    <span className="font-serif text-xl text-primary font-bold">لمسة</span>
-                  </Link>
-                  <nav className="flex flex-col gap-4 mt-8">
-                    <Link href="/" className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-3">
-                      <Home className="w-5 h-5 text-muted-foreground" /> الرئيسية
-                    </Link>
-                    <Link href="/stores" className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-3">
-                      <Package className="w-5 h-5 text-muted-foreground" /> المتاجر
-                    </Link>
-                    <Link href="/search" className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-3">
-                      <Search className="w-5 h-5 text-muted-foreground" /> البحث
-                    </Link>
-                    <Link href="/profile" className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-3">
-                      <User className="w-5 h-5 text-muted-foreground" /> حسابي
-                    </Link>
-                  </nav>
-                </div>
-              </SheetContent>
-            </Sheet>
-            
+          <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2 group">
               <Logo className="w-10 h-10 group-hover:scale-105 transition-transform duration-300" />
-              <span className="font-serif text-2xl text-primary font-bold hidden sm:inline-block">لمسة</span>
+              <span className="font-serif text-2xl text-[#C9A84C] font-bold">لمسة</span>
             </Link>
           </div>
 
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/' ? 'text-primary' : 'text-muted-foreground'}`}>الرئيسية</Link>
-            <Link href="/stores" className={`text-sm font-medium transition-colors hover:text-primary ${location === '/stores' ? 'text-primary' : 'text-muted-foreground'}`}>المتاجر</Link>
+            {[
+              { href: "/", label: "الرئيسية" },
+              { href: "/stores", label: "المتاجر" },
+              { href: "/search", label: "البحث" },
+            ].map(item => (
+              <Link key={item.href} href={item.href}
+                className={`text-sm font-medium transition-colors hover:text-[#C9A84C] ${
+                  location === item.href ? "text-[#C9A84C]" : "text-[#6B6B6B]"
+                }`}>
+                {item.label}
+              </Link>
+            ))}
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1">
             <Link href="/search">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary rounded-full">
+              <Button variant="ghost" size="icon" className="text-[#6B6B6B] hover:text-[#C9A84C] rounded-full">
                 <Search className="w-5 h-5" />
               </Button>
             </Link>
-            
-            <Link href="/profile">
-              <Button variant="ghost" size="icon" className="hidden sm:flex text-muted-foreground hover:text-primary rounded-full">
-                <User className="w-5 h-5" />
-              </Button>
-            </Link>
-
             <Link href="/cart">
-              <Button variant="ghost" size="icon" className="relative text-primary hover:text-primary hover:bg-primary/10 rounded-full">
+              <Button variant="ghost" size="icon" className="relative text-[#C9A84C] hover:bg-[#FDF8EC] rounded-full">
                 <ShoppingBag className="w-5 h-5" />
                 {cartItemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#C9A84C] text-[10px] font-bold text-white">
                     {toArabicNumerals(cartItemCount)}
                   </span>
                 )}
+              </Button>
+            </Link>
+            <Link href="/profile">
+              <Button variant="ghost" size="icon" className="text-[#6B6B6B] hover:text-[#C9A84C] rounded-full">
+                <User className="w-5 h-5" />
               </Button>
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="flex-1">
+      {/* Main content — add bottom padding for mobile nav */}
+      <main className="flex-1 pb-20 md:pb-0">
         {children}
       </main>
 
-      <footer className="border-t border-border bg-card mt-auto">
+      {/* Desktop Footer */}
+      <footer className="hidden md:block border-t border-[#E8E0D0] bg-[#F9F6F0]">
         <div className="container mx-auto px-4 py-8">
-          <div className="flex flex-col items-center justify-center gap-4 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
             <Logo className="w-12 h-12" />
-            <div className="space-y-2">
-              <h3 className="font-serif text-xl text-primary font-bold">لمسة</h3>
-              <p className="text-sm text-muted-foreground">فخامة بلمسة واحدة. توصيل أرقى العطور والهدايا في صنعاء.</p>
-            </div>
-            <p className="text-xs text-muted-foreground/50 mt-4">
+            <h3 className="font-serif text-xl text-[#C9A84C] font-bold">لمسة</h3>
+            <p className="text-sm text-[#6B6B6B]">فخامة بلمسة واحدة — توصيل أرقى العطور والهدايا في صنعاء</p>
+            <p className="text-xs text-[#6B6B6B]/60 mt-2">
               © {toArabicNumerals(new Date().getFullYear())} لمسة. جميع الحقوق محفوظة.
             </p>
           </div>
         </div>
       </footer>
+
+      {/* Bottom Navigation — mobile only */}
+      <nav className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-white border-t border-[#E8E0D0] shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-around h-16 px-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location === item.href ||
+              (item.href === "/search" && location.startsWith("/category"));
+            return (
+              <Link key={item.href} href={item.href} className="flex-1">
+                <motion.div
+                  whileTap={{ scale: 0.92 }}
+                  className={`flex flex-col items-center justify-center gap-0.5 py-1 relative ${
+                    isActive ? "text-[#C9A84C]" : "text-[#6B6B6B]"
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon className={`w-5 h-5 transition-all ${isActive ? "fill-[#C9A84C]/15" : ""}`} />
+                    {item.badge != null && item.badge > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#C9A84C] text-[9px] font-bold text-white">
+                        {item.badge > 9 ? "٩+" : toArabicNumerals(item.badge)}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-medium transition-all ${isActive ? "text-[#C9A84C] font-bold" : "text-[#6B6B6B]"}`}>
+                    {item.label}
+                  </span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="bottomNavIndicator"
+                      className="absolute -top-0 inset-x-1/4 h-0.5 rounded-full bg-[#C9A84C]"
+                    />
+                  )}
+                </motion.div>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
