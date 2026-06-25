@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  useVendorLogin, useVendorGetStats, useVendorListProducts,
-  useVendorListOrders, useUpdateOrderStatus, useCreateProduct, useDeleteProduct
+  useVendorLogin, useVendorGetStats, getVendorGetStatsQueryKey,
+  useVendorListProducts, getVendorListProductsQueryKey,
+  useVendorListOrders, getVendorListOrdersQueryKey,
+  useUpdateOrderStatus, useCreateProduct, useDeleteProduct
 } from "@workspace/api-client-react";
 import { Logo } from "@/components/Logo";
 import { Input } from "@/components/ui/input";
@@ -35,9 +37,10 @@ export default function Vendor() {
   const queryClient = useQueryClient();
 
   const loginMutation = useVendorLogin();
-  const statsQuery = useVendorGetStats({ storeId: session?.storeId ?? 0 }, { query: { enabled: !!session } });
-  const productsQuery = useVendorListProducts({ storeId: session?.storeId ?? 0 }, { query: { enabled: !!session && section === "products" } });
-  const ordersQuery = useVendorListOrders({ storeId: session?.storeId ?? 0 }, { query: { enabled: !!session && section === "orders" } });
+  const storeId = session?.storeId ?? 0;
+  const statsQuery = useVendorGetStats({ storeId }, { query: { enabled: !!session, queryKey: getVendorGetStatsQueryKey({ storeId }) } });
+  const productsQuery = useVendorListProducts({ storeId }, { query: { enabled: !!session && section === "products", queryKey: getVendorListProductsQueryKey({ storeId }) } });
+  const ordersQuery = useVendorListOrders({ storeId }, { query: { enabled: !!session && section === "orders", queryKey: getVendorListOrdersQueryKey({ storeId }) } });
   const updateStatus = useUpdateOrderStatus();
   const createProduct = useCreateProduct();
   const deleteProduct = useDeleteProduct();

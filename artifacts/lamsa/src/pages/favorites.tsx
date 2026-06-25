@@ -69,7 +69,7 @@ export default function Favorites() {
             >
               <ProductCard
                 product={product}
-                onAddToCart={(id) => addToCart(id, 1)}
+                onAddToCart={() => addToCart(product.id, 1)}
               />
             </motion.div>
           ))}

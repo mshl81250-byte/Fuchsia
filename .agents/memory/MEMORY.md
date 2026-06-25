@@ -1,0 +1,1 @@
+- [Lamsa app architecture](lamsa-arch.md) — Full-stack Arabic beauty delivery app, key auth/routing/payment decisions

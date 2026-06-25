@@ -31,16 +31,21 @@ const queryClient = new QueryClient({
   },
 });
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function useAuthRedirect() {
+  const onboarded = localStorage.getItem("lamsa_onboarded");
   const user = getStoredUser();
-  if (!user) return <Redirect to="/auth" />;
+  if (!onboarded) return "/splash";
+  if (!user) return "/auth";
+  return null;
+}
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const redirect = useAuthRedirect();
+  if (redirect) return <Redirect to={redirect} />;
   return <Component />;
 }
 
 function Router() {
-  const onboarded = localStorage.getItem("lamsa_onboarded");
-  const user = getStoredUser();
-
   return (
     <Switch>
       <Route path="/splash" component={Splash} />
@@ -68,14 +73,6 @@ function Router() {
       </Route>
     </Switch>
   );
-}
-
-function RootRedirect() {
-  const onboarded = localStorage.getItem("lamsa_onboarded");
-  const user = getStoredUser();
-  if (!onboarded) return <Redirect to="/splash" />;
-  if (!user) return <Redirect to="/auth" />;
-  return null;
 }
 
 function App() {
