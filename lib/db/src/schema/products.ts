@@ -1,4 +1,4 @@
-import { pgTable, text, serial, real, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const productsTable = pgTable("products", {
   storeId: integer("store_id").notNull(),
   imageUrl: text("image_url").notNull(),
   images: text("images").notNull().default("[]"),
+  videoUrl: text("video_url"),
   brand: text("brand"),
   inStock: boolean("in_stock").notNull().default(true),
   stockQuantity: integer("stock_quantity"),
@@ -22,6 +23,10 @@ export const productsTable = pgTable("products", {
   isNew: boolean("is_new").notNull().default(false),
   deliveryDays: integer("delivery_days"),
   tags: text("tags").notNull().default("[]"),
+  occasionTags: text("occasion_tags").notNull().default("[]"),
+  views: integer("views").notNull().default(0),
+  salesCount: integer("sales_count").notNull().default(0),
+  offerEndsAt: timestamp("offer_ends_at"),
 });
 
 export const insertProductSchema = createInsertSchema(productsTable).omit({ id: true });
