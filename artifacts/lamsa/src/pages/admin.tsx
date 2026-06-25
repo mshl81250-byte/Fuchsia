@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import {
-  useGetDashboardStats, useAdminListUsers, useAdminListOrders,
-  useAdminListCoupons, useAdminCreateCoupon
+  useGetDashboardStats, getGetDashboardStatsQueryKey,
+  useAdminListUsers, getAdminListUsersQueryKey,
+  useAdminListOrders, getAdminListOrdersQueryKey,
+  useAdminListCoupons, getAdminListCouponsQueryKey,
+  useAdminCreateCoupon
 } from "@workspace/api-client-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -34,10 +37,10 @@ export default function Admin() {
 
   const isAdmin = !!adminToken;
 
-  const statsQuery = useGetDashboardStats({ query: { enabled: isAdmin } });
-  const usersQuery = useAdminListUsers({ query: { enabled: isAdmin && section === "users" } });
-  const ordersQuery = useAdminListOrders({ query: { enabled: isAdmin && section === "orders" } });
-  const couponsQuery = useAdminListCoupons({ query: { enabled: isAdmin && section === "coupons" } });
+  const statsQuery = useGetDashboardStats({ query: { enabled: isAdmin, queryKey: getGetDashboardStatsQueryKey() } });
+  const usersQuery = useAdminListUsers({ query: { enabled: isAdmin && section === "users", queryKey: getAdminListUsersQueryKey() } });
+  const ordersQuery = useAdminListOrders({ query: { enabled: isAdmin && section === "orders", queryKey: getAdminListOrdersQueryKey() } });
+  const couponsQuery = useAdminListCoupons({ query: { enabled: isAdmin && section === "coupons", queryKey: getAdminListCouponsQueryKey() } });
   const createCoupon = useAdminCreateCoupon();
 
   function handleLogin(e: React.FormEvent) {
@@ -281,7 +284,7 @@ export default function Admin() {
                       <tr key={c.id} className="border-b border-[#E8E0D0]/50">
                         <td className="p-4 font-mono font-bold text-[#C9A84C]" dir="ltr">{c.code}</td>
                         <td className="p-4">{c.discountValue}{c.discountType === "percentage" ? "%" : " ر.ي"}</td>
-                        <td className="p-4 text-[#6B6B6B]">{toArabicNumerals(c.usageCount)}</td>
+                        <td className="p-4 text-[#6B6B6B]">{toArabicNumerals(c.usageCount ?? 0)}</td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${c.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                             {c.isActive ? "فعال" : "معطل"}

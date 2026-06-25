@@ -211,7 +211,7 @@ export default function Checkout() {
             <div className="flex flex-col gap-2 text-sm border-t border-[#E8E0D0] pt-4 mb-5">
               <div className="flex justify-between text-[#6B6B6B]"><span>المجموع الفرعي</span><span>{formatCurrency(cart.subtotal)}</span></div>
               <div className="flex justify-between text-[#6B6B6B]"><span>رسوم التوصيل</span><span>{formatCurrency(cart.deliveryFee)}</span></div>
-              {cart.discount > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span>-{formatCurrency(cart.discount)}</span></div>}
+              {(cart.discount ?? 0) > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span>-{formatCurrency(cart.discount ?? 0)}</span></div>}
               <div className="flex justify-between text-xl font-bold text-[#C9A84C] pt-2 border-t border-[#E8E0D0]">
                 <span>الإجمالي</span><span>{formatCurrency(cart.total)}</span>
               </div>
