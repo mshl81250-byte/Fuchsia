@@ -1,12 +1,14 @@
-import { pgTable, text, serial, real, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const ordersTable = pgTable("orders", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull(),
+  userId: integer("user_id"),
   status: text("status").notNull().default("received"),
   total: real("total").notNull(),
+  subtotal: real("subtotal").notNull().default(0),
   deliveryFee: real("delivery_fee").notNull().default(500),
   discount: real("discount").notNull().default(0),
   deliveryAddress: text("delivery_address"),
@@ -15,6 +17,12 @@ export const ordersTable = pgTable("orders", {
   paymentMethod: text("payment_method").notNull().default("cash_on_delivery"),
   couponCode: text("coupon_code"),
   notes: text("notes"),
+  isGift: boolean("is_gift").notNull().default(false),
+  giftRecipientName: text("gift_recipient_name"),
+  giftMessage: text("gift_message"),
+  giftCardStyle: text("gift_card_style"),
+  hidePrice: boolean("hide_price").notNull().default(false),
+  scheduledDelivery: timestamp("scheduled_delivery"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
