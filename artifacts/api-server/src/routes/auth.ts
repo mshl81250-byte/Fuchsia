@@ -7,11 +7,11 @@ import crypto from "crypto";
 const router = Router();
 
 function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password + "lamsa_salt_2024").digest("hex");
+  return crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
 }
 
 function generateToken(userId: number): string {
-  return crypto.createHash("sha256").update(`${userId}_${Date.now()}_lamsa`).digest("hex");
+  return crypto.createHash("sha256").update(`${userId}_${Date.now()}_fuchsia`).digest("hex");
 }
 
 function generateReferralCode(name: string): string {
@@ -85,7 +85,7 @@ router.post("/guest", async (req, res): Promise<void> => {
     const guestName = `زائر_${Date.now()}`;
     const [user] = await db.insert(usersTable).values({
       fullName: "زائر",
-      email: `${guestName}@guest.lamsa`,
+      email: `${guestName}@guest.fuchsia`,
       isGuest: true,
       rewardPoints: 0,
     }).returning();

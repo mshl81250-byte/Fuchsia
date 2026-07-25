@@ -87,8 +87,8 @@ export default function Home() {
         ) : (
           <div className="relative h-[300px] md:h-[500px] w-full bg-card flex items-center justify-center">
              <div className="text-center">
-                <h2 className="text-3xl font-serif text-primary font-bold">لمسة</h2>
-                <p className="text-muted-foreground mt-2">فخامة بلمسة واحدة</p>
+                <h2 className="text-3xl font-serif text-primary font-bold">فوشيا</h2>
+                <p className="text-muted-foreground mt-2">روعة المناسبات في مكان واحد</p>
              </div>
           </div>
         )}

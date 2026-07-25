@@ -13,8 +13,8 @@ export interface AuthUser {
   createdAt: string;
 }
 
-const STORAGE_KEY = "lamsa_user";
-const TOKEN_KEY = "lamsa_token";
+const STORAGE_KEY = "fuchsia_user";
+const TOKEN_KEY = "fuchsia_token";
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(() => {

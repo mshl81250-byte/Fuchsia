@@ -35,7 +35,7 @@ router.post("/login", async (req, res): Promise<void> => {
       return;
     }
 
-    const token = crypto.createHash("sha256").update(`${store.id}_vendor_lamsa`).digest("hex");
+    const token = crypto.createHash("sha256").update(`${store.id}_vendor_fuchsia`).digest("hex");
     res.json({ store, token });
   } catch (err) {
     req.log.error({ err }, "Vendor login failed");

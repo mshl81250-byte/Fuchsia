@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 
-// Generates a simple UUID-like string if crypto.randomUUID isn't available
 function generateSessionId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -12,10 +11,10 @@ export function useSession() {
   const [sessionId, setSessionId] = useState<string>('');
 
   useEffect(() => {
-    let currentId = localStorage.getItem('lamsa_session_id');
+    let currentId = localStorage.getItem('fuchsia_session_id');
     if (!currentId) {
       currentId = generateSessionId();
-      localStorage.setItem('lamsa_session_id', currentId);
+      localStorage.setItem('fuchsia_session_id', currentId);
     }
     setSessionId(currentId);
   }, []);

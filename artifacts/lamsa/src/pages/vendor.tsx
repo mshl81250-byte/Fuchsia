@@ -26,7 +26,7 @@ interface VendorSession { storeId: number; storeName: string; token: string }
 
 export default function Vendor() {
   const [session, setSession] = useState<VendorSession | null>(() => {
-    try { return JSON.parse(localStorage.getItem("lamsa_vendor") || "null"); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem("fuchsia_vendor") || "null"); } catch { return null; }
   });
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -50,7 +50,7 @@ export default function Vendor() {
     try {
       const res = await loginMutation.mutateAsync({ data: { email: loginEmail, password: loginPassword } });
       const s = { storeId: res.store.id, storeName: res.store.nameAr, token: res.token };
-      localStorage.setItem("lamsa_vendor", JSON.stringify(s));
+      localStorage.setItem("fuchsia_vendor", JSON.stringify(s));
       setSession(s);
     } catch {
       toast({ variant: "destructive", title: "خطأ", description: "بيانات الدخول غير صحيحة" });
@@ -115,8 +115,8 @@ export default function Vendor() {
             <div className="space-y-1.5">
               <Label>اسم المتجر أو رقم التواصل</Label>
               <Input value={loginEmail} onChange={e => setLoginEmail(e.target.value)}
-                placeholder="متجر لمسة / 777123456"
-                className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" required />
+                placeholder="متجر فوشيا / 777123456"
+                className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" required />
             </div>
             <div className="space-y-1.5">
               <Label>كلمة المرور</Label>
@@ -125,7 +125,7 @@ export default function Vendor() {
             </div>
             <button type="submit" disabled={loginMutation.isPending}
               className="w-full h-12 rounded-2xl text-white font-bold"
-              style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)" }}>
+              style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
               {loginMutation.isPending ? "..." : "دخول"}
             </button>
           </form>
@@ -142,12 +142,12 @@ export default function Vendor() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F9F6F0] flex" dir="rtl">
-      <aside className="w-60 bg-white border-l border-[#E8E0D0] flex flex-col sticky top-0 h-screen">
-        <div className="flex items-center gap-3 p-5 border-b border-[#E8E0D0]">
+    <div className="min-h-screen bg-[#FFF0F6] flex" dir="rtl">
+      <aside className="w-60 bg-white border-l border-[#F0D4E5] flex flex-col sticky top-0 h-screen">
+        <div className="flex items-center gap-3 p-5 border-b border-[#F0D4E5]">
           <Logo className="w-9 h-9" />
           <div>
-            <p className="font-bold text-[#C9A84C] text-sm">{session.storeName}</p>
+            <p className="font-bold text-[#D81B60] text-sm">{session.storeName}</p>
             <p className="text-[#6B6B6B] text-xs">لوحة التاجر</p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function Vendor() {
             return (
               <button key={item.id} onClick={() => setSection(item.id)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors w-full text-right ${
-                  section === item.id ? "bg-[#FDF8EC] text-[#C9A84C]" : "text-[#6B6B6B] hover:bg-[#F9F6F0]"
+                  section === item.id ? "bg-[#FFF0F6] text-[#D81B60]" : "text-[#6B6B6B] hover:bg-[#FFF0F6]"
                 }`}>
                 <Icon className="w-4 h-4" />
                 {item.label}
@@ -165,7 +165,7 @@ export default function Vendor() {
             );
           })}
         </nav>
-        <button onClick={() => { localStorage.removeItem("lamsa_vendor"); setSession(null); }}
+        <button onClick={() => { localStorage.removeItem("fuchsia_vendor"); setSession(null); }}
           className="flex items-center gap-3 px-4 py-4 text-[#6B6B6B] hover:text-red-500 text-sm m-3 rounded-xl hover:bg-red-50 transition-colors">
           <LogOut className="w-4 h-4" />
           تسجيل الخروج

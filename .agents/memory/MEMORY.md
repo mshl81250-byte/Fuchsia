@@ -1,1 +1,1 @@
-- [Lamsa app architecture](lamsa-arch.md) — Full-stack Arabic beauty delivery app, key auth/routing/payment decisions
+- [Fuchsia app architecture](lamsa-arch.md) — Arabic women's events platform (فوشيا), rebranded from لمسة; fuchsia #D81B60, new auth keys, DB schema
