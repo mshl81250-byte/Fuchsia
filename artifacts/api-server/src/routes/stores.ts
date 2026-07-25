@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+router.get("/", async (req, res): Promise<void> => {
   try {
     const stores = await db.select().from(storesTable).orderBy(storesTable.id);
     res.json(stores);
@@ -15,7 +15,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/featured", async (req, res) => {
+router.get("/featured", async (req, res): Promise<void> => {
   try {
     const stores = await db.select().from(storesTable).where(eq(storesTable.isFeatured, true));
     res.json(stores);
@@ -25,11 +25,14 @@ router.get("/featured", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const [store] = await db.select().from(storesTable).where(eq(storesTable.id, id));
-    if (!store) return res.status(404).json({ error: "Store not found" });
+    if (!store) {
+      res.status(404).json({ error: "Store not found" });
+      return;
+    }
     res.json(store);
   } catch (err) {
     req.log.error({ err }, "Failed to get store");
@@ -37,7 +40,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res): Promise<void> => {
   try {
     const data = insertStoreSchema.parse(req.body);
     const [store] = await db.insert(storesTable).values(data).returning();

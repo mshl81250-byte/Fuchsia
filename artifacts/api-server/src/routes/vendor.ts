@@ -1,19 +1,28 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { storesTable, productsTable, ordersTable, orderItemsTable } from "@workspace/db";
-import { eq, desc, sum, count, and } from "drizzle-orm";
+import { eq, desc, count } from "drizzle-orm";
 import crypto from "crypto";
 
 const router = Router();
 
 function parseProduct(p: typeof productsTable.$inferSelect) {
-  return { ...p, images: JSON.parse(p.images || "[]"), tags: JSON.parse(p.tags || "[]") };
+  return {
+    ...p,
+    images: JSON.parse(p.images || "[]"),
+    tags: JSON.parse(p.tags || "[]"),
+    occasionTags: JSON.parse(p.occasionTags || "[]"),
+    offerEndsAt: p.offerEndsAt ? p.offerEndsAt.toISOString() : null,
+  };
 }
 
-router.post("/login", async (req, res) => {
+router.post("/login", async (req, res): Promise<void> => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "بيانات مفقودة" });
+    if (!email || !password) {
+      res.status(400).json({ error: "بيانات مفقودة" });
+      return;
+    }
 
     const stores = await db.select().from(storesTable);
     const store = stores.find(s =>
@@ -21,7 +30,10 @@ router.post("/login", async (req, res) => {
       (s.phone && s.phone === email)
     );
 
-    if (!store) return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+    if (!store) {
+      res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+      return;
+    }
 
     const token = crypto.createHash("sha256").update(`${store.id}_vendor_lamsa`).digest("hex");
     res.json({ store, token });
@@ -31,10 +43,13 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.get("/products", async (req, res) => {
+router.get("/products", async (req, res): Promise<void> => {
   try {
     const storeId = parseInt(req.query.storeId as string);
-    if (!storeId) return res.status(400).json({ error: "storeId مطلوب" });
+    if (!storeId) {
+      res.status(400).json({ error: "storeId مطلوب" });
+      return;
+    }
 
     const products = await db.select().from(productsTable).where(eq(productsTable.storeId, storeId));
     res.json(products.map(parseProduct));
@@ -44,22 +59,31 @@ router.get("/products", async (req, res) => {
   }
 });
 
-router.get("/orders", async (req, res) => {
+router.get("/orders", async (req, res): Promise<void> => {
   try {
     const storeId = parseInt(req.query.storeId as string);
-    if (!storeId) return res.status(400).json({ error: "storeId مطلوب" });
+    if (!storeId) {
+      res.status(400).json({ error: "storeId مطلوب" });
+      return;
+    }
 
     const storeProducts = await db.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.storeId, storeId));
     const productIds = storeProducts.map(p => p.id);
 
-    if (productIds.length === 0) return res.json([]);
+    if (productIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const orderItems = await db.select().from(orderItemsTable);
     const relevantOrderIds = [...new Set(
       orderItems.filter(oi => productIds.includes(oi.productId)).map(oi => oi.orderId)
     )];
 
-    if (relevantOrderIds.length === 0) return res.json([]);
+    if (relevantOrderIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const orders = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt));
     const relevant = orders.filter(o => relevantOrderIds.includes(o.id));
@@ -76,10 +100,13 @@ router.get("/orders", async (req, res) => {
   }
 });
 
-router.get("/stats", async (req, res) => {
+router.get("/stats", async (req, res): Promise<void> => {
   try {
     const storeId = parseInt(req.query.storeId as string);
-    if (!storeId) return res.status(400).json({ error: "storeId مطلوب" });
+    if (!storeId) {
+      res.status(400).json({ error: "storeId مطلوب" });
+      return;
+    }
 
     const [productCount] = await db.select({ count: count() }).from(productsTable).where(eq(productsTable.storeId, storeId));
 
@@ -87,7 +114,8 @@ router.get("/stats", async (req, res) => {
     const productIds = storeProducts.map(p => p.id);
 
     if (productIds.length === 0) {
-      return res.json({ storeId, totalProducts: 0, totalOrders: 0, totalRevenue: 0, pendingOrders: 0, thisMonthRevenue: 0 });
+      res.json({ storeId, totalProducts: 0, totalOrders: 0, totalRevenue: 0, pendingOrders: 0, thisMonthRevenue: 0 });
+      return;
     }
 
     const orderItems = await db.select().from(orderItemsTable);

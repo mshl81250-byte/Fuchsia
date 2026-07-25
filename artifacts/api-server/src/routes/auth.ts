@@ -23,15 +23,19 @@ function safeUser(user: typeof usersTable.$inferSelect) {
   return { ...rest, createdAt: user.createdAt.toISOString() };
 }
 
-router.post("/register", async (req, res) => {
+router.post("/register", async (req, res): Promise<void> => {
   try {
     const { fullName, email, password, phone } = req.body;
     if (!fullName || !email || !password) {
-      return res.status(400).json({ error: "البيانات المطلوبة مفقودة" });
+      res.status(400).json({ error: "البيانات المطلوبة مفقودة" });
+      return;
     }
 
     const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-    if (existing) return res.status(409).json({ error: "البريد الإلكتروني مستخدم بالفعل" });
+    if (existing) {
+      res.status(409).json({ error: "البريد الإلكتروني مستخدم بالفعل" });
+      return;
+    }
 
     const [user] = await db.insert(usersTable).values({
       fullName,
@@ -50,16 +54,23 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", async (req, res): Promise<void> => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "البيانات مفقودة" });
+    if (!email || !password) {
+      res.status(400).json({ error: "البيانات مفقودة" });
+      return;
+    }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
-    if (!user || user.isGuest) return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+    if (!user || user.isGuest) {
+      res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+      return;
+    }
 
     if (user.passwordHash !== hashPassword(password)) {
-      return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+      res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+      return;
     }
 
     res.json({ user: safeUser(user), token: generateToken(user.id) });
@@ -69,7 +80,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
-router.post("/guest", async (req, res) => {
+router.post("/guest", async (req, res): Promise<void> => {
   try {
     const guestName = `زائر_${Date.now()}`;
     const [user] = await db.insert(usersTable).values({
@@ -86,13 +97,19 @@ router.post("/guest", async (req, res) => {
   }
 });
 
-router.get("/profile", async (req, res) => {
+router.get("/profile", async (req, res): Promise<void> => {
   try {
     const userId = parseInt(req.query.userId as string);
-    if (!userId) return res.status(400).json({ error: "userId مطلوب" });
+    if (!userId) {
+      res.status(400).json({ error: "userId مطلوب" });
+      return;
+    }
 
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
-    if (!user) return res.status(404).json({ error: "المستخدم غير موجود" });
+    if (!user) {
+      res.status(404).json({ error: "المستخدم غير موجود" });
+      return;
+    }
 
     res.json(safeUser(user));
   } catch (err) {
@@ -101,10 +118,13 @@ router.get("/profile", async (req, res) => {
   }
 });
 
-router.patch("/profile", async (req, res) => {
+router.patch("/profile", async (req, res): Promise<void> => {
   try {
     const { userId, fullName, phone, address, avatarUrl } = req.body;
-    if (!userId) return res.status(400).json({ error: "userId مطلوب" });
+    if (!userId) {
+      res.status(400).json({ error: "userId مطلوب" });
+      return;
+    }
 
     const updates: Record<string, unknown> = {};
     if (fullName !== undefined) updates.fullName = fullName;
