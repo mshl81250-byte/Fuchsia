@@ -5,10 +5,13 @@ import { eq, avg, count, desc } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
+router.get("/", async (req, res): Promise<void> => {
   try {
     const productId = parseInt(req.query.productId as string);
-    if (!productId) return res.status(400).json({ error: "productId required" });
+    if (!productId) {
+      res.status(400).json({ error: "productId required" });
+      return;
+    }
     const reviews = await db.select().from(reviewsTable).where(eq(reviewsTable.productId, productId)).orderBy(desc(reviewsTable.createdAt));
     res.json(reviews.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
   } catch (err) {
@@ -17,7 +20,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res): Promise<void> => {
   try {
     const data = insertReviewSchema.parse(req.body);
     const [review] = await db.insert(reviewsTable).values(data).returning();

@@ -10,18 +10,25 @@ function parseProduct(p: typeof productsTable.$inferSelect) {
     ...p,
     images: JSON.parse(p.images || "[]"),
     tags: JSON.parse(p.tags || "[]"),
+    occasionTags: JSON.parse(p.occasionTags || "[]"),
   };
 }
 
-router.get("/", async (req, res) => {
+router.get("/", async (req, res): Promise<void> => {
   try {
     const userId = parseInt(req.query.userId as string);
-    if (!userId) return res.status(400).json({ error: "userId مطلوب" });
+    if (!userId) {
+      res.status(400).json({ error: "userId مطلوب" });
+      return;
+    }
 
     const favs = await db.select().from(favoritesTable).where(eq(favoritesTable.userId, userId));
     const productIds = favs.map((f) => f.productId);
 
-    if (productIds.length === 0) return res.json([]);
+    if (productIds.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const products = await db.select().from(productsTable).where(inArray(productsTable.id, productIds));
     res.json(products.map(parseProduct));
@@ -31,10 +38,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res): Promise<void> => {
   try {
     const { userId, productId } = req.body;
-    if (!userId || !productId) return res.status(400).json({ error: "بيانات مفقودة" });
+    if (!userId || !productId) {
+      res.status(400).json({ error: "بيانات مفقودة" });
+      return;
+    }
 
     const [existing] = await db.select().from(favoritesTable).where(
       and(eq(favoritesTable.userId, userId), eq(favoritesTable.productId, productId))
@@ -42,7 +52,8 @@ router.post("/", async (req, res) => {
 
     if (existing) {
       await db.delete(favoritesTable).where(eq(favoritesTable.id, existing.id));
-      return res.json({ isFavorite: false });
+      res.json({ isFavorite: false });
+      return;
     }
 
     await db.insert(favoritesTable).values({ userId, productId });

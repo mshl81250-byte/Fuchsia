@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/banners", async (req, res) => {
+router.get("/banners", async (req, res): Promise<void> => {
   try {
     const banners = await db.select().from(bannersTable).where(eq(bannersTable.isActive, true)).orderBy(bannersTable.sortOrder);
     res.json(banners);
@@ -15,19 +15,24 @@ router.get("/banners", async (req, res) => {
   }
 });
 
-router.post("/coupons/validate", async (req, res) => {
+router.post("/coupons/validate", async (req, res): Promise<void> => {
   try {
     const { code, cartTotal } = req.body;
-    if (!code) return res.status(400).json({ error: "code required" });
+    if (!code) {
+      res.status(400).json({ error: "code required" });
+      return;
+    }
 
     const [coupon] = await db.select().from(couponsTable).where(eq(couponsTable.code, code.toUpperCase()));
 
     if (!coupon || !coupon.isActive) {
-      return res.json({ valid: false, message: "الكوبون غير صحيح أو منتهي الصلاحية" });
+      res.json({ valid: false, message: "الكوبون غير صحيح أو منتهي الصلاحية" });
+      return;
     }
 
     if (coupon.minCartTotal && cartTotal && cartTotal < coupon.minCartTotal) {
-      return res.json({ valid: false, message: `الحد الأدنى للطلب ${coupon.minCartTotal} ريال` });
+      res.json({ valid: false, message: `الحد الأدنى للطلب ${coupon.minCartTotal} ريال` });
+      return;
     }
 
     let discountAmount = 0;

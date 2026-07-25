@@ -22,10 +22,13 @@ async function buildCart(sessionId: string) {
   };
 }
 
-router.get("/", async (req, res) => {
+router.get("/", async (req, res): Promise<void> => {
   try {
     const sessionId = req.query.sessionId as string;
-    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+    if (!sessionId) {
+      res.status(400).json({ error: "sessionId required" });
+      return;
+    }
     res.json(await buildCart(sessionId));
   } catch (err) {
     req.log.error({ err }, "Failed to get cart");
@@ -33,13 +36,19 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", async (req, res): Promise<void> => {
   try {
     const { sessionId, productId, quantity, giftWrapping, giftMessage } = req.body;
-    if (!sessionId || !productId || !quantity) return res.status(400).json({ error: "Missing required fields" });
+    if (!sessionId || !productId || !quantity) {
+      res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
 
     const [product] = await db.select().from(productsTable).where(eq(productsTable.id, productId));
-    if (!product) return res.status(404).json({ error: "Product not found" });
+    if (!product) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
 
     const price = product.discountPrice ?? product.price;
 
@@ -69,7 +78,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.patch("/:itemId", async (req, res) => {
+router.patch("/:itemId", async (req, res): Promise<void> => {
   try {
     const itemId = parseInt(req.params.itemId);
     const { quantity } = req.body;
@@ -87,11 +96,14 @@ router.patch("/:itemId", async (req, res) => {
   }
 });
 
-router.delete("/:itemId", async (req, res) => {
+router.delete("/:itemId", async (req, res): Promise<void> => {
   try {
     const itemId = parseInt(req.params.itemId);
     const [item] = await db.select().from(cartItemsTable).where(eq(cartItemsTable.id, itemId));
-    if (!item) return res.status(404).json({ error: "Item not found" });
+    if (!item) {
+      res.status(404).json({ error: "Item not found" });
+      return;
+    }
     const sessionId = item.sessionId;
     await db.delete(cartItemsTable).where(eq(cartItemsTable.id, itemId));
     res.json(await buildCart(sessionId));
