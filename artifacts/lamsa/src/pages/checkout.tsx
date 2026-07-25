@@ -78,7 +78,7 @@ export default function Checkout() {
         },
       });
       queryClient.invalidateQueries({ queryKey: getGetCartQueryKey({ sessionId }) });
-      toast({ title: "تم استلام طلبك!", description: "شكراً لتسوقك من لمسة. سيتم التواصل معك قريباً." });
+      toast({ title: "تم استلام طلبك!", description: "شكراً لاختيارك فوشيا. سيتم التواصل معك قريباً." });
       setLocation(`/order/${order.id}`);
     } catch {
       toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ أثناء إتمام الطلب" });

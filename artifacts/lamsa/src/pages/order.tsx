@@ -53,7 +53,7 @@ export default function OrderDetail() {
         
         <PackageCheck className="w-16 h-16 text-primary mb-4" />
         <h1 className="text-3xl font-serif font-bold text-foreground mb-2">طلب رقم #{toArabicNumerals(order.id)}</h1>
-        <p className="text-muted-foreground">شكراً لتسوقك من لمسة. طلبك الآن قيد المعالجة.</p>
+        <p className="text-muted-foreground">شكراً لاختيارك فوشيا. طلبك الآن قيد المعالجة.</p>
       </div>
 
       {/* Status Progress */}

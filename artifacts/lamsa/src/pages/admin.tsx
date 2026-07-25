@@ -27,7 +27,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function Admin() {
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem("lamsa_admin") || "");
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem("fuchsia_admin") || "");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [section, setSection] = useState<Section>("overview");
@@ -45,8 +45,8 @@ export default function Admin() {
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (loginEmail === "admin@lamsa.ye" && loginPassword === "admin123") {
-      localStorage.setItem("lamsa_admin", "admin");
+    if (loginEmail === "admin@fuchsia.ye" && loginPassword === "admin123") {
+      localStorage.setItem("fuchsia_admin", "admin");
       setAdminToken("admin");
     } else {
       toast({ variant: "destructive", title: "خطأ", description: "بيانات الدخول غير صحيحة" });
@@ -107,12 +107,12 @@ export default function Admin() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F9F6F0] flex" dir="rtl">
-      <aside className="w-64 bg-white border-l border-[#E8E0D0] flex flex-col shadow-sm sticky top-0 h-screen">
-        <div className="flex items-center gap-3 p-6 border-b border-[#E8E0D0]">
+    <div className="min-h-screen bg-[#FFF0F6] flex" dir="rtl">
+      <aside className="w-64 bg-white border-l border-[#F0D4E5] flex flex-col shadow-sm sticky top-0 h-screen">
+        <div className="flex items-center gap-3 p-6 border-b border-[#F0D4E5]">
           <Logo className="w-10 h-10" />
           <div>
-            <p className="font-bold text-[#C9A84C] font-serif text-lg">لمسة</p>
+            <p className="font-bold text-[#D81B60] font-serif text-lg">فوشيا</p>
             <p className="text-[#6B6B6B] text-xs">لوحة الإدارة</p>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function Admin() {
             return (
               <button key={item.id} onClick={() => setSection(item.id)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors w-full text-right ${
-                  section === item.id ? "bg-[#FDF8EC] text-[#C9A84C]" : "text-[#6B6B6B] hover:bg-[#F9F6F0]"
+                  section === item.id ? "bg-[#FFF0F6] text-[#D81B60]" : "text-[#6B6B6B] hover:bg-[#FFF0F6]"
                 }`}>
                 <Icon className="w-5 h-5" />
                 {item.label}
@@ -130,7 +130,7 @@ export default function Admin() {
             );
           })}
         </nav>
-        <button onClick={() => { localStorage.removeItem("lamsa_admin"); setAdminToken(""); }}
+        <button onClick={() => { localStorage.removeItem("fuchsia_admin"); setAdminToken(""); }}
           className="flex items-center gap-3 px-4 py-4 text-[#6B6B6B] hover:text-red-500 text-sm m-4 rounded-xl hover:bg-red-50 transition-colors">
           <LogOut className="w-5 h-5" />
           تسجيل الخروج

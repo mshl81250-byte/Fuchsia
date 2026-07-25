@@ -3,29 +3,29 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Sparkles, Gift, Truck } from "lucide-react";
+import { ChevronLeft, Flower2, Gift, Star } from "lucide-react";
 
 const slides = [
   {
-    icon: Sparkles,
-    image: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&h=400&fit=crop",
-    title: "أفضل مستحضرات التجميل",
-    subtitle: "عطور وكريمات فاخرة من أكبر الماركات العالمية",
-    color: "#C9A84C",
+    icon: Flower2,
+    image: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=600&h=400&fit=crop",
+    title: "كوش أعراس فاخرة",
+    subtitle: "نصمم كوش أحلامك بأرقى الزهور والديكورات الملكية",
+    color: "#D81B60",
   },
   {
     icon: Gift,
     image: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=600&h=400&fit=crop",
-    title: "أجمل الهدايا",
-    subtitle: "هدايا مميزة بتغليف فاخر لكل مناسبة",
-    color: "#E8A0B0",
+    title: "تجهيزات الخطوبة",
+    subtitle: "صناديق خطوبة وهدايا فاخرة بتغليف ملكي لا يُنسى",
+    color: "#F48FB1",
   },
   {
-    icon: Truck,
-    image: "https://images.unsplash.com/photo-1571781926291-c477ebfd024b?w=600&h=400&fit=crop",
-    title: "توصيل سريع داخل صنعاء",
-    subtitle: "توصيل في نفس اليوم لجميع مناطق صنعاء",
-    color: "#C9A84C",
+    icon: Star,
+    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop",
+    title: "هدايا لكل مناسبة",
+    subtitle: "هدايا مميزة للزواج، التخرج، المواليد، وجميع المناسبات",
+    color: "#D81B60",
   },
 ];
 
@@ -35,7 +35,7 @@ export default function Splash() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   function goToAuth() {
-    localStorage.setItem("lamsa_onboarded", "true");
+    localStorage.setItem("fuchsia_onboarded", "true");
     setLocation("/auth");
   }
 
@@ -58,7 +58,7 @@ export default function Splash() {
           className="flex flex-col items-center gap-6"
         >
           <motion.div
-            animate={{ boxShadow: ["0 0 0px #C9A84C40", "0 0 40px #C9A84C80", "0 0 0px #C9A84C40"] }}
+            animate={{ boxShadow: ["0 0 0px #D81B6040", "0 0 40px #D81B6080", "0 0 0px #D81B6040"] }}
             transition={{ duration: 2, repeat: Infinity }}
             className="rounded-full p-2"
           >
@@ -70,8 +70,8 @@ export default function Splash() {
             transition={{ delay: 0.4, duration: 0.5 }}
             className="text-center"
           >
-            <h1 className="font-serif text-5xl font-bold text-[#C9A84C]">لمسة</h1>
-            <p className="mt-2 text-[#6B6B6B] text-base">فخامة بلمسة واحدة</p>
+            <h1 className="font-serif text-5xl font-bold text-[#D81B60]">فوشيا</h1>
+            <p className="mt-2 text-[#6B6B6B] text-base">روعة المناسبات في مكان واحد</p>
           </motion.div>
         </motion.div>
       </div>
@@ -134,7 +134,7 @@ export default function Splash() {
                     className="h-2 rounded-full transition-all duration-300"
                     style={{
                       width: i === currentSlide ? "24px" : "8px",
-                      backgroundColor: i === currentSlide ? "#C9A84C" : "#E8E0D0",
+                      backgroundColor: i === currentSlide ? "#D81B60" : "#F0D4E5",
                     }}
                   />
                 ))}
@@ -144,7 +144,7 @@ export default function Splash() {
                 whileTap={{ scale: 0.97 }}
                 onClick={nextSlide}
                 className="w-full h-14 rounded-2xl text-white text-lg font-bold flex items-center justify-center gap-2"
-                style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)", boxShadow: "0 4px 20px #C9A84C50" }}
+                style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)", boxShadow: "0 4px 20px #D81B6050" }}
               >
                 {currentSlide < slides.length - 1 ? (
                   <>
@@ -152,7 +152,7 @@ export default function Splash() {
                     <ChevronLeft className="w-5 h-5" />
                   </>
                 ) : (
-                  "ابدأ التسوق"
+                  "ابدأي الآن"
                 )}
               </motion.button>
             </div>

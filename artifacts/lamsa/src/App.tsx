@@ -32,7 +32,7 @@ const queryClient = new QueryClient({
 });
 
 function useAuthRedirect() {
-  const onboarded = localStorage.getItem("lamsa_onboarded");
+  const onboarded = localStorage.getItem("fuchsia_onboarded");
   const user = getStoredUser();
   if (!onboarded) return "/splash";
   if (!user) return "/auth";

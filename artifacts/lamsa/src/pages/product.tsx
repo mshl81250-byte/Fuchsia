@@ -169,7 +169,7 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex flex-col">
                   <Label htmlFor="gift-wrapping" className="text-base font-bold cursor-pointer">تغليف كهدية؟</Label>
-                  <span className="text-sm text-muted-foreground">أضف لمسة فاخرة لهديتك</span>
+                  <span className="text-sm text-muted-foreground">اجعل هديتك أكثر تميزاً وفخامة</span>
                 </div>
               </div>
               <Switch 
