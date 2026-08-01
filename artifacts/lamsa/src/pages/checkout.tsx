@@ -98,7 +98,7 @@ export default function Checkout() {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <h2 className="text-2xl font-bold mb-4 text-[#1A1A1A]">عذراً، سلتك فارغة</h2>
-        <Button asChild style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3)" }} className="text-white">
+        <Button asChild style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1)" }} className="text-white">
           <Link href="/">العودة للرئيسية</Link>
         </Button>
       </div>
@@ -112,33 +112,33 @@ export default function Checkout() {
         <div className="flex-1">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="bg-white rounded-2xl border border-[#E8E0D0] p-6 shadow-sm space-y-5">
-                <h3 className="font-bold text-lg text-[#1A1A1A] border-b border-[#E8E0D0] pb-4">معلومات التوصيل</h3>
+              <div className="bg-white rounded-2xl border border-[#F0D4E5] p-6 shadow-sm space-y-5">
+                <h3 className="font-bold text-lg text-[#1A1A1A] border-b border-[#F0D4E5] pb-4">معلومات التوصيل</h3>
                 <FormField control={form.control} name="customerName" render={({ field }) => (
                   <FormItem>
                     <Label className="text-[#1A1A1A] font-medium">الاسم الكامل</Label>
-                    <FormControl><Input placeholder="الاسم ثلاثي" className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" {...field} /></FormControl>
+                    <FormControl><Input placeholder="الاسم ثلاثي" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="customerPhone" render={({ field }) => (
                   <FormItem>
                     <Label className="text-[#1A1A1A] font-medium">رقم الهاتف</Label>
-                    <FormControl><Input placeholder="77X XXX XXX" dir="ltr" className="text-right bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" {...field} /></FormControl>
+                    <FormControl><Input placeholder="77X XXX XXX" dir="ltr" className="text-right bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="deliveryAddress" render={({ field }) => (
                   <FormItem>
                     <Label className="text-[#1A1A1A] font-medium">عنوان التوصيل في صنعاء</Label>
-                    <FormControl><Textarea placeholder="المنطقة، الشارع، أقرب معلم بارز..." className="resize-none bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" {...field} /></FormControl>
+                    <FormControl><Textarea placeholder="المنطقة، الشارع، أقرب معلم بارز..." className="resize-none bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
               </div>
 
-              <div className="bg-white rounded-2xl border border-[#E8E0D0] p-6 shadow-sm space-y-4">
-                <h3 className="font-bold text-lg text-[#1A1A1A] border-b border-[#E8E0D0] pb-4">طريقة الدفع</h3>
+              <div className="bg-white rounded-2xl border border-[#F0D4E5] p-6 shadow-sm space-y-4">
+                <h3 className="font-bold text-lg text-[#1A1A1A] border-b border-[#F0D4E5] pb-4">طريقة الدفع</h3>
                 <Controller control={form.control} name="paymentMethod" render={({ field }) => (
                   <div className="grid grid-cols-2 gap-3">
                     {PAYMENT_METHODS.map(method => {
@@ -152,14 +152,14 @@ export default function Checkout() {
                           onClick={() => field.onChange(method.value)}
                           className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-right ${
                             isSelected
-                              ? "border-[#C9A84C] bg-[#FDF8EC]"
-                              : "border-[#E8E0D0] bg-white hover:border-[#C9A84C]/50"
+                              ? "border-[#D81B60] bg-[#FFF0F6]"
+                              : "border-[#F0D4E5] bg-white hover:border-[#D81B60]/50"
                           }`}
                         >
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSelected ? "bg-[#C9A84C]" : "bg-[#F9F6F0]"}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSelected ? "bg-[#D81B60]" : "bg-[#FFF0F6]"}`}>
                             <Icon className={`w-4 h-4 ${isSelected ? "text-white" : "text-[#6B6B6B]"}`} />
                           </div>
-                          <span className={`text-sm font-medium ${isSelected ? "text-[#C9A84C]" : "text-[#1A1A1A]"}`}>
+                          <span className={`text-sm font-medium ${isSelected ? "text-[#D81B60]" : "text-[#1A1A1A]"}`}>
                             {method.label}
                           </span>
                         </motion.button>
@@ -169,11 +169,11 @@ export default function Checkout() {
                 )} />
               </div>
 
-              <div className="bg-white rounded-2xl border border-[#E8E0D0] p-6 shadow-sm">
+              <div className="bg-white rounded-2xl border border-[#F0D4E5] p-6 shadow-sm">
                 <FormField control={form.control} name="notes" render={({ field }) => (
                   <FormItem>
                     <Label className="text-[#1A1A1A] font-medium">ملاحظات إضافية <span className="text-[#6B6B6B] font-normal text-sm">(اختياري)</span></Label>
-                    <FormControl><Textarea placeholder="أي تعليمات خاصة..." className="resize-none bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" {...field} /></FormControl>
+                    <FormControl><Textarea placeholder="أي تعليمات خاصة..." className="resize-none bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" {...field} /></FormControl>
                   </FormItem>
                 )} />
               </div>
@@ -182,7 +182,7 @@ export default function Checkout() {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 className="w-full h-14 rounded-2xl text-white text-lg font-bold lg:hidden"
-                style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)", boxShadow: "0 4px 16px #C9A84C40" }}
+                style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)", boxShadow: "0 4px 16px #D81B6040" }}
                 disabled={createOrderMutation.isPending}
               >
                 {createOrderMutation.isPending ? "جاري الإرسال..." : "تأكيد الطلب"}
@@ -192,34 +192,34 @@ export default function Checkout() {
         </div>
 
         <div className="w-full lg:w-96 shrink-0">
-          <div className="bg-white rounded-2xl border border-[#E8E0D0] p-6 sticky top-24 shadow-sm">
-            <h3 className="font-bold text-lg mb-5 border-b border-[#E8E0D0] pb-4 text-[#1A1A1A]">ملخص الطلب</h3>
+          <div className="bg-white rounded-2xl border border-[#F0D4E5] p-6 sticky top-24 shadow-sm">
+            <h3 className="font-bold text-lg mb-5 border-b border-[#F0D4E5] pb-4 text-[#1A1A1A]">ملخص الطلب</h3>
             <div className="flex flex-col gap-3 mb-5 max-h-52 overflow-y-auto">
               {cart.items.map(item => (
                 <div key={item.id} className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#F9F6F0] rounded-xl overflow-hidden shrink-0 border border-[#E8E0D0]">
+                  <div className="w-12 h-12 bg-[#FFF0F6] rounded-xl overflow-hidden shrink-0 border border-[#F0D4E5]">
                     <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium line-clamp-1 text-[#1A1A1A]">{item.productName}</p>
                     <p className="text-xs text-[#6B6B6B]">الكمية: {item.quantity}</p>
                   </div>
-                  <span className="text-sm font-bold text-[#C9A84C] shrink-0">{formatCurrency(item.price * item.quantity)}</span>
+                  <span className="text-sm font-bold text-[#D81B60] shrink-0">{formatCurrency(item.price * item.quantity)}</span>
                 </div>
               ))}
             </div>
-            <div className="flex flex-col gap-2 text-sm border-t border-[#E8E0D0] pt-4 mb-5">
+            <div className="flex flex-col gap-2 text-sm border-t border-[#F0D4E5] pt-4 mb-5">
               <div className="flex justify-between text-[#6B6B6B]"><span>المجموع الفرعي</span><span>{formatCurrency(cart.subtotal)}</span></div>
               <div className="flex justify-between text-[#6B6B6B]"><span>رسوم التوصيل</span><span>{formatCurrency(cart.deliveryFee)}</span></div>
               {(cart.discount ?? 0) > 0 && <div className="flex justify-between text-green-600"><span>الخصم</span><span>-{formatCurrency(cart.discount ?? 0)}</span></div>}
-              <div className="flex justify-between text-xl font-bold text-[#C9A84C] pt-2 border-t border-[#E8E0D0]">
+              <div className="flex justify-between text-xl font-bold text-[#D81B60] pt-2 border-t border-[#F0D4E5]">
                 <span>الإجمالي</span><span>{formatCurrency(cart.total)}</span>
               </div>
             </div>
             <motion.button
               whileTap={{ scale: 0.98 }}
               className="w-full h-14 rounded-2xl text-white text-base font-bold hidden lg:flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)", boxShadow: "0 4px 16px #C9A84C40" }}
+              style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)", boxShadow: "0 4px 16px #D81B6040" }}
               onClick={form.handleSubmit(onSubmit)}
               disabled={createOrderMutation.isPending}
             >

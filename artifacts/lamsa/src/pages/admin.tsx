@@ -69,27 +69,27 @@ export default function Admin() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#F9F6F0] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#FFF0F6] flex items-center justify-center px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white rounded-3xl shadow-md border border-[#E8E0D0] p-8">
+          className="w-full max-w-md bg-white rounded-3xl shadow-md border border-[#F0D4E5] p-8">
           <div className="flex flex-col items-center mb-8">
             <Logo className="w-16 h-16 mb-4" />
-            <h1 className="font-serif text-2xl font-bold text-[#C9A84C]">لوحة الإدارة</h1>
+            <h1 className="font-serif text-2xl font-bold text-[#D81B60]">لوحة الإدارة</h1>
             <p className="text-[#6B6B6B] text-sm mt-1">تسجيل دخول المشرف</p>
           </div>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div className="space-y-1.5">
               <Label>البريد الإلكتروني</Label>
               <Input value={loginEmail} onChange={e => setLoginEmail(e.target.value)} type="email"
-                className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" dir="ltr" required />
+                className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" dir="ltr" required />
             </div>
             <div className="space-y-1.5">
               <Label>كلمة المرور</Label>
               <Input value={loginPassword} onChange={e => setLoginPassword(e.target.value)} type="password"
-                className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" required />
+                className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" required />
             </div>
             <button type="submit" className="w-full h-12 rounded-2xl text-white font-bold"
-              style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)" }}>
+              style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
               دخول
             </button>
           </form>
@@ -143,16 +143,16 @@ export default function Admin() {
             <h2 className="text-2xl font-bold text-[#1A1A1A] mb-6">نظرة عامة</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
               {[
-                { label: "إجمالي المستخدمين", value: toArabicNumerals(stats?.totalUsers ?? 0), icon: Users, color: "#C9A84C" },
+                { label: "إجمالي المستخدمين", value: toArabicNumerals(stats?.totalUsers ?? 0), icon: Users, color: "#D81B60" },
                 { label: "إجمالي الطلبات", value: toArabicNumerals(stats?.totalOrders ?? 0), icon: ShoppingBag, color: "#E8A0B0" },
-                { label: "إجمالي المنتجات", value: toArabicNumerals(stats?.totalProducts ?? 0), icon: Package, color: "#C9A84C" },
+                { label: "إجمالي المنتجات", value: toArabicNumerals(stats?.totalProducts ?? 0), icon: Package, color: "#D81B60" },
                 { label: "الطلبات المعلقة", value: toArabicNumerals(stats?.pendingOrders ?? 0), icon: ShoppingBag, color: "#E8A0B0" },
-                { label: "إجمالي المتاجر", value: toArabicNumerals(stats?.totalStores ?? 0), icon: LayoutDashboard, color: "#C9A84C" },
+                { label: "إجمالي المتاجر", value: toArabicNumerals(stats?.totalStores ?? 0), icon: LayoutDashboard, color: "#D81B60" },
                 { label: "إجمالي الإيرادات", value: formatCurrency(stats?.totalRevenue ?? 0), icon: TrendingUp, color: "#4CAF50" },
               ].map((card) => {
                 const Icon = card.icon;
                 return (
-                  <div key={card.label} className="bg-white rounded-2xl p-5 border border-[#E8E0D0] shadow-sm">
+                  <div key={card.label} className="bg-white rounded-2xl p-5 border border-[#F0D4E5] shadow-sm">
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="text-[#6B6B6B] text-sm">{card.label}</p>
@@ -172,9 +172,9 @@ export default function Admin() {
         {section === "users" && (
           <div>
             <h2 className="text-2xl font-bold text-[#1A1A1A] mb-6">العملاء ({toArabicNumerals(usersQuery.data?.length ?? 0)})</h2>
-            <div className="bg-white rounded-2xl border border-[#E8E0D0] overflow-hidden">
+            <div className="bg-white rounded-2xl border border-[#F0D4E5] overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F9F6F0] border-b border-[#E8E0D0]">
+                <thead className="bg-[#FFF0F6] border-b border-[#F0D4E5]">
                   <tr>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">الاسم</th>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">البريد الإلكتروني</th>
@@ -184,12 +184,12 @@ export default function Admin() {
                 </thead>
                 <tbody>
                   {usersQuery.data?.map(user => (
-                    <tr key={user.id} className="border-b border-[#E8E0D0]/50 hover:bg-[#F9F6F0]/50">
+                    <tr key={user.id} className="border-b border-[#F0D4E5]/50 hover:bg-[#FFF0F6]/50">
                       <td className="p-4 font-medium">{user.fullName}</td>
                       <td className="p-4 text-[#6B6B6B]" dir="ltr">{user.email}</td>
-                      <td className="p-4 text-[#C9A84C] font-bold">{toArabicNumerals(user.rewardPoints)}</td>
+                      <td className="p-4 text-[#D81B60] font-bold">{toArabicNumerals(user.rewardPoints)}</td>
                       <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.isGuest ? "bg-gray-100 text-gray-600" : "bg-[#FDF8EC] text-[#C9A84C]"}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.isGuest ? "bg-gray-100 text-gray-600" : "bg-[#FFF0F6] text-[#D81B60]"}`}>
                           {user.isGuest ? "زائر" : "مسجل"}
                         </span>
                       </td>
@@ -204,9 +204,9 @@ export default function Admin() {
         {section === "orders" && (
           <div>
             <h2 className="text-2xl font-bold text-[#1A1A1A] mb-6">الطلبات ({toArabicNumerals(ordersQuery.data?.length ?? 0)})</h2>
-            <div className="bg-white rounded-2xl border border-[#E8E0D0] overflow-hidden">
+            <div className="bg-white rounded-2xl border border-[#F0D4E5] overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F9F6F0] border-b border-[#E8E0D0]">
+                <thead className="bg-[#FFF0F6] border-b border-[#F0D4E5]">
                   <tr>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">رقم الطلب</th>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">العميل</th>
@@ -219,8 +219,8 @@ export default function Admin() {
                   {ordersQuery.data?.map(order => {
                     const st = STATUS_LABELS[order.status] ?? { label: order.status, color: "bg-gray-100 text-gray-600" };
                     return (
-                      <tr key={order.id} className="border-b border-[#E8E0D0]/50 hover:bg-[#F9F6F0]/50">
-                        <td className="p-4 font-bold text-[#C9A84C]">#{toArabicNumerals(order.id)}</td>
+                      <tr key={order.id} className="border-b border-[#F0D4E5]/50 hover:bg-[#FFF0F6]/50">
+                        <td className="p-4 font-bold text-[#D81B60]">#{toArabicNumerals(order.id)}</td>
                         <td className="p-4">{order.customerName ?? "—"}</td>
                         <td className="p-4 font-bold">{formatCurrency(order.total)}</td>
                         <td className="p-4">
@@ -240,17 +240,17 @@ export default function Admin() {
           <div className="flex flex-col gap-8">
             <div>
               <h2 className="text-2xl font-bold text-[#1A1A1A] mb-6">إنشاء كوبون جديد</h2>
-              <form onSubmit={handleCreateCoupon} className="bg-white rounded-2xl border border-[#E8E0D0] p-6 flex flex-col gap-4 max-w-lg">
+              <form onSubmit={handleCreateCoupon} className="bg-white rounded-2xl border border-[#F0D4E5] p-6 flex flex-col gap-4 max-w-lg">
                 <div className="space-y-1.5">
                   <Label>كود الكوبون</Label>
                   <Input value={couponForm.code} onChange={e => setCouponForm(f => ({ ...f, code: e.target.value }))}
-                    placeholder="SUMMER20" className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-11" required dir="ltr" />
+                    placeholder="SUMMER20" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" required dir="ltr" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>نوع الخصم</Label>
                     <select value={couponForm.discountType} onChange={e => setCouponForm(f => ({ ...f, discountType: e.target.value }))}
-                      className="w-full h-11 rounded-xl border border-[#E8E0D0] bg-[#F9F6F0] px-3 text-sm">
+                      className="w-full h-11 rounded-xl border border-[#F0D4E5] bg-[#FFF0F6] px-3 text-sm">
                       <option value="percentage">نسبة مئوية %</option>
                       <option value="fixed">مبلغ ثابت ر.ي</option>
                     </select>
@@ -258,20 +258,20 @@ export default function Admin() {
                   <div className="space-y-1.5">
                     <Label>قيمة الخصم</Label>
                     <Input type="number" value={couponForm.discountValue} onChange={e => setCouponForm(f => ({ ...f, discountValue: e.target.value }))}
-                      placeholder="10" className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-11" required dir="ltr" />
+                      placeholder="10" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" required dir="ltr" />
                   </div>
                 </div>
                 <button type="submit" className="h-11 rounded-xl text-white font-bold"
-                  style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)" }}>
+                  style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
                   إنشاء الكوبون
                 </button>
               </form>
             </div>
             <div>
               <h3 className="text-xl font-bold text-[#1A1A1A] mb-4">الكوبونات الحالية</h3>
-              <div className="bg-white rounded-2xl border border-[#E8E0D0] overflow-hidden">
+              <div className="bg-white rounded-2xl border border-[#F0D4E5] overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#F9F6F0] border-b border-[#E8E0D0]">
+                  <thead className="bg-[#FFF0F6] border-b border-[#F0D4E5]">
                     <tr>
                       <th className="text-right p-4 font-medium text-[#6B6B6B]">الكود</th>
                       <th className="text-right p-4 font-medium text-[#6B6B6B]">الخصم</th>
@@ -281,8 +281,8 @@ export default function Admin() {
                   </thead>
                   <tbody>
                     {couponsQuery.data?.map(c => (
-                      <tr key={c.id} className="border-b border-[#E8E0D0]/50">
-                        <td className="p-4 font-mono font-bold text-[#C9A84C]" dir="ltr">{c.code}</td>
+                      <tr key={c.id} className="border-b border-[#F0D4E5]/50">
+                        <td className="p-4 font-mono font-bold text-[#D81B60]" dir="ltr">{c.code}</td>
                         <td className="p-4">{c.discountValue}{c.discountType === "percentage" ? "%" : " ر.ي"}</td>
                         <td className="p-4 text-[#6B6B6B]">{toArabicNumerals(c.usageCount ?? 0)}</td>
                         <td className="p-4">

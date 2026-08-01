@@ -47,27 +47,31 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F9F6F0] pb-24">
-      <div className="bg-white border-b border-[#E8E0D0] px-4 pt-6 pb-8">
+    <div className="min-h-screen bg-[#FFF0F6] pb-24">
+      {/* Profile Header */}
+      <div className="bg-white border-b border-[#F0D4E5] px-4 pt-6 pb-8">
         <div className="container mx-auto max-w-lg flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full bg-[#FDF8EC] border-2 border-[#C9A84C] flex items-center justify-center overflow-hidden">
+          <div className="w-20 h-20 rounded-full bg-[#FFF0F6] border-2 border-[#D81B60] flex items-center justify-center overflow-hidden shadow-sm">
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
             ) : (
-              <User className="w-10 h-10 text-[#C9A84C]" />
+              <User className="w-10 h-10 text-[#D81B60]" />
             )}
           </div>
           <div>
             <h2 className="text-xl font-bold text-[#1A1A1A]">{user.fullName}</h2>
             <p className="text-[#6B6B6B] text-sm" dir="ltr">{user.email}</p>
-            {user.isGuest && (
-              <span className="text-xs bg-[#F9F6F0] text-[#6B6B6B] px-2 py-0.5 rounded-full border border-[#E8E0D0] mt-1 inline-block">زائر</span>
+            {user.isGuest ? (
+              <span className="text-xs bg-[#FFF0F6] text-[#D81B60] px-2 py-0.5 rounded-full border border-[#F0D4E5] mt-1 inline-block">زائر</span>
+            ) : (
+              <span className="text-xs bg-[#D81B60]/10 text-[#D81B60] px-2 py-0.5 rounded-full mt-1 inline-block font-medium">عضو فوشيا</span>
             )}
           </div>
         </div>
       </div>
 
       <div className="container mx-auto max-w-lg px-4 py-6 flex flex-col gap-4">
+        {/* Quick Links */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { href: "/orders", label: "طلباتي", icon: ShoppingBag },
@@ -78,9 +82,9 @@ export default function Profile() {
             return (
               <Link key={item.href} href={item.href}>
                 <motion.div whileTap={{ scale: 0.95 }}
-                  className="bg-white rounded-2xl border border-[#E8E0D0] p-4 flex flex-col items-center gap-2 shadow-sm hover:border-[#C9A84C]/50 transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-[#FDF8EC] flex items-center justify-center">
-                    <Icon className="w-5 h-5 text-[#C9A84C]" />
+                  className="bg-white rounded-2xl border border-[#F0D4E5] p-4 flex flex-col items-center gap-2 shadow-sm hover:border-[#D81B60]/50 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-[#FFF0F6] flex items-center justify-center">
+                    <Icon className="w-5 h-5 text-[#D81B60]" />
                   </div>
                   <span className="text-xs font-medium text-[#1A1A1A]">{item.label}</span>
                 </motion.div>
@@ -89,8 +93,9 @@ export default function Profile() {
           })}
         </div>
 
+        {/* Rewards Card */}
         {!user.isGuest && (
-          <div className="bg-gradient-to-l from-[#C9A84C] to-[#E8D5A3] rounded-2xl p-5 text-white shadow-md">
+          <div className="rounded-2xl p-5 text-white shadow-md" style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white/80 text-sm mb-1">نقاط المكافآت</p>
@@ -106,17 +111,19 @@ export default function Profile() {
           </div>
         )}
 
+        {/* Referral Code */}
         {!user.isGuest && user.referralCode && (
-          <div className="bg-white rounded-2xl border border-[#E8E0D0] p-5 shadow-sm">
+          <div className="bg-white rounded-2xl border border-[#F0D4E5] p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
-              <Gift className="w-5 h-5 text-[#C9A84C]" />
+              <Gift className="w-5 h-5 text-[#D81B60]" />
               <h3 className="font-bold text-[#1A1A1A]">دعوة أصدقاء</h3>
             </div>
-            <p className="text-[#6B6B6B] text-sm mb-3">شارك كودك واحصل على نقاط عند تسجيل أصدقائك</p>
-            <div className="flex items-center gap-3 bg-[#F9F6F0] rounded-xl p-3 border border-[#E8E0D0]">
-              <span className="flex-1 font-mono font-bold text-[#C9A84C] text-lg" dir="ltr">{user.referralCode}</span>
+            <p className="text-[#6B6B6B] text-sm mb-3">شارك كودك واحصلي على نقاط عند تسجيل صديقاتك</p>
+            <div className="flex items-center gap-3 bg-[#FFF0F6] rounded-xl p-3 border border-[#F0D4E5]">
+              <span className="flex-1 font-mono font-bold text-[#D81B60] text-lg" dir="ltr">{user.referralCode}</span>
               <button onClick={copyReferral}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#C9A84C] text-white text-sm font-medium">
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-sm font-medium"
+                style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1)" }}>
                 <Copy className="w-4 h-4" />
                 {copied ? "تم!" : "نسخ"}
               </button>
@@ -124,10 +131,11 @@ export default function Profile() {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-[#E8E0D0] shadow-sm overflow-hidden">
-          <h3 className="font-bold text-[#1A1A1A] px-5 pt-5 pb-3 border-b border-[#E8E0D0]">الإعدادات</h3>
+        {/* Settings */}
+        <div className="bg-white rounded-2xl border border-[#F0D4E5] shadow-sm overflow-hidden">
+          <h3 className="font-bold text-[#1A1A1A] px-5 pt-5 pb-3 border-b border-[#F0D4E5]">الإعدادات</h3>
 
-          <div className="px-5 py-4 border-b border-[#E8E0D0]/60">
+          <div className="px-5 py-4 border-b border-[#F0D4E5]/60">
             <p className="text-[#1A1A1A] text-sm font-medium mb-3">وضع العرض</p>
             <div className="flex gap-2">
               {([
@@ -140,8 +148,8 @@ export default function Profile() {
                   <button key={t.value} onClick={() => setTheme(t.value)}
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border transition-all ${
                       theme === t.value
-                        ? "border-[#C9A84C] bg-[#FDF8EC] text-[#C9A84C]"
-                        : "border-[#E8E0D0] text-[#6B6B6B]"
+                        ? "border-[#D81B60] bg-[#FFF0F6] text-[#D81B60]"
+                        : "border-[#F0D4E5] text-[#6B6B6B]"
                     }`}>
                     <Icon className="w-4 h-4" />
                     {t.label}
@@ -159,10 +167,10 @@ export default function Profile() {
             const Icon = item.icon;
             return (
               <div key={item.label}
-                className="flex items-center justify-between px-5 py-4 border-b border-[#E8E0D0]/60 hover:bg-[#F9F6F0] transition-colors cursor-pointer">
+                className="flex items-center justify-between px-5 py-4 border-b border-[#F0D4E5]/60 hover:bg-[#FFF0F6] transition-colors cursor-pointer">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-[#FDF8EC] flex items-center justify-center">
-                    <Icon className="w-4 h-4 text-[#C9A84C]" />
+                  <div className="w-8 h-8 rounded-lg bg-[#FFF0F6] flex items-center justify-center">
+                    <Icon className="w-4 h-4 text-[#D81B60]" />
                   </div>
                   <span className="text-sm font-medium text-[#1A1A1A]">{item.label}</span>
                 </div>

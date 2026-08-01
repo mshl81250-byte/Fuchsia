@@ -103,12 +103,12 @@ export default function Vendor() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#F9F6F0] flex items-center justify-center px-4">
+      <div className="min-h-screen bg-[#FFF0F6] flex items-center justify-center px-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-white rounded-3xl shadow-md border border-[#E8E0D0] p-8">
+          className="w-full max-w-md bg-white rounded-3xl shadow-md border border-[#F0D4E5] p-8">
           <div className="flex flex-col items-center mb-8">
             <Logo className="w-16 h-16 mb-4" />
-            <h1 className="font-serif text-2xl font-bold text-[#C9A84C]">لوحة التاجر</h1>
+            <h1 className="font-serif text-2xl font-bold text-[#D81B60]">لوحة التاجر</h1>
             <p className="text-[#6B6B6B] text-sm mt-1">أدخل اسم متجرك وكلمة المرور</p>
           </div>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
@@ -121,7 +121,7 @@ export default function Vendor() {
             <div className="space-y-1.5">
               <Label>كلمة المرور</Label>
               <Input value={loginPassword} onChange={e => setLoginPassword(e.target.value)} type="password"
-                className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl h-12" required />
+                className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-12" required />
             </div>
             <button type="submit" disabled={loginMutation.isPending}
               className="w-full h-12 rounded-2xl text-white font-bold"
@@ -184,9 +184,9 @@ export default function Vendor() {
                 { label: "إجمالي الإيرادات", value: formatCurrency(stats?.totalRevenue ?? 0) },
                 { label: "إيرادات هذا الشهر", value: formatCurrency(stats?.thisMonthRevenue ?? 0) },
               ].map(card => (
-                <div key={card.label} className="bg-white rounded-2xl p-5 border border-[#E8E0D0]">
+                <div key={card.label} className="bg-white rounded-2xl p-5 border border-[#F0D4E5]">
                   <p className="text-[#6B6B6B] text-sm">{card.label}</p>
-                  <p className="text-2xl font-bold text-[#C9A84C] mt-1">{card.value}</p>
+                  <p className="text-2xl font-bold text-[#D81B60] mt-1">{card.value}</p>
                 </div>
               ))}
             </div>
@@ -199,72 +199,72 @@ export default function Vendor() {
               <h2 className="text-xl font-bold text-[#1A1A1A]">منتجاتي ({toArabicNumerals(productsQuery.data?.length ?? 0)})</h2>
               <button onClick={() => setShowAddProduct(!showAddProduct)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold"
-                style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)" }}>
+                style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
                 <Plus className="w-4 h-4" />
                 إضافة منتج
               </button>
             </div>
 
             {showAddProduct && (
-              <form onSubmit={handleAddProduct} className="bg-white rounded-2xl border border-[#E8E0D0] p-6 mb-6 grid grid-cols-2 gap-4">
+              <form onSubmit={handleAddProduct} className="bg-white rounded-2xl border border-[#F0D4E5] p-6 mb-6 grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <Label>اسم المنتج</Label>
                   <Input value={productForm.nameAr} onChange={e => setProductForm(f => ({ ...f, nameAr: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" required />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" required />
                 </div>
                 <div className="space-y-1.5">
                   <Label>السعر (ر.ي)</Label>
                   <Input type="number" value={productForm.price} onChange={e => setProductForm(f => ({ ...f, price: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" required dir="ltr" />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" required dir="ltr" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>سعر بعد الخصم (اختياري)</Label>
                   <Input type="number" value={productForm.discountPrice} onChange={e => setProductForm(f => ({ ...f, discountPrice: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" dir="ltr" />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" dir="ltr" />
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>الوصف</Label>
                   <Input value={productForm.description} onChange={e => setProductForm(f => ({ ...f, description: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" />
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>رابط الصورة</Label>
                   <Input value={productForm.imageUrl} onChange={e => setProductForm(f => ({ ...f, imageUrl: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" dir="ltr" placeholder="https://..." />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" dir="ltr" placeholder="https://..." />
                 </div>
                 <div className="space-y-1.5">
                   <Label>الكمية المتاحة</Label>
                   <Input type="number" value={productForm.stockQuantity} onChange={e => setProductForm(f => ({ ...f, stockQuantity: e.target.value }))}
-                    className="bg-[#F9F6F0] border-[#E8E0D0] rounded-xl" dir="ltr" />
+                    className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" dir="ltr" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>التصنيف</Label>
                   <select value={productForm.categoryId} onChange={e => setProductForm(f => ({ ...f, categoryId: e.target.value }))}
-                    className="w-full h-10 rounded-xl border border-[#E8E0D0] bg-[#F9F6F0] px-3 text-sm">
-                    <option value="1">مستحضرات تجميل</option>
-                    <option value="2">عطور</option>
-                    <option value="3">هدايا</option>
-                    <option value="4">تغليف الهدايا</option>
-                    <option value="5">ورود</option>
-                    <option value="6">عروض خاصة</option>
+                    className="w-full h-10 rounded-xl border border-[#F0D4E5] bg-[#FFF0F6] px-3 text-sm">
+                    <option value="1">كوش الأعراس</option>
+                    <option value="2">تجهيز الخطوبة</option>
+                    <option value="3">الطاولات</option>
+                    <option value="4">الهدايا الفاخرة</option>
+                    <option value="5">التغليف الفاخر</option>
+                    <option value="6">الورود والزهور</option>
                   </select>
                 </div>
                 <div className="col-span-2 flex gap-3">
                   <button type="submit" className="px-6 h-11 rounded-xl text-white font-bold text-sm"
-                    style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3 150%)" }}>
+                    style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>
                     إضافة المنتج
                   </button>
                   <button type="button" onClick={() => setShowAddProduct(false)}
-                    className="px-6 h-11 rounded-xl border border-[#E8E0D0] text-[#6B6B6B] text-sm">
+                    className="px-6 h-11 rounded-xl border border-[#F0D4E5] text-[#6B6B6B] text-sm">
                     إلغاء
                   </button>
                 </div>
               </form>
             )}
 
-            <div className="bg-white rounded-2xl border border-[#E8E0D0] overflow-hidden">
+            <div className="bg-white rounded-2xl border border-[#F0D4E5] overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-[#F9F6F0] border-b border-[#E8E0D0]">
+                <thead className="bg-[#FFF0F6] border-b border-[#F0D4E5]">
                   <tr>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">المنتج</th>
                     <th className="text-right p-4 font-medium text-[#6B6B6B]">السعر</th>
@@ -274,14 +274,14 @@ export default function Vendor() {
                 </thead>
                 <tbody>
                   {productsQuery.data?.map(p => (
-                    <tr key={p.id} className="border-b border-[#E8E0D0]/50">
+                    <tr key={p.id} className="border-b border-[#F0D4E5]/50">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <img src={p.imageUrl} alt={p.nameAr} className="w-10 h-10 rounded-lg object-cover border border-[#E8E0D0]" />
+                          <img src={p.imageUrl} alt={p.nameAr} className="w-10 h-10 rounded-lg object-cover border border-[#F0D4E5]" />
                           <span className="font-medium">{p.nameAr}</span>
                         </div>
                       </td>
-                      <td className="p-4 text-[#C9A84C] font-bold">{formatCurrency(p.price)}</td>
+                      <td className="p-4 text-[#D81B60] font-bold">{formatCurrency(p.price)}</td>
                       <td className="p-4 text-[#6B6B6B]">{p.stockQuantity != null ? toArabicNumerals(p.stockQuantity) : "—"}</td>
                       <td className="p-4">
                         <button onClick={() => handleDeleteProduct(p.id)}
@@ -302,9 +302,9 @@ export default function Vendor() {
             <h2 className="text-xl font-bold text-[#1A1A1A] mb-6">الطلبات</h2>
             <div className="flex flex-col gap-4">
               {ordersQuery.data?.map(order => (
-                <div key={order.id} className="bg-white rounded-2xl border border-[#E8E0D0] p-5">
+                <div key={order.id} className="bg-white rounded-2xl border border-[#F0D4E5] p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-bold text-[#C9A84C]">طلب #{toArabicNumerals(order.id)}</span>
+                    <span className="font-bold text-[#D81B60]">طلب #{toArabicNumerals(order.id)}</span>
                     <span className="text-[#6B6B6B] text-sm">{new Date(order.createdAt).toLocaleDateString("ar-YE")}</span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -314,7 +314,7 @@ export default function Vendor() {
                       <select
                         value={order.status}
                         onChange={e => handleUpdateStatus(order.id, e.target.value)}
-                        className="h-8 rounded-lg border border-[#E8E0D0] bg-[#F9F6F0] px-2 text-sm"
+                        className="h-8 rounded-lg border border-[#F0D4E5] bg-[#FFF0F6] px-2 text-sm"
                       >
                         {STATUS_OPTIONS.map(s => (
                           <option key={s} value={s}>{STATUS_LABELS[s]}</option>
