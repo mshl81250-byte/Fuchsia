@@ -33,7 +33,7 @@ export default function Favorites() {
   return (
     <div className="container mx-auto px-4 py-8 pb-24">
       <div className="flex items-center gap-3 mb-8">
-        <Heart className="w-6 h-6 text-[#C9A84C] fill-[#C9A84C]" />
+        <Heart className="w-6 h-6 text-[#D81B60] fill-[#D81B60]" />
         <h1 className="text-2xl font-bold text-[#1A1A1A]">المفضلة</h1>
       </div>
 
@@ -41,7 +41,7 @@ export default function Favorites() {
         <div className="flex flex-col items-center justify-center py-20 gap-4">
           <Heart className="w-16 h-16 text-[#E8E0D0]" />
           <p className="text-[#6B6B6B] text-lg">سجل دخولك لرؤية المفضلة</p>
-          <Button asChild style={{ background: "linear-gradient(135deg, #C9A84C, #E8D5A3)" }}>
+          <Button asChild style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1)" }}>
             <Link href="/auth" className="text-white">تسجيل الدخول</Link>
           </Button>
         </div>
@@ -50,7 +50,7 @@ export default function Favorites() {
           <Heart className="w-16 h-16 text-[#E8E0D0]" />
           <p className="text-[#6B6B6B] text-lg font-medium">لا توجد منتجات في المفضلة</p>
           <p className="text-[#6B6B6B] text-sm">أضف المنتجات التي تعجبك إلى المفضلة</p>
-          <Button asChild variant="outline" className="border-[#C9A84C] text-[#C9A84C]">
+          <Button asChild variant="outline" className="border-[#D81B60] text-[#D81B60]">
             <Link href="/">تصفح المنتجات</Link>
           </Button>
         </div>
