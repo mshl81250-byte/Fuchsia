@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/admin-dashboard/"
+title = "فوشيا — لوحة التحكم"
+description = "لوحة تحكم مستقلة لإدارة طلبات فوشيا. تُمكّن المشرف من استقبال الطلبات الجديدة ومتابعتها، تحديث حالتها، وعرض بيانات العملاء والمبيعات — كل ذلك بعيداً عن التطبيق الرئيسي."
+version = "1.0.0"
+id = "artifacts/admin-dashboard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/admin-dashboard/" ]
+localPort = 22133
+
+[services.development]
+run = "pnpm --filter @workspace/admin-dashboard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/admin-dashboard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/admin-dashboard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22133"
+BASE_PATH = "/admin-dashboard/"
