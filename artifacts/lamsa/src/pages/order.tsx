@@ -3,7 +3,7 @@ import { OrderStatus } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Package, Truck, Home, PackageCheck, ChevronRight } from "lucide-react";
+import { CheckCircle2, Package, Truck, Home, PackageCheck, ChevronRight, UserRound, Phone } from "lucide-react";
 import { motion } from "framer-motion";
 
 const statusSteps = [
@@ -116,6 +116,30 @@ export default function OrderDetail() {
               <div className="flex flex-col gap-1">
                 <span className="text-muted-foreground">عنوان التوصيل</span>
                 <span className="font-medium leading-relaxed">{order.deliveryAddress}</span>
+              </div>
+            )}
+            {(order.status === OrderStatus.delivering || order.status === OrderStatus.delivered) && order.driverName && (
+              <div className="border-t border-border pt-4 mt-4">
+                <div className="rounded-xl bg-primary/5 border border-primary/15 p-4">
+                  <div className="flex items-center gap-2 text-primary mb-3">
+                    <UserRound className="w-4 h-4" />
+                    <span className="font-bold">مندوب التوصيل</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-bold">{order.driverName}</span>
+                    {order.driverPhone && (
+                      <a
+                        href={`tel:${order.driverPhone}`}
+                        dir="ltr"
+                        className="inline-flex items-center gap-1.5 text-primary font-semibold hover:underline"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {order.driverPhone}
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">يمكنك التواصل مع المندوب بخصوص التوصيل</p>
+                </div>
               </div>
             )}
             {order.notes && (

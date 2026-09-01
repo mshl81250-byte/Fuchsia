@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useGetDashboardStats } from "@workspace/api-client-react";
+import { useGetDashboardStats, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,8 @@ export default function Dashboard() {
   const { data: stats } = useGetDashboardStats({
     query: {
       refetchInterval: 20000,
-      enabled: isAuthenticated === true
+      enabled: isAuthenticated === true,
+      queryKey: getGetDashboardStatsQueryKey(),
     }
   });
 

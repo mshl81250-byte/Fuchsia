@@ -47,6 +47,7 @@ router.post("/", async (req, res): Promise<void> => {
   try {
     const {
       sessionId, deliveryAddress, customerName, customerPhone,
+      driverName, driverPhone,
       paymentMethod, couponCode, notes, userId,
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
@@ -76,6 +77,8 @@ router.post("/", async (req, res): Promise<void> => {
       deliveryAddress,
       customerName,
       customerPhone,
+      driverName: driverName ?? null,
+      driverPhone: driverPhone ?? null,
       paymentMethod: paymentMethod ?? "cash_on_delivery",
       couponCode: couponCode ?? null,
       notes: notes ?? null,
@@ -132,13 +135,17 @@ router.post("/", async (req, res): Promise<void> => {
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const { status } = req.body;
+    const { status, driverName, driverPhone } = req.body;
     if (!status) {
       res.status(400).json({ error: "status required" });
       return;
     }
 
-    const [order] = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id)).returning();
+    const [order] = await db.update(ordersTable).set({
+      status,
+      driverName: driverName === undefined ? undefined : (driverName || null),
+      driverPhone: driverPhone === undefined ? undefined : (driverPhone || null),
+    }).where(eq(ordersTable.id, id)).returning();
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;

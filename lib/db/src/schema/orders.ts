@@ -14,6 +14,8 @@ export const ordersTable = pgTable("orders", {
   deliveryAddress: text("delivery_address"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
+  driverName: text("driver_name"),
+  driverPhone: text("driver_phone"),
   paymentMethod: text("payment_method").notNull().default("cash_on_delivery"),
   couponCode: text("coupon_code"),
   notes: text("notes"),

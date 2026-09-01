@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
 import { useAdminListOrders, useUpdateOrderStatus, getAdminListOrdersQueryKey } from "@workspace/api-client-react";
+import type { OrderStatusUpdateStatus } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, MapPin, Phone, Clock, CreditCard, Box, StickyNote, CheckCircle, PackageSearch, Truck } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Phone, Clock, CreditCard, Box, StickyNote, CheckCircle, PackageSearch, Truck, UserRound, Save } from "lucide-react";
 import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,10 +42,12 @@ function formatCurrency(amount: number) {
 export function OrdersView() {
   const [filter, setFilter] = useState("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [driverDrafts, setDriverDrafts] = useState<Record<number, { name: string; phone: string }>>({});
   
   const { data: orders = [], isLoading } = useAdminListOrders({
     query: {
       refetchInterval: 20000,
+      queryKey: getAdminListOrdersQueryKey(),
     }
   });
 
@@ -79,8 +83,39 @@ export function OrdersView() {
     e.stopPropagation();
     const nextStatus = STATUS_MAP[currentStatus]?.next;
     if (nextStatus) {
-      updateStatus.mutate({ id, data: { status: nextStatus } });
+      updateStatus.mutate({ id, data: { status: nextStatus as OrderStatusUpdateStatus } });
     }
+  };
+
+  const toggleOrder = (order: (typeof orders)[number]) => {
+    const nextExpanded = expandedId === order.id ? null : order.id;
+    setExpandedId(nextExpanded);
+    if (nextExpanded !== null && !driverDrafts[order.id]) {
+      setDriverDrafts(current => ({
+        ...current,
+        [order.id]: { name: order.driverName ?? "", phone: order.driverPhone ?? "" },
+      }));
+    }
+  };
+
+  const updateDriverDraft = (orderId: number, field: "name" | "phone", value: string) => {
+    setDriverDrafts(current => ({
+      ...current,
+      [orderId]: { ...(current[orderId] ?? { name: "", phone: "" }), [field]: value },
+    }));
+  };
+
+  const saveDriver = (orderId: number, status: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const draft = driverDrafts[orderId] ?? { name: "", phone: "" };
+    updateStatus.mutate({
+      id: orderId,
+      data: {
+        status: status as OrderStatusUpdateStatus,
+        driverName: draft.name.trim() || null,
+        driverPhone: draft.phone.trim() || null,
+      },
+    });
   };
 
   if (isLoading) {
@@ -138,7 +173,7 @@ export function OrdersView() {
               <Card 
                 key={order.id} 
                 className={cn("overflow-hidden transition-all duration-200 border cursor-pointer hover:border-primary/50", isExpanded ? "border-primary shadow-md" : "")}
-                onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                onClick={() => toggleOrder(order)}
               >
                 <div className="p-5 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between bg-card hover:bg-muted/20 transition-colors">
                   <div className="flex items-center gap-4 flex-1">
@@ -215,6 +250,44 @@ export function OrdersView() {
                             </Badge>
                           </div>
 
+                          {/* Delivery representative */}
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                            <h4 className="font-bold flex items-center gap-2 text-primary">
+                              <UserRound className="w-4 h-4" /> بيانات المندوب
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              ستظهر هذه البيانات للعميلة في تطبيق فوشيا عند بدء التوصيل.
+                            </p>
+                            <div className="space-y-2">
+                              <Input
+                                value={driverDrafts[order.id]?.name ?? order.driverName ?? ""}
+                                onChange={e => updateDriverDraft(order.id, "name", e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                placeholder="اسم المندوب"
+                                className="bg-background"
+                              />
+                              <Input
+                                value={driverDrafts[order.id]?.phone ?? order.driverPhone ?? ""}
+                                onChange={e => updateDriverDraft(order.id, "phone", e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                placeholder="رقم جوال المندوب"
+                                type="tel"
+                                dir="ltr"
+                                className="bg-background text-left"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full gap-2 font-bold"
+                                onClick={e => saveDriver(order.id, order.status, e)}
+                                disabled={updateStatus.isPending}
+                              >
+                                <Save className="w-4 h-4" />
+                                {updateStatus.isPending ? "جاري الحفظ..." : "حفظ بيانات المندوب"}
+                              </Button>
+                            </div>
+                          </div>
+
                           {order.notes && (
                             <div className="bg-orange-50 dark:bg-orange-950/30 p-4 rounded-xl border border-orange-100 dark:border-orange-900/50">
                               <h4 className="font-bold mb-2 flex items-center gap-2 text-orange-800 dark:text-orange-400"><StickyNote className="w-4 h-4" /> ملاحظات العميل</h4>
@@ -256,10 +329,10 @@ export function OrdersView() {
                               <span>رسوم التوصيل</span>
                               <span>{formatCurrency(order.deliveryFee || 0)}</span>
                             </div>
-                            {order.discount > 0 && (
+                            {(order.discount || 0) > 0 && (
                               <div className="flex justify-between text-green-600 text-sm">
                                 <span>الخصم {order.couponCode ? `(${order.couponCode})` : ''}</span>
-                                <span>- {formatCurrency(order.discount)}</span>
+                                <span>- {formatCurrency(order.discount || 0)}</span>
                               </div>
                             )}
                             <div className="flex justify-between font-bold text-xl pt-2 border-t mt-2">
