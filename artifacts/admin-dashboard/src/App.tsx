@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster as SonnerToaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { setBaseUrl } from '@workspace/api-client-react';
@@ -35,7 +34,7 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
-        <Toaster />
+        <SonnerToaster position="top-center" richColors />
       </TooltipProvider>
     </QueryClientProvider>
   );

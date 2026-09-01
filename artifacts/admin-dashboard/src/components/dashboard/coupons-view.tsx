@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Empty } from "@/components/ui/empty";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,7 +126,13 @@ export function CouponsView() {
             <Skeleton className="w-full h-64 rounded-lg" />
           </div>
         ) : coupons.length === 0 ? (
-          <Empty icon={Tag} title="لا توجد كوبونات" description="لم تقم بإنشاء أي كوبونات خصم بعد" />
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon"><Tag /></EmptyMedia>
+              <EmptyTitle>لا توجد كوبونات</EmptyTitle>
+              <EmptyDescription>لم تقم بإنشاء أي كوبونات خصم بعد</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="overflow-x-auto">
             <Table dir="rtl">

@@ -1136,6 +1136,10 @@ components:
           type: ["string", "null"]
         customerPhone:
           type: ["string", "null"]
+        driverName:
+          type: ["string", "null"]
+        driverPhone:
+          type: ["string", "null"]
         paymentMethod:
           type: string
         couponCode:
@@ -1195,6 +1199,10 @@ components:
         status:
           type: string
           enum: [received, preparing, delivering, delivered]
+        driverName:
+          type: ["string", "null"]
+        driverPhone:
+          type: ["string", "null"]
 
     FavoriteInput:
       type: object
