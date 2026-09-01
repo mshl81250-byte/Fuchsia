@@ -2,8 +2,11 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { productsTable, storesTable, ordersTable, categoriesTable, bannersTable, usersTable } from "@workspace/db";
 import { eq, count, sum } from "drizzle-orm";
+import { requireAdmin } from "../lib/admin-auth";
 
 const router = Router();
+
+router.use(requireAdmin);
 
 router.get("/stats", async (req, res) => {
   try {

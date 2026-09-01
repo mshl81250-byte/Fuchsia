@@ -854,6 +854,35 @@ export const AdminListUsersResponse = zod.array(AdminListUsersResponseItem)
 
 
 /**
+ * @summary Start a secure admin session
+ */
+export const AdminLoginBody = zod.object({
+  "email": zod.string(),
+  "password": zod.string()
+})
+
+export const AdminLoginResponse = zod.object({
+  "admin": zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string()
+})
+})
+
+
+/**
+ * @summary Get the current admin session
+ */
+export const AdminGetSessionResponse = zod.object({
+  "admin": zod.object({
+  "id": zod.number(),
+  "fullName": zod.string(),
+  "email": zod.string()
+})
+})
+
+
+/**
  * @summary List all orders
  */
 export const AdminListOrdersResponseItem = zod.object({
@@ -882,6 +911,46 @@ export const AdminListOrdersResponseItem = zod.object({
 }))
 })
 export const AdminListOrdersResponse = zod.array(AdminListOrdersResponseItem)
+
+
+/**
+ * @summary Update an order from the admin dashboard
+ */
+export const AdminUpdateOrderStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const AdminUpdateOrderStatusBody = zod.object({
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered']),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish()
+})
+
+export const AdminUpdateOrderStatusResponse = zod.object({
+  "id": zod.number(),
+  "sessionId": zod.string(),
+  "status": zod.enum(['received', 'preparing', 'delivering', 'delivered']),
+  "total": zod.number(),
+  "deliveryFee": zod.number().optional(),
+  "discount": zod.number().optional(),
+  "deliveryAddress": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "paymentMethod": zod.string().optional(),
+  "couponCode": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "price": zod.number(),
+  "quantity": zod.number(),
+  "imageUrl": zod.string()
+}))
+})
 
 
 /**
