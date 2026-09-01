@@ -681,6 +681,51 @@ paths:
                 items:
                   $ref: "#/components/schemas/User"
 
+  /admin/auth/login:
+    post:
+      operationId: adminLogin
+      tags: [admin]
+      summary: Start a secure admin session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: Authenticated admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /admin/auth/me:
+    get:
+      operationId: adminGetSession
+      tags: [admin]
+      summary: Get the current admin session
+      responses:
+        "200":
+          description: Current admin session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminAuthResponse"
+        "401":
+          description: Admin session required
+
+  /admin/auth/logout:
+    post:
+      operationId: adminLogout
+      tags: [admin]
+      summary: End the current admin session
+      responses:
+        "204":
+          description: Admin session ended
+
   /admin/orders:
     get:
       operationId: adminListOrders
@@ -695,6 +740,33 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Order"
+
+  /admin/orders/{id}:
+    patch:
+      operationId: adminUpdateOrderStatus
+      tags: [admin]
+      summary: Update an order from the admin dashboard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          description: Admin session required
 
   /admin/coupons:
     get:
@@ -849,6 +921,33 @@ components:
           type: string
         password:
           type: string
+
+    AdminLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AdminUser:
+      type: object
+      required: [id, fullName, email]
+      properties:
+        id:
+          type: integer
+        fullName:
+          type: string
+        email:
+          type: string
+
+    AdminAuthResponse:
+      type: object
+      required: [admin]
+      properties:
+        admin:
+          $ref: "#/components/schemas/AdminUser"
 
     AuthResponse:
       type: object

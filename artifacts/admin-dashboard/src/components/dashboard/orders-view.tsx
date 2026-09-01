@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useAdminListOrders, useUpdateOrderStatus, getAdminListOrdersQueryKey } from "@workspace/api-client-react";
+import { useAdminListOrders, useAdminUpdateOrderStatus, getAdminListOrdersQueryKey } from "@workspace/api-client-react";
 import type { OrderStatusUpdateStatus } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ export function OrdersView() {
   });
 
   const queryClient = useQueryClient();
-  const updateStatus = useUpdateOrderStatus({
+  const updateStatus = useAdminUpdateOrderStatus({
     mutation: {
       onSuccess: () => {
         toast.success("تم تحديث حالة الطلب بنجاح");

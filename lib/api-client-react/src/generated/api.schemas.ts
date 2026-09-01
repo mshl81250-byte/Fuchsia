@@ -28,6 +28,21 @@ export interface LoginInput {
   password: string;
 }
 
+export interface AdminLoginInput {
+  email: string;
+  password: string;
+}
+
+export interface AdminUser {
+  id: number;
+  fullName: string;
+  email: string;
+}
+
+export interface AdminAuthResponse {
+  admin: AdminUser;
+}
+
 export interface User {
   id: number;
   fullName: string;
