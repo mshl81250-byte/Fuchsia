@@ -5,7 +5,7 @@ import {
   useAdminListUsers, getAdminListUsersQueryKey,
   useAdminListOrders, getAdminListOrdersQueryKey,
   useAdminListCoupons, getAdminListCouponsQueryKey,
-  useAdminCreateCoupon, useUpdateOrderStatus,
+  useAdminCreateCoupon, useAdminUpdateOrderStatus, useAdminLogin, useAdminLogout,
 } from "@workspace/api-client-react";
 import { Logo } from "@/components/Logo";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
 
-type Section = "overview" | "orders" | "users" | "coupons";
+type Section = "overview" | "orders" | "users" | "coupons" | "wallets";
 type StatusFilter = "all" | "received" | "preparing" | "delivering" | "delivered";
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof Clock; next?: string; nextLabel?: string }> = {
@@ -44,6 +44,8 @@ export default function Admin() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [couponForm, setCouponForm] = useState({ code: "", discountType: "percentage", discountValue: "" });
+  const [walletForm, setWalletForm] = useState({ nameAr: "", nameEn: "", accountNumber: "", instructions: "", iconUrl: "" });
+  const [adminWallets, setAdminWallets] = useState<any[]>([]);
   const [lastOrderCount, setLastOrderCount] = useState<number>(0);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const prevOrderIds = useRef<Set<number>>(new Set());
@@ -63,8 +65,10 @@ export default function Admin() {
   const statsQuery = useGetDashboardStats({ query: { enabled: isAdmin && section === "overview", queryKey: getGetDashboardStatsQueryKey() } });
   const usersQuery = useAdminListUsers({ query: { enabled: isAdmin && section === "users", queryKey: getAdminListUsersQueryKey() } });
   const couponsQuery = useAdminListCoupons({ query: { enabled: isAdmin && section === "coupons", queryKey: getAdminListCouponsQueryKey() } });
-  const updateStatus = useUpdateOrderStatus();
+  const updateStatus = useAdminUpdateOrderStatus();
   const createCoupon = useAdminCreateCoupon();
+  const adminLoginMutation = useAdminLogin();
+  const adminLogoutMutation = useAdminLogout();
 
   // Detect new orders
   useEffect(() => {
@@ -81,12 +85,13 @@ export default function Admin() {
     setLastOrderCount(ordersQuery.data.length);
   }, [ordersQuery.data]);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (loginEmail === "admin@fuchsia.ye" && loginPassword === "admin123") {
-      localStorage.setItem("fuchsia_admin", "admin");
-      setAdminToken("admin");
-    } else {
+    try {
+      await adminLoginMutation.mutateAsync({ data: { email: loginEmail, password: loginPassword } });
+      localStorage.setItem("fuchsia_admin", "session");
+      setAdminToken("session");
+    } catch {
       toast({ variant: "destructive", title: "خطأ", description: "بيانات الدخول غير صحيحة" });
     }
   }
@@ -111,6 +116,50 @@ export default function Admin() {
       setCouponForm({ code: "", discountType: "percentage", discountValue: "" });
     } catch {
       toast({ variant: "destructive", title: "خطأ", description: "حدث خطأ" });
+    }
+  }
+
+  async function handleCreateWallet(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const response = await fetch("/api/payment-wallets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...walletForm, sortOrder: adminWallets.length + 1 }) });
+      if (!response.ok) throw new Error();
+      const wallet = await response.json();
+      setAdminWallets(current => [...current, wallet]);
+      setWalletForm({ nameAr: "", nameEn: "", accountNumber: "", instructions: "", iconUrl: "" });
+      toast({ title: "تمت الإضافة", description: "تمت إضافة المحفظة إلى خيارات الدفع" });
+    } catch {
+      toast({ variant: "destructive", title: "خطأ", description: "تعذر إضافة المحفظة" });
+    }
+  }
+  async function handleWalletPatch(id: number, changes: Record<string, unknown>) {
+    try {
+      const response = await fetch(`/api/payment-wallets/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
+      if (!response.ok) throw new Error();
+      const updated = await response.json();
+      setAdminWallets(current => current.map(wallet => wallet.id === id ? updated : wallet).sort((a, b) => a.sortOrder - b.sortOrder));
+      toast({ title: "تم الحفظ", description: "تم تحديث إعدادات المحفظة" });
+    } catch {
+      toast({ variant: "destructive", title: "خطأ", description: "تعذر تحديث المحفظة" });
+    }
+  }
+  function handleEditWallet(wallet: any) {
+    const nameAr = window.prompt("اسم المحفظة", wallet.nameAr);
+    if (!nameAr?.trim()) return;
+    const accountNumber = window.prompt("رقم الحساب أو نقطة البيع", wallet.accountNumber);
+    if (!accountNumber?.trim()) return;
+    const instructions = window.prompt("تعليمات الدفع", wallet.instructions ?? "") ?? "";
+    const iconUrl = window.prompt("رابط أيقونة المحفظة", wallet.iconUrl ?? "") ?? "";
+    void handleWalletPatch(wallet.id, { nameAr: nameAr.trim(), accountNumber: accountNumber.trim(), instructions: instructions.trim() || null, iconUrl: iconUrl.trim() || null });
+  }
+  async function handlePaymentReview(orderId: number, status: "verified" | "rejected") {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}/payment`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      if (!response.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: getAdminListOrdersQueryKey() });
+      toast({ title: status === "verified" ? "تم اعتماد الدفع" : "تم رفض الإيصال", description: `تم تحديث حالة الدفع للطلب #${orderId}` });
+    } catch {
+      toast({ variant: "destructive", title: "خطأ", description: "تعذر تحديث حالة الدفع" });
     }
   }
 
@@ -165,6 +214,7 @@ export default function Admin() {
     { id: "overview", label: "نظرة عامة",  icon: LayoutDashboard },
     { id: "users",    label: "العملاء",    icon: Users },
     { id: "coupons",  label: "الكوبونات",  icon: Tag },
+    { id: "wallets",   label: "المحافظ",    icon: CreditCard },
   ];
 
   return (
@@ -221,7 +271,7 @@ export default function Admin() {
           </div>
         </div>
 
-        <button onClick={() => { localStorage.removeItem("fuchsia_admin"); setAdminToken(""); }}
+        <button onClick={async () => { await adminLogoutMutation.mutateAsync(); localStorage.removeItem("fuchsia_admin"); setAdminToken(""); }}
           className="flex items-center gap-3 px-4 py-3 text-[#6B6B6B] hover:text-red-500 text-sm m-3 rounded-xl hover:bg-red-50 transition-colors">
           <LogOut className="w-4 h-4" />
           تسجيل الخروج
@@ -379,6 +429,16 @@ export default function Admin() {
                                   </div>
                                 )}
 
+                                {(order as any).paymentType !== "cash_on_delivery" && (
+                                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
+                                    <p className="text-sm font-bold text-blue-800">الدفع الإلكتروني: {(order as any).paymentStatus === "pending_review" ? "بانتظار مراجعة الإيصال" : (order as any).paymentStatus}</p>
+                                    <p className="text-sm text-blue-800">المدفوع: {formatCurrency((order as any).paymentAmount ?? 0)} — المتبقي: {formatCurrency((order as any).remainingAmount ?? 0)}</p>
+                                    {(order as any).transactionReference && <p className="text-sm text-blue-800">رقم العملية: <span dir="ltr">{(order as any).transactionReference}</span></p>}
+                                    {(order as any).paymentReceiptUrl && <a href={(order as any).paymentReceiptUrl} target="_blank" rel="noreferrer" className="inline-block text-sm font-bold text-[#D81B60] underline">فتح إيصال التحويل</a>}
+                                    {(order as any).paymentStatus === "pending_review" && <div className="flex gap-2 pt-2"><button type="button" onClick={() => handlePaymentReview(order.id, "verified")} className="flex-1 rounded-lg bg-green-600 text-white py-2 text-sm font-bold hover:bg-green-700">اعتماد الدفع</button><button type="button" onClick={() => handlePaymentReview(order.id, "rejected")} className="flex-1 rounded-lg bg-red-50 text-red-700 border border-red-200 py-2 text-sm font-bold hover:bg-red-100">رفض الإيصال</button></div>}
+                                  </div>
+                                )}
+
                                 {/* Order items */}
                                 {(order as any).items && (order as any).items.length > 0 && (
                                   <div>
@@ -516,6 +576,32 @@ export default function Admin() {
           </div>
         )}
 
+        {/* ══════════ WALLETS SECTION ══════════ */}
+        {section === "wallets" && (
+          <div className="p-6 flex flex-col gap-8">
+            <div>
+              <div className="flex items-center justify-between mb-5"><div><h2 className="text-xl font-bold text-[#1A1A1A]">المحافظ وطرق الدفع اليدوية</h2><p className="text-sm text-[#6B6B6B] mt-1">أدر الحسابات التي تظهر للعملاء عند التحويل اليدوي</p></div><span className="text-xs bg-[#FFF0F6] text-[#D81B60] px-3 py-2 rounded-full">{adminWallets.filter(w => w.isActive).length} فعالة</span></div>
+              <form onSubmit={handleCreateWallet} className="bg-white rounded-2xl border border-[#F0D4E5] p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl shadow-sm">
+                <div><Label>اسم المحفظة</Label><Input required value={walletForm.nameAr} onChange={e => setWalletForm(f => ({ ...f, nameAr: e.target.value }))} placeholder="مثال: جيب" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div>
+                <div><Label>الاسم بالإنجليزية</Label><Input value={walletForm.nameEn} onChange={e => setWalletForm(f => ({ ...f, nameEn: e.target.value }))} placeholder="Jaib" dir="ltr" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div>
+                <div><Label>رقم الحساب أو نقطة البيع</Label><Input required value={walletForm.accountNumber} onChange={e => setWalletForm(f => ({ ...f, accountNumber: e.target.value }))} dir="ltr" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div>
+                <div><Label>رابط الأيقونة</Label><Input value={walletForm.iconUrl} onChange={e => setWalletForm(f => ({ ...f, iconUrl: e.target.value }))} placeholder="https://..." dir="ltr" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div>
+                <div className="md:col-span-2"><Label>تعليمات الدفع</Label><Input value={walletForm.instructions} onChange={e => setWalletForm(f => ({ ...f, instructions: e.target.value }))} placeholder="حوّل المبلغ ثم أرفق الإيصال" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div>
+                <button type="submit" className="md:col-span-2 h-11 rounded-xl text-white font-bold" style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>إضافة طريقة دفع</button>
+              </form>
+            </div>
+            <div><h3 className="text-lg font-bold text-[#1A1A1A] mb-4">طرق الدفع الحالية</h3><div className="space-y-3">
+              {adminWallets.map((wallet, index) => <div key={wallet.id} className={`bg-white rounded-2xl border p-4 ${wallet.isActive ? "border-[#F0D4E5]" : "border-gray-200 opacity-70"}`}>
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {wallet.iconUrl ? <img src={wallet.iconUrl} alt="" className="w-12 h-12 object-contain rounded-xl border border-[#F0D4E5]" /> : <div className="w-12 h-12 rounded-xl bg-[#FFF0F6] text-[#D81B60] flex items-center justify-center font-bold text-xl">{wallet.nameAr.slice(0, 1)}</div>}
+                  <div className="flex-1"><div className="flex items-center gap-2"><p className="font-bold">{wallet.nameAr}</p><span className={`text-xs px-2 py-1 rounded-full ${wallet.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{wallet.isActive ? "فعالة" : "معطلة"}</span></div><p className="text-sm text-[#6B6B6B]" dir="ltr">{wallet.accountNumber}</p><p className="text-xs text-[#6B6B6B]">الترتيب: {toArabicNumerals(wallet.sortOrder)}</p></div>
+                  <div className="flex items-center gap-2"><button type="button" onClick={() => handleWalletPatch(wallet.id, { isActive: !wallet.isActive })} className="px-3 py-2 rounded-lg border border-[#F0D4E5] text-xs font-bold hover:text-[#D81B60]">{wallet.isActive ? "تعطيل" : "تفعيل"}</button><button type="button" onClick={() => handleEditWallet(wallet)} className="px-3 py-2 rounded-lg border border-[#F0D4E5] text-xs font-bold hover:text-[#D81B60]">تعديل البيانات</button><button type="button" disabled={index === 0} onClick={() => handleWalletPatch(wallet.id, { sortOrder: Math.max(0, wallet.sortOrder - 1) })} className="px-2 py-2 rounded-lg border border-[#F0D4E5] text-xs disabled:opacity-30">↑</button><button type="button" disabled={index === adminWallets.length - 1} onClick={() => handleWalletPatch(wallet.id, { sortOrder: wallet.sortOrder + 1 })} className="px-2 py-2 rounded-lg border border-[#F0D4E5] text-xs disabled:opacity-30">↓</button></div>
+                </div>
+                {wallet.instructions && <p className="text-xs text-[#6B6B6B] mt-3 border-t border-[#F0D4E5] pt-3">{wallet.instructions}</p>}
+              </div>)}
+            </div></div>
+          </div>
+        )}
         {/* ══════════ COUPONS SECTION ══════════ */}
         {section === "coupons" && (
           <div className="p-6 flex flex-col gap-8">

@@ -20,6 +20,7 @@ import AuthPage from "@/pages/auth";
 import Favorites from "@/pages/favorites";
 import Admin from "@/pages/admin";
 import Vendor from "@/pages/vendor";
+import Notifications from "@/pages/notifications";
 import { getStoredUser } from "@/hooks/use-auth";
 
 const queryClient = new QueryClient({
@@ -63,6 +64,7 @@ function Router() {
             <Route path="/cart" component={() => <ProtectedRoute component={Cart} />} />
             <Route path="/checkout" component={() => <ProtectedRoute component={Checkout} />} />
             <Route path="/orders" component={() => <ProtectedRoute component={Orders} />} />
+            <Route path="/notifications" component={() => <ProtectedRoute component={Notifications} />} />
             <Route path="/order/:id" component={() => <ProtectedRoute component={OrderDetail} />} />
             <Route path="/search" component={() => <ProtectedRoute component={Search} />} />
             <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />

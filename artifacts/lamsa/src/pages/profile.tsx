@@ -160,12 +160,12 @@ export default function Profile() {
           </div>
 
           {[
-            { icon: Bell, label: "الإشعارات" },
+            { icon: Bell, label: "الإشعارات", href: "/notifications" },
             { icon: Shield, label: "سياسة الخصوصية" },
             { icon: Phone, label: "تواصل معنا" },
           ].map(item => {
             const Icon = item.icon;
-            return (
+            const content = (
               <div key={item.label}
                 className="flex items-center justify-between px-5 py-4 border-b border-[#F0D4E5]/60 hover:bg-[#FFF0F6] transition-colors cursor-pointer">
                 <div className="flex items-center gap-3">
@@ -177,6 +177,7 @@ export default function Profile() {
                 <ChevronLeft className="w-4 h-4 text-[#6B6B6B]" />
               </div>
             );
+            return item.href ? <Link key={item.label} href={item.href}>{content}</Link> : content;
           })}
         </div>
 

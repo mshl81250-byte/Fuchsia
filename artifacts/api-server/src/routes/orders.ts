@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable } from "@workspace/db";
+import { eq, desc, sql, and } from "drizzle-orm";
+import { createCustomerNotification } from "../lib/notifications";
 
 const router = Router();
 
@@ -48,7 +49,7 @@ router.post("/", async (req, res): Promise<void> => {
     const {
       sessionId, deliveryAddress, customerName, customerPhone,
       driverName, driverPhone,
-      paymentMethod, couponCode, notes, userId,
+      paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl, couponCode, notes, userId,
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
 
@@ -65,6 +66,34 @@ router.post("/", async (req, res): Promise<void> => {
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const total = subtotal + DELIVERY_FEE;
+    const normalizedPaymentType = paymentType ?? "cash_on_delivery";
+    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
+    if (!["cash_on_delivery", "full", "partial"].includes(normalizedPaymentType)) {
+      res.status(400).json({ error: "نوع الدفع غير صحيح" });
+      return;
+    }
+    if (normalizedPaymentType !== "cash_on_delivery") {
+      if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) {
+        res.status(400).json({ error: "يجب اختيار المحفظة وإرفاق رقم العملية والإيصال" });
+        return;
+      }
+      if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {
+        res.status(400).json({ error: "مبلغ الدفع غير صحيح" });
+        return;
+      }
+      const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable)
+        .where(and(eq(paymentWalletsTable.id, Number(paymentWalletId)), eq(paymentWalletsTable.isActive, true)));
+      if (!wallet) {
+        res.status(400).json({ error: "المحفظة المختارة غير متاحة" });
+        return;
+      }
+      if (typeof paymentReceiptUrl !== "string" || paymentReceiptUrl.length > 7 * 1024 * 1024) {
+        res.status(400).json({ error: "حجم الإيصال أكبر من الحد المسموح" });
+        return;
+      }
+    }
+    const actualPaymentAmount = normalizedPaymentType === "full" ? total : requestedPaymentAmount;
+    const paymentStatus = normalizedPaymentType === "cash_on_delivery" ? "unpaid" : "pending_review";
 
     const [order] = await db.insert(ordersTable).values({
       sessionId,
@@ -80,6 +109,13 @@ router.post("/", async (req, res): Promise<void> => {
       driverName: driverName ?? null,
       driverPhone: driverPhone ?? null,
       paymentMethod: paymentMethod ?? "cash_on_delivery",
+      paymentType: normalizedPaymentType,
+      paymentStatus,
+      paymentWalletId: paymentWalletId ?? null,
+      paymentAmount: actualPaymentAmount,
+      remainingAmount: Math.max(0, total - actualPaymentAmount),
+      transactionReference: transactionReference ?? null,
+      paymentReceiptUrl: paymentReceiptUrl ?? null,
       couponCode: couponCode ?? null,
       notes: notes ?? null,
       isGift: isGift ?? false,
@@ -89,6 +125,13 @@ router.post("/", async (req, res): Promise<void> => {
       hidePrice: hidePrice ?? false,
       scheduledDelivery: scheduledDelivery ? new Date(scheduledDelivery) : null,
     }).returning();
+    await createCustomerNotification({
+      sessionId,
+      orderId: order.id,
+      type: "order_received",
+      title: "تم استلام طلبك",
+      message: `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
+    });
 
     for (const item of cartItems) {
       await db.insert(orderItemsTable).values({

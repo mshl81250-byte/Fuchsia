@@ -4,7 +4,7 @@ import { useSession } from "@/hooks/use-session";
 import { Link } from "wouter";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, ChevronLeft, Calendar } from "lucide-react";
+import { Package, ChevronLeft, Calendar, Gift, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 
 const statusConfig: Record<string, { label: string, colorClass: string }> = {
@@ -13,20 +13,21 @@ const statusConfig: Record<string, { label: string, colorClass: string }> = {
   [OrderStatus.delivering]: { label: "في الطريق", colorClass: "text-primary bg-primary/10 border-primary/20" },
   [OrderStatus.delivered]: { label: "مكتمل", colorClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
 };
+const trackingSteps = [OrderStatus.received, OrderStatus.preparing, OrderStatus.delivering, OrderStatus.delivered];
 
 export default function Orders() {
   const { sessionId, isReady } = useSession();
 
   const { data: orders, isLoading } = useListOrders(
     { sessionId },
-    { query: { enabled: isReady, queryKey: getListOrdersQueryKey({ sessionId }) } }
+    { query: { enabled: isReady, queryKey: getListOrdersQueryKey({ sessionId }), refetchInterval: 15000 } }
   );
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex items-center gap-3 mb-8">
-        <Package className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-serif font-bold text-foreground">طلباتي</h1>
+      <div className="flex items-center justify-between gap-4 mb-8">
+        <div className="flex items-center gap-3"><Package className="w-8 h-8 text-primary" /><div><h1 className="text-3xl font-serif font-bold text-foreground">طلباتي</h1><p className="text-sm text-muted-foreground mt-1">تابع تجهيز هداياك وتوصيلها لحظة بلحظة</p></div></div>
+        <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-bold text-muted-foreground hover:text-primary"><RefreshCw className="w-4 h-4" /> تحديث</button>
       </div>
 
       {isLoading ? (
@@ -56,6 +57,7 @@ export default function Orders() {
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-lg font-serif">طلب #{toArabicNumerals(order.id)}</span>
+                        {(order as any).isGift && <span className="inline-flex items-center gap-1 text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full"><Gift className="w-3.5 h-3.5" /> هدية</span>}
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${config.colorClass}`}>
                           {config.label}
                         </span>
@@ -66,7 +68,8 @@ export default function Orders() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-border pt-4 md:pt-0">
+                    <div className="flex flex-col gap-3 border-t md:border-t-0 border-border pt-4 md:pt-0 md:min-w-[300px]">
+                      <div className="flex items-center justify-between gap-6">
                       <div className="flex -space-x-2 space-x-reverse overflow-hidden">
                         {order.items.slice(0, 3).map((item, i) => (
                           <div key={i} className="w-10 h-10 rounded-full border-2 border-card bg-muted overflow-hidden shrink-0 z-10 relative">
@@ -85,6 +88,11 @@ export default function Orders() {
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
                           <ChevronLeft className="w-5 h-5" />
                         </div>
+                      </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 pt-1">
+                        {trackingSteps.map((step, stepIndex) => <span key={step} className={`h-1.5 flex-1 rounded-full ${trackingSteps.indexOf(order.status) >= stepIndex ? "bg-primary" : "bg-muted"}`} />)}
+                        <span className="text-xs text-muted-foreground mr-2 whitespace-nowrap">{config.label}</span>
                       </div>
                     </div>
                   </div>

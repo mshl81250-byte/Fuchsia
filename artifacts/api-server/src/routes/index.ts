@@ -13,6 +13,8 @@ import favoritesRouter from "./favorites";
 import rewardsRouter from "./rewards";
 import adminRouter from "./admin";
 import vendorRouter from "./vendor";
+import paymentWalletsRouter from "./payment-wallets";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -30,5 +32,7 @@ router.use("/favorites", favoritesRouter);
 router.use("/rewards", rewardsRouter);
 router.use("/admin", adminRouter);
 router.use("/vendor", vendorRouter);
+router.use("/payment-wallets", paymentWalletsRouter);
+router.use("/notifications", notificationsRouter);
 
 export default router;

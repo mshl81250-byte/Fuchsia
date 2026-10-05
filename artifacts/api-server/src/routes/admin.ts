@@ -7,6 +7,7 @@ import {
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
+import { createCustomerNotification } from "../lib/notifications";
 
 const router = Router();
 
@@ -108,11 +109,49 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
       return;
     }
 
+    const statusMessages: Record<string, { title: string; message: string }> = {
+      preparing: { title: "بدأ تجهيز طلبك", message: `بدأ فريق فوشيا تجهيز الطلب رقم ${order.id}.` },
+      delivering: { title: "طلبك في الطريق", message: `خرج الطلب رقم ${order.id} مع مندوب التوصيل.` },
+      delivered: { title: "تم توصيل طلبك", message: `تم توصيل الطلب رقم ${order.id} بنجاح.` },
+      received: { title: "تم تحديث طلبك", message: `تم تحديث حالة الطلب رقم ${order.id}.` },
+    };
+    const statusMessage = statusMessages[status];
+    if (statusMessage) await createCustomerNotification({ sessionId: order.sessionId, orderId: order.id, type: "order_status", ...statusMessage });
+
     const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
     res.json({ ...order, items, createdAt: order.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Admin update order failed");
     res.status(500).json({ error: "تعذر تحديث الطلب" });
+  }
+});
+
+router.patch("/orders/:id/payment", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const { status } = req.body ?? {};
+    if (!Number.isInteger(id) || !["verified", "rejected"].includes(status)) {
+      res.status(400).json({ error: "حالة الدفع غير صحيحة" });
+      return;
+    }
+    const [current] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!current) {
+      res.status(404).json({ error: "الطلب غير موجود" });
+      return;
+    }
+    const [order] = await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id)).returning();
+    await createCustomerNotification({
+      sessionId: order.sessionId,
+      orderId: order.id,
+      type: status === "verified" ? "payment_verified" : "payment_rejected",
+      title: status === "verified" ? "تم اعتماد إيصال الدفع" : "تعذر اعتماد إيصال الدفع",
+      message: status === "verified" ? `تم اعتماد التحويل الخاص بالطلب رقم ${order.id}.` : `يرجى مراجعة إيصال التحويل وإرساله مجدداً للطلب رقم ${order.id}.`,
+    });
+    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    res.json({ ...order, items, createdAt: order.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin payment review failed");
+    res.status(500).json({ error: "تعذر تحديث حالة الدفع" });
   }
 });
 
