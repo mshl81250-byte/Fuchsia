@@ -1,48 +1,51 @@
-# تطبيق Fuchsia Android
+# Fuchsia Boutique Android
 
-تطبيق عميل Android مبني بـ **React Native + Expo Router + TypeScript**، ويعيد استخدام خادم Fuchsia الحالي دون وضع أسرار قاعدة البيانات أو الإدارة داخل التطبيق.
+تطبيق Android عربي RTL لمتجر **Fuchsia Boutique**، مبني بـ React Native وExpo Router وTypeScript، ومتصل بخادم Fuchsia API وقاعدة MySQL عبر Drizzle.
 
-> **وضع التجربة الحالي:** جميع البيانات والوظائف حقيقية ومتصلة بالـ API وقاعدة البيانات. الاستثناء الوحيد هو OTP: يرسل التطبيق ترويسة اختبار مؤقتة ويعرض الرمز الذي يولده الخادم داخل الشاشة. احذف ترويسة `X-Fuchsia-OTP-Debug` وأوقف `MOBILE_OTP_DEBUG` قبل تفعيل البريد الحقيقي.
+## دليل المبرمج
 
-## التشغيل
+المرجع الكامل للتسليم والتطوير موجود هنا:
+
+- [`DEVELOPER_GUIDE_AR.md`](./DEVELOPER_GUIDE_AR.md)
+
+يشرح الدليل بنية الصفحات، التقنيات واللغات، API، OTP التجريبي، البصمة، الثيم، العروض، طلب العرض، الدفع، GPS، الإيصالات، الاختبارات، والبناء.
+
+## الوضع الحالي
+
+- جميع الوظائف متصلة بالـ API وقاعدة البيانات ما عدا **OTP فقط**؛ OTP تجريبي مؤقت يظهر داخل الشاشة للاختبار.
+- المتجر المعروض للمستخدم هو **Fuchsia Boutique فقط**.
+- الدفع اليدوي، رفع الإيصال، GPS، طلب العرض، رسالة الهدية، الطلبات، الإشعارات، المفضلة والسلة مطبقة.
+- الرئيسية تحتوي تصنيفات الهدايا والزهور وصناديق الخطوبة والكوش والطاولات والهدية حسب الطلب.
+- العروض داخل الرئيسية وتتقلب تلقائيًا كل 4.5 ثوانٍ، وزر العروض في الأعلى ينقل داخل الصفحة ولا يفتح صفحة مستقلة.
+- البصمة والوضع الليلي/النهاري محفوظان عبر SecureStore.
+
+## التشغيل والفحص
 
 من جذر المستودع:
 
 ```bash
-pnpm install
-pnpm --dir apps/mobile start
-```
-
-ثم افتح المشروع في Expo Go أو شغّل:
-
-```bash
-pnpm --dir apps/mobile android
-```
-
-اضبط عنوان الخادم عبر `apps/mobile/.env` اعتمادًا على `.env.example` عند الحاجة. القيمة الافتراضية هي خادم المعاينة المنشور.
-
-## الوظائف الحالية
-
-- شاشة افتتاحية RTL وهوية فوشيا.
-- تسجيل الدخول والتسجيل والتحقق من البريد عبر OTP تجريبي ظاهر داخل الشاشة.
-- تخزين الجلسة في `expo-secure-store`.
-- الرئيسية والمنتجات المميزة والمتجر والبحث والتصنيفات.
-- المتاجر وتفاصيل المتجر.
-- تفاصيل المنتج والمفضلة والسلة وتعديل الكميات.
-- إتمام الطلب مع الاسم والهاتف والعنوان وتحديد GPS ضمن نطاق صنعاء.
-- الدفع عند التوصيل أو الدفع الكامل/العربون عبر المحافظ.
-- رفع إيصال حقيقي إلى `POST /api/uploads/receipt` بصيغة `multipart/form-data` قبل إنشاء الطلب.
-- قائمة الطلبات وتفاصيل الطلب وشاشة نجاح الطلب وبيانات الموصّل.
-- الإشعارات وتعليمها كمقروءة.
-- الملف الشخصي والإعدادات وتسجيل الخروج.
-
-## التحقق والبناء
-
-```bash
+pnpm install --ignore-scripts
+pnpm --filter @workspace/mobile start
 pnpm --filter @workspace/mobile run typecheck
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/mobile exec expo export --platform android
-PORT=3000 BASE_PATH=/ pnpm run build
 ```
 
-بناء APK/AAB الإنتاجي يتم عبر Android SDK محليًا أو EAS بعد ضبط حساب Expo وcredentials.
+## بناء APK
+
+```bash
+CI=1 pnpm --filter @workspace/mobile exec expo prebuild --platform android
+printf 'sdk.dir=%s\n' "$HOME/android-sdk" > apps/mobile/android/local.properties
+cd apps/mobile/android
+./gradlew :app:assembleRelease --no-daemon
+```
+
+قبل الالتزام، احذف مجلد Android المولد إذا لم يكن مطلوبًا في Git:
+
+```bash
+rm -rf apps/mobile/android apps/mobile/dist
+```
+
+## OTP قبل الإنتاج
+
+احذف ترويسة `X-Fuchsia-OTP-Debug` من `app/auth.tsx`، وعطّل `MOBILE_OTP_DEBUG` في الخادم، ثم فعّل البريد الحقيقي عبر متغيرات Resend قبل نشر التطبيق للمستخدمين.

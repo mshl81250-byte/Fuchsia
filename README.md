@@ -399,3 +399,10 @@ pnpm audit --audit-level high
 ## الترخيص
 
 المشروع يحمل ترخيص `MIT` وفق ملف `package.json`. راجع حقوق الصور والخدمات الخارجية قبل الاستخدام التجاري.
+
+## دليل تطبيق Android
+
+تطبيق Fuchsia Boutique Android موجود في `apps/mobile/`. دليل التسليم الشامل للمبرمج، بما في ذلك الصفحات والتقنيات والـAPI وOTP التجريبي والبصمة والثيم والعروض والدفع والبناء، موجود في:
+
+- [`apps/mobile/DEVELOPER_GUIDE_AR.md`](./apps/mobile/DEVELOPER_GUIDE_AR.md)
+- [`apps/mobile/README.md`](./apps/mobile/README.md)

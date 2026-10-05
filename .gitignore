@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+# local Android build artifacts and design previews
+/artifacts/mobile-build/
+/design-preview/
+/apps/mobile/android/
+/apps/mobile/dist/
