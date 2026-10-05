@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
+import * as LocalAuthentication from "expo-local-authentication";
 import { router } from "expo-router";
 import { apiRequest } from "../lib/api";
-import { saveSession } from "../lib/auth-storage";
+import { getBiometricEnabled, getToken, getUser, saveSession } from "../lib/auth-storage";
 import { colors, styles } from "../lib/theme";
 
 type Mode = "login" | "register" | "verify";
@@ -16,6 +17,8 @@ export default function Auth() {
   const [code, setCode] = useState("");
   const [debugCode, setDebugCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  useEffect(() => { Promise.all([getBiometricEnabled(), getToken(), getUser()]).then(([enabled, token, user]) => setBiometricAvailable(Boolean(enabled && token && user && !user.isGuest))); }, []);
 
   async function finish(result: { user: any; token: string }) {
     await saveSession(result.user, result.token);
@@ -40,6 +43,7 @@ export default function Auth() {
     catch (e) { Alert.alert("رمز غير صحيح", e instanceof Error ? e.message : "تحقق من الرمز"); }
     finally { setBusy(false); }
   }
+  async function biometricLogin() { const result = await LocalAuthentication.authenticateAsync({ promptMessage: "الدخول إلى Fuchsia Boutique بالبصمة", cancelLabel: "إلغاء" }); if (result.success) router.replace("/(tabs)"); }
   async function guest() {
     try { setBusy(true); await finish(await apiRequest("/api/auth/guest", { method: "POST", json: {} })); }
     catch (e) { Alert.alert("تعذر الدخول كزائر", e instanceof Error ? e.message : ""); }
@@ -53,7 +57,7 @@ export default function Auth() {
         <Image source={require("../assets/branding/fuchsia-logo-source.png")} resizeMode="contain" style={{ alignSelf: "center", width: 180, height: 112, marginBottom: 5 }} />
         <Text style={[styles.title, { textAlign: "center", marginTop: 8 }]}>{heading}</Text>
         <Text style={[styles.subtitle, { textAlign: "center", marginBottom: 24 }]}>{mode === "verify" ? `أدخل الرمز المرسل إلى ${email}` : "هدايا تليق بلحظتك"}</Text>
-        {mode === "verify" ? <VerifyView debugCode={debugCode} code={code} setCode={setCode} busy={busy} verify={verify} back={() => setMode("register")} /> : <FormView mode={mode} fullName={fullName} setFullName={setFullName} phone={phone} setPhone={setPhone} email={email} setEmail={setEmail} password={password} setPassword={setPassword} busy={busy} submit={mode === "register" ? requestCode : login} switchMode={() => setMode(mode === "register" ? "login" : "register")} guest={guest} />}
+        {mode === "verify" ? <VerifyView debugCode={debugCode} code={code} setCode={setCode} busy={busy} verify={verify} back={() => setMode("register")} /> : <FormView mode={mode} fullName={fullName} setFullName={setFullName} phone={phone} setPhone={phone} email={email} setEmail={setEmail} password={password} setPassword={setPassword} busy={busy} submit={mode === "register" ? requestCode : login} switchMode={() => setMode(mode === "register" ? "login" : "register")} guest={guest} />}{mode === "login" && biometricAvailable && <Pressable onPress={biometricLogin} style={[styles.card, { marginTop: 12, alignItems: "center", borderColor: colors.primary }]}><Text style={{ color: colors.primary, fontWeight: "900" }}>الدخول بالبصمة</Text></Pressable>}
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
