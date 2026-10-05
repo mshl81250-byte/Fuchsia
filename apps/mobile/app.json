@@ -6,10 +6,11 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fuchsia",
+    "icon": "./assets/branding/fuchsia-app-icon.png",
     "plugins": ["expo-router", "expo-secure-store", "expo-location", "expo-image-picker"],
     "android": {
       "package": "com.fuchsia.platform",
-      "adaptiveIcon": { "backgroundColor": "#FFF0F6" }
+      "adaptiveIcon": { "backgroundColor": "#FFF0F6", "foregroundImage": "./assets/branding/fuchsia-app-icon.png" }
     },
     "extra": { "apiBaseUrl": "https://fuchsia-x7dwxpzd.manus.space" }
   }

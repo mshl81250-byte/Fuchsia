@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
 import { apiRequest } from "../lib/api";
 import { saveSession } from "../lib/auth-storage";
@@ -50,7 +50,7 @@ export default function Auth() {
   return <SafeAreaView style={styles.screen}>
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, justifyContent: "center" }]}>
-        <Text style={{ color: colors.primary, fontSize: 44, fontWeight: "900", textAlign: "center" }}>فوشيا</Text>
+        <Image source={require("../assets/branding/fuchsia-logo-source.png")} resizeMode="contain" style={{ alignSelf: "center", width: 180, height: 112, marginBottom: 5 }} />
         <Text style={[styles.title, { textAlign: "center", marginTop: 8 }]}>{heading}</Text>
         <Text style={[styles.subtitle, { textAlign: "center", marginBottom: 24 }]}>{mode === "verify" ? `أدخل الرمز المرسل إلى ${email}` : "هدايا تليق بلحظتك"}</Text>
         {mode === "verify" ? <VerifyView debugCode={debugCode} code={code} setCode={setCode} busy={busy} verify={verify} back={() => setMode("register")} /> : <FormView mode={mode} fullName={fullName} setFullName={setFullName} phone={phone} setPhone={setPhone} email={email} setEmail={setEmail} password={password} setPassword={setPassword} busy={busy} submit={mode === "register" ? requestCode : login} switchMode={() => setMode(mode === "register" ? "login" : "register")} guest={guest} />}
