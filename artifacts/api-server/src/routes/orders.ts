@@ -62,6 +62,17 @@ router.post("/", async (req, res): Promise<void> => {
       return;
     }
 
+    const normalizedPaymentType = paymentType ?? "cash_on_delivery";
+    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
+    if (!["cash_on_delivery", "full", "partial"].includes(normalizedPaymentType)) {
+      res.status(400).json({ error: "نوع الدفع غير صحيح" });
+      return;
+    }
+    if (normalizedPaymentType !== "cash_on_delivery" && (!paymentWalletId || !transactionReference || !paymentReceiptUrl)) {
+      res.status(400).json({ error: "يجب اختيار المحفظة وإرفاق رقم العملية والإيصال" });
+      return;
+    }
+
     const cartItems = await db.select().from(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
     if (cartItems.length === 0) {
       res.status(400).json({ error: "Cart is empty" });
@@ -70,17 +81,7 @@ router.post("/", async (req, res): Promise<void> => {
 
     const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const total = subtotal + DELIVERY_FEE;
-    const normalizedPaymentType = paymentType ?? "cash_on_delivery";
-    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
-    if (!["cash_on_delivery", "full", "partial"].includes(normalizedPaymentType)) {
-      res.status(400).json({ error: "نوع الدفع غير صحيح" });
-      return;
-    }
     if (normalizedPaymentType !== "cash_on_delivery") {
-      if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) {
-        res.status(400).json({ error: "يجب اختيار المحفظة وإرفاق رقم العملية والإيصال" });
-        return;
-      }
       if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {
         res.status(400).json({ error: "مبلغ الدفع غير صحيح" });
         return;
