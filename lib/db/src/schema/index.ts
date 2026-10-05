@@ -8,3 +8,4 @@ export * from "./promotions";
 export * from "./users";
 export * from "./payment-wallets";
 export * from "./notifications";
+export * from "./notification-channels";

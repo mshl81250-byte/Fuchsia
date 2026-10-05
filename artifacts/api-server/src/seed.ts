@@ -15,7 +15,7 @@ async function main() {
   console.log("🌸 Seeding Fuchsia database...");
 
   // Clear existing data
-  await db.execute(sql`TRUNCATE TABLE reviews, cart_items, order_items, orders, products, banners, coupons, favorites, payment_wallets, categories, stores, users RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE reviews, cart_items, order_items, orders, notifications, notification_channel_settings, products, banners, coupons, favorites, payment_wallets, categories, stores, users RESTART IDENTITY CASCADE`);
   console.log("✓ Cleared existing data");
 
   // ─── USERS ───────────────────────────────────────────────────────────────
@@ -41,6 +41,12 @@ async function main() {
     { nameAr: "فلوسك", nameEn: "Floosi", accountNumber: "أضف رقم حساب فلوسك من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 6 },
   ]);
   console.log("✓ Payment wallets seeded");
+
+  await db.insert(schema.notificationChannelSettingsTable).values([
+    { channel: "whatsapp", enabled: true, provider: "WhatsApp Business Cloud API", sender: null, template: "مرحباً {name}، تم تحديث طلبك رقم {order} إلى: {status}." },
+    { channel: "email", enabled: true, provider: "Resend", sender: null, template: "مرحباً {name}، تم تحديث طلبك رقم {order} إلى: {status}." },
+  ]);
+  console.log("✓ Notification channels seeded");
 
 
   // ─── CATEGORIES ─────────────────────────────────────────────────────────

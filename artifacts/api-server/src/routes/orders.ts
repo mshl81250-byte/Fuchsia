@@ -125,12 +125,16 @@ router.post("/", async (req, res): Promise<void> => {
       hidePrice: hidePrice ?? false,
       scheduledDelivery: scheduledDelivery ? new Date(scheduledDelivery) : null,
     }).returning();
+    const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
     await createCustomerNotification({
       sessionId,
       orderId: order.id,
       type: "order_received",
       title: "تم استلام طلبك",
       message: `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
+      customerName,
+      phone: customerPhone,
+      email: recipient?.email,
     });
 
     for (const item of cartItems) {
