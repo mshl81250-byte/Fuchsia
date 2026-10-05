@@ -1,11 +1,12 @@
 import React from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { colors, shadow, styles } from "../lib/theme";
 
 export function ScreenHeader({ title, subtitle, onBack, rightIcon, onRight }: { title: string; subtitle?: string; onBack?: () => void; rightIcon?: any; onRight?: () => void }) {
   return <View style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-    {onBack ? <IconButton name="arrow-forward" onPress={onBack} label="رجوع" /> : <View style={{ width: 44 }} />}
+    {onBack ? <IconButton name="arrow-forward" onPress={() => router.replace("/(tabs)")} label="العودة إلى الرئيسية" /> : <View style={{ width: 44 }} />}
     <View style={{ flex: 1, alignItems: "flex-end", marginHorizontal: 12 }}><Text style={styles.title} numberOfLines={1}>{title}</Text>{subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}</View>
     {onRight && rightIcon ? <IconButton name={rightIcon} onPress={onRight} label="إجراء" /> : <View style={{ width: 44 }} />}
   </View>;

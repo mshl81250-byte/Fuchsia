@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { FlatList, Pressable, SafeAreaView, Text, View } from "react-native";
+import React from "react";
+import { Pressable, SafeAreaView, Text, View } from "react-native";
 import { router } from "expo-router";
-import { apiRequest } from "../lib/api";
+import { ScreenHeader } from "../components/ui";
 import { colors, styles } from "../lib/theme";
-export default function Stores() { const [items, setItems] = useState<any[]>([]); useEffect(() => { apiRequest<any[]>("/api/stores").then(setItems).catch(() => setItems([])); }, []); return <SafeAreaView style={styles.screen}><FlatList data={items} contentContainerStyle={styles.content} keyExtractor={s => String(s.id)} ListHeaderComponent={<Text style={styles.title}>المتاجر</Text>} renderItem={({ item }) => <Pressable onPress={() => router.push(`/store/${item.id}`)} style={[styles.card, { marginTop: 12 }]}><Text style={{ color: colors.ink, fontWeight: "900", textAlign: "right", fontSize: 18 }}>{item.nameAr}</Text><Text style={styles.subtitle}>{item.descriptionAr || "هدايا ومنتجات مختارة من فوشيا"}</Text></Pressable>} /></SafeAreaView>; }
+export default function Store() { return <SafeAreaView style={styles.screen}><View style={styles.content}><ScreenHeader title="فوشيا بوتيك" onBack={() => router.back()} /><View style={[styles.card, { marginTop: 4, borderColor: colors.primary }]}><Text style={[styles.title, { fontSize: 22 }]}>متجر فوشيا بوتيك</Text><Text style={[styles.subtitle, { marginTop: 10 }]}>متجرنا الوحيد للهدايا والورد والتغليف الفاخر في صنعاء.</Text></View><Pressable onPress={() => router.replace("/(tabs)/store")} style={[styles.button, { marginTop: 18 }]}><Text style={styles.buttonText}>تصفح منتجات فوشيا بوتيك</Text></Pressable></View></SafeAreaView>; }

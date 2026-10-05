@@ -188,6 +188,49 @@ router.post("/", async (req, res): Promise<void> => {
   }
 });
 
+
+router.post("/offer", async (req, res): Promise<void> => {
+  try {
+    const {
+      sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
+      paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl,
+      userId, giftRecipientName, giftMessage,
+    } = req.body;
+    const OFFER_TOTAL = 45000;
+    if (!sessionId || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
+      res.status(400).json({ error: "أكملي بيانات العميل والعنوان ورسالة الهدية" }); return;
+    }
+    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" }); return;
+    }
+    const normalizedPaymentType = paymentType;
+    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
+    if (!["full", "partial"].includes(normalizedPaymentType)) { res.status(400).json({ error: "عرض الهدية يقبل الدفع الجزئي أو الكامل فقط" }); return; }
+    if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) { res.status(400).json({ error: "اختاري المحفظة وأدخلي رقم العملية وأرفقي الإيصال" }); return; }
+    const expectedAmount = normalizedPaymentType === "full" ? OFFER_TOTAL : Math.ceil(OFFER_TOTAL / 2);
+    if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount !== expectedAmount) { res.status(400).json({ error: "مبلغ الدفع لا يطابق نوع الدفع المختار" }); return; }
+    const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable).where(and(eq(paymentWalletsTable.id, Number(paymentWalletId)), eq(paymentWalletsTable.isActive, true)));
+    if (!wallet) { res.status(400).json({ error: "المحفظة المختارة غير متاحة" }); return; }
+    if (typeof paymentReceiptUrl !== "string" || paymentReceiptUrl.length > 7 * 1024 * 1024) { res.status(400).json({ error: "حجم الإيصال أكبر من الحد المسموح" }); return; }
+    await db.insert(ordersTable).values({
+      sessionId, userId: userId ?? null, status: "received", total: OFFER_TOTAL, subtotal: OFFER_TOTAL, deliveryFee: 0, discount: 0,
+      deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
+      paymentMethod: paymentMethod ?? `wallet_${paymentWalletId}`, paymentType: normalizedPaymentType, paymentStatus: "pending_review",
+      paymentWalletId: Number(paymentWalletId), paymentAmount: expectedAmount, remainingAmount: Math.max(0, OFFER_TOTAL - expectedAmount),
+      transactionReference, paymentReceiptUrl, notes: "طلب عرض صندوق خطوبة وسط مقاس 60×40",
+      isGift: true, giftRecipientName: giftRecipientName || null, giftMessage, hidePrice: false,
+    });
+    const [created] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
+    if (!created) { res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); return; }
+    const orderId = created.id;
+    await db.insert(orderItemsTable).values({ orderId, productId: 0, productName: "عرض صندوق خطوبة وسط 60×40", price: OFFER_TOTAL, quantity: 1, imageUrl: "offer://facebook-khitbah-offer" });
+    const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
+    await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+    res.status(201).json(await buildOrder(order));
+  } catch (err) { req.log.error({ err }, "Failed to create offer order"); res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); }
+});
+
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
