@@ -1,0 +1,5 @@
+import React from "react";
+import { Linking, Pressable, SafeAreaView, Text, View } from "react-native";
+import { router } from "expo-router";
+import { colors, styles } from "../lib/theme";
+export default function Settings() { return <SafeAreaView style={styles.screen}><View style={styles.content}><Text style={styles.title}>الإعدادات</Text><Pressable onPress={() => router.push("/(tabs)/profile")} style={[styles.card, { marginTop: 18 }]}><Text style={{ textAlign: "right", color: colors.ink, fontWeight: "800" }}>تعديل الملف الشخصي</Text></Pressable><Pressable onPress={() => Linking.openURL("https://fuchsia-x7dwxpzd.manus.space")} style={[styles.card, { marginTop: 10 }]}><Text style={{ textAlign: "right", color: colors.ink, fontWeight: "800" }}>سياسة الخصوصية والدعم</Text></Pressable><View style={[styles.card, { marginTop: 24 }]}><Text style={{ textAlign: "right", color: colors.muted }}>الإصدار 1.0.0</Text><Text style={[styles.subtitle, { marginTop: 6 }]}>فوشيا — هدايا تليق بلحظتك</Text></View></View></SafeAreaView>; }

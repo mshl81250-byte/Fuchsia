@@ -24,3 +24,12 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
 }
 
 export const apiBaseUrl = API_BASE_URL;
+
+export async function uploadReceipt(uri: string): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append("receipt", { uri, name: `receipt-${Date.now()}.jpg`, type: "image/jpeg" } as unknown as Blob);
+  const response = await fetch(`${API_BASE_URL}/api/uploads/receipt`, { method: "POST", headers: { Accept: "application/json" }, body: form });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "تعذر رفع الإيصال");
+  return data as { url: string };
+}

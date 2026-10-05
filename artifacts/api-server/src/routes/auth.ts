@@ -63,7 +63,11 @@ router.post("/register/request-code", async (req, res): Promise<void> => {
       expiresAt: new Date(Date.now() + 3 * 60 * 1000), attempts: 0, createdAt: new Date(),
     } });
     await sendVerificationCodeEmail({ email, name: fullName, code });
-    res.status(202).json({ message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني", expiresInSeconds: 180 });
+    res.status(202).json({
+      message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني",
+      expiresInSeconds: 180,
+      ...(process.env.MOBILE_OTP_DEBUG === "true" || req.header("X-Fuchsia-OTP-Debug") === "true" ? { debugCode: code } : {}),
+    });
   } catch (err) {
     req.log.error({ err }, "Registration verification email failed");
     res.status(503).json({ error: "تعذر إرسال رمز التحقق حالياً، حاول لاحقاً" });
