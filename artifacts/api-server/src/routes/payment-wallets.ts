@@ -28,7 +28,9 @@ router.post("/", requireAdmin, async (req, res): Promise<void> => {
 });
 router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-    const id = Number.parseInt(req.params.id, 10);
+    const rawId = typeof req.params.id === "string" ? req.params.id : "";
+    const id = Number.parseInt(rawId, 10);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "معرّف المحفظة غير صحيح" }); return; }
     const data = insertPaymentWalletSchema.partial().parse(req.body);
     const [wallet] = await db.update(paymentWalletsTable).set(data).where(eq(paymentWalletsTable.id, id)).returning();
     if (!wallet) { res.status(404).json({ error: "المحفظة غير موجودة" }); return; }

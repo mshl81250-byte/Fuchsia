@@ -20,6 +20,18 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const emailVerificationCodesTable = pgTable("email_verification_codes", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  phone: text("phone"),
+  codeHash: text("code_hash").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const favoritesTable = pgTable("favorites", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
@@ -48,6 +60,7 @@ export const spinHistoryTable = pgTable("spin_history", {
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
+export type EmailVerificationCode = typeof emailVerificationCodesTable.$inferSelect;
 export type Favorite = typeof favoritesTable.$inferSelect;
 export type RewardTransaction = typeof rewardTransactionsTable.$inferSelect;
 export type SpinHistory = typeof spinHistoryTable.$inferSelect;
