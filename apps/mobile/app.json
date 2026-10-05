@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Fuchsia",
+    "slug": "fuchsia-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "fuchsia",
+    "plugins": ["expo-router", "expo-secure-store", "expo-location", "expo-image-picker"],
+    "android": {
+      "package": "com.fuchsia.platform",
+      "adaptiveIcon": { "backgroundColor": "#FFF0F6" }
+    },
+    "extra": { "apiBaseUrl": "https://fuchsia-x7dwxpzd.manus.space" }
+  }
+}

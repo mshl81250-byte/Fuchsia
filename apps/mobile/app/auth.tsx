@@ -1,0 +1,12 @@
+import React, { useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
+import { apiRequest } from "../lib/api";
+import { saveSession } from "../lib/auth-storage";
+import { colors, styles } from "../lib/theme";
+
+export default function Auth() {
+  const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false);
+  async function signIn(path: string, json?: unknown) { try { setBusy(true); const result = await apiRequest<{ user: any; token: string }>(path, { method: "POST", json }); await saveSession(result.user, result.token); router.replace("/(tabs)"); } catch (e) { Alert.alert("تعذر الدخول", e instanceof Error ? e.message : "حاول مرة أخرى"); } finally { setBusy(false); } }
+  return <SafeAreaView style={styles.screen}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}><View style={[styles.content, { flex: 1, justifyContent: "center" }]}><Text style={{ color: colors.primary, fontSize: 42, fontWeight: "900", textAlign: "center" }}>فوشيا</Text><Text style={[styles.title, { textAlign: "center", marginTop: 10 }]}>أهلاً بك من جديد</Text><Text style={[styles.subtitle, { textAlign: "center", marginBottom: 28 }]}>هدايا تليق بلحظتك</Text><TextInput value={email} onChangeText={setEmail} placeholder="البريد الإلكتروني" keyboardType="email-address" autoCapitalize="none" style={styles.input} /><TextInput value={password} onChangeText={setPassword} placeholder="كلمة المرور" secureTextEntry style={[styles.input, { marginTop: 12 }]} /><Pressable disabled={busy} onPress={() => signIn("/api/auth/login", { email, password })} style={[styles.button, { marginTop: 20, opacity: busy ? .6 : 1 }]}><Text style={styles.buttonText}>{busy ? "جارٍ الدخول..." : "تسجيل الدخول"}</Text></Pressable><Pressable onPress={() => Alert.alert("التسجيل", "سيتم تفعيل التسجيل برمز البريد في المرحلة التالية.")} style={{ padding: 18 }}><Text style={{ textAlign: "center", color: colors.primary, fontWeight: "700" }}>إنشاء حساب جديد</Text></Pressable><Pressable onPress={() => signIn("/api/auth/guest")} style={[styles.card, { marginTop: 6, alignItems: "center" }]}><Text style={{ color: colors.ink, fontWeight: "700" }}>الدخول كزائر</Text></Pressable></View></KeyboardAvoidingView></SafeAreaView>;
+}
