@@ -18,6 +18,10 @@ export interface Order {
   /** @nullable */
   deliveryAddress?: string | null;
   /** @nullable */
+  deliveryLatitude?: number | null;
+  /** @nullable */
+  deliveryLongitude?: number | null;
+  /** @nullable */
   customerName?: string | null;
   /** @nullable */
   customerPhone?: string | null;

@@ -17,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Wallet, Upload, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DeliveryLocationPicker } from "@/components/DeliveryLocationPicker";
 
 const checkoutSchema = z.object({
   customerName: z.string().min(2, "يرجى إدخال الاسم كاملاً"),
@@ -49,6 +50,8 @@ export default function Checkout() {
   const [giftCardStyle, setGiftCardStyle] = useState("elegant");
   const [hidePrice, setHidePrice] = useState(true);
   const [scheduledDelivery, setScheduledDelivery] = useState("");
+  const [deliveryLatitude, setDeliveryLatitude] = useState<number | null>(null);
+  const [deliveryLongitude, setDeliveryLongitude] = useState<number | null>(null);
 
   useEffect(() => {
     fetch("/api/payment-wallets").then(r => r.ok ? r.json() : []).then(setWallets).catch(() => setWallets([]));
@@ -84,6 +87,10 @@ export default function Checkout() {
       toast({ variant: "destructive", title: "بيانات الهدية ناقصة", description: "أدخل اسم مستلم الهدية" });
       return;
     }
+    if (deliveryLatitude == null || deliveryLongitude == null) {
+      toast({ variant: "destructive", title: "حدد موقع التوصيل", description: "اضغط على الخريطة أو استخدم زر موقعي الحالي لتحديد مكان التوصيل بدقة" });
+      return;
+    }
     try {
       const order = await createOrderMutation.mutateAsync({
         data: {
@@ -91,6 +98,8 @@ export default function Checkout() {
           customerName: values.customerName,
           customerPhone: values.customerPhone,
           deliveryAddress: values.deliveryAddress,
+          deliveryLatitude,
+          deliveryLongitude,
           paymentMethod: paymentType === "cash_on_delivery" ? "cash_on_delivery" : `wallet_${walletId}`,
           paymentType,
           paymentWalletId: walletId ? Number(walletId) : null,
@@ -166,6 +175,7 @@ export default function Checkout() {
                     <FormMessage />
                   </FormItem>
                 )} />
+                <DeliveryLocationPicker latitude={deliveryLatitude} longitude={deliveryLongitude} onChange={(latitude, longitude) => { setDeliveryLatitude(latitude); setDeliveryLongitude(longitude); }} />
               </div>
 
               <div className="bg-[#FFF0F6] border border-[#F0D4E5] rounded-2xl p-4 flex items-start gap-3">

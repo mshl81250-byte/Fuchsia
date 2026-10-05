@@ -47,7 +47,7 @@ router.get("/:id", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const {
-      sessionId, deliveryAddress, customerName, customerPhone,
+      sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
       driverName, driverPhone,
       paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl, couponCode, notes, userId,
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
@@ -55,6 +55,10 @@ router.post("/", async (req, res): Promise<void> => {
 
     if (!sessionId || !deliveryAddress || !customerName || !customerPhone) {
       res.status(400).json({ error: "Missing required fields" });
+      return;
+    }
+    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
       return;
     }
 
@@ -104,6 +108,8 @@ router.post("/", async (req, res): Promise<void> => {
       deliveryFee: DELIVERY_FEE,
       discount: 0,
       deliveryAddress,
+      deliveryLatitude,
+      deliveryLongitude,
       customerName,
       customerPhone,
       driverName: driverName ?? null,
