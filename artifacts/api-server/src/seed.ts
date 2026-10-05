@@ -33,12 +33,12 @@ async function main() {
   ]);
   console.log("✓ Users seeded");
   await db.insert(schema.paymentWalletsTable).values([
-    { nameAr: "جيب", nameEn: "Jaib", accountNumber: "أضف رقم حساب جيب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/jaib.jpg", sortOrder: 1 },
-    { nameAr: "جوالي", nameEn: "Jawali", accountNumber: "أضف رقم حساب جوالي من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/jawali.jpg", sortOrder: 2 },
-    { nameAr: "موبايل موني", nameEn: "Mobile Money", accountNumber: "أضف رقم حساب موبايل موني من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/mobile-money.jpg", sortOrder: 3 },
-    { nameAr: "محفظتي", nameEn: "Mahfazati", accountNumber: "أضف رقم الحساب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/mahfazati.jpg", sortOrder: 4 },
-    { nameAr: "كاش", nameEn: "Cash", accountNumber: "أضف رقم الحساب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/cash.jpg", sortOrder: 5 },
-    { nameAr: "فلوسك", nameEn: "Floosi", accountNumber: "أضف رقم حساب فلوسك من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: "/payment-wallets/flousy.jpg", sortOrder: 6 },
+    { nameAr: "جيب", nameEn: "Jaib", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/jaib.jpg", sortOrder: 1 },
+    { nameAr: "جوالي", nameEn: "Jawali", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/jawali.jpg", sortOrder: 2 },
+    { nameAr: "موبايل موني", nameEn: "Mobile Money", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/mobile-money.jpg", sortOrder: 3 },
+    { nameAr: "محفظتي", nameEn: "Mahfazati", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/mahfazati.jpg", sortOrder: 4 },
+    { nameAr: "كاش", nameEn: "Cash", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/cash.jpg", sortOrder: 5 },
+    { nameAr: "فلوسك", nameEn: "Floosi", accountNumber: "778360009", instructions: "حوّل المبلغ إلى حساب متجر فوشيا ثم أرفق إيصال التحويل", iconUrl: "/payment-wallets/flousy.jpg", sortOrder: 6 },
   ]);
   console.log("✓ Payment wallets seeded");
 
