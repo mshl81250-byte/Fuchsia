@@ -11,6 +11,11 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
 }
 
+const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD ?? "";
+if (initialAdminPassword.length < 12) {
+  throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding");
+}
+
 async function main() {
   console.log("🌸 Seeding Fuchsia database...");
 
@@ -27,7 +32,7 @@ async function main() {
     {
       fullName: "مدير النظام",
       email: "admin@fuchsia.ye",
-      passwordHash: hashPassword("admin123"),
+      passwordHash: hashPassword(initialAdminPassword),
       isGuest: false,
       rewardPoints: 1000,
       referralCode: "ADM001",

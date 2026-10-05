@@ -13,12 +13,12 @@ description: Full-stack Arabic women's events platform — brand, auth, routing,
 - SHA256 hash with `fuchsia_salt_2024` suffix (no bcrypt)
 - Stored in `localStorage` as `fuchsia_user` + `fuchsia_token`
 - Splash → Auth guard: check `fuchsia_onboarded` first, then `fuchsia_user`
-- Admin gate: client-side only, credentials `admin@fuchsia.ye` / `admin123`, stored in `fuchsia_admin`
+- Admin gate: server-side API authentication with an HttpOnly session cookie; never store credentials in client code or localStorage.
 - Vendor gate: matches `storeNameAr` or `store.phone` via `/api/vendor/login`, stored in `fuchsia_vendor` as JSON
 - Guest emails: `زائر_{timestamp}@guest.fuchsia`
 - Vendor token: SHA-256 of `{store.id}_vendor_fuchsia`
 
-**Why:** Simple auth for MVP; no OAuth providers available in Yemen market.
+**Why:** Server-side sessions keep administrative credentials and authorization decisions out of the browser.
 
 ## Routing
 - `/splash` → onboarding (3 slides: كوش، خطوبة، هدايا), sets `fuchsia_onboarded`

@@ -41,13 +41,20 @@ export default function Dashboard() {
     }
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === "admin@fuchsia.ye" && password === "admin123") {
+    try {
+      const response = await fetch("/api/admin/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) throw new Error("invalid credentials");
       localStorage.setItem("fuchsia_admin", "true");
       setIsAuthenticated(true);
       toast.success("تم تسجيل الدخول بنجاح");
-    } else {
+    } catch {
       toast.error("بيانات الدخول غير صحيحة");
     }
   };

@@ -29,9 +29,9 @@
 - **Border:** `#F0D4E5`
 - **Accent:** `#F48FB1`
 - **Tagline:** روعة المناسبات في مكان واحد
-- **Admin email:** `admin@fuchsia.ye` / password: `admin123`
+- **Admin email:** `admin@fuchsia.ye` / password is supplied through the secret `ADMIN_INITIAL_PASSWORD` during initial seeding.
 - **localStorage keys:** `fuchsia_user`, `fuchsia_token`, `fuchsia_session_id`, `fuchsia_onboarded`, `fuchsia_admin`, `fuchsia_vendor`
-- **Auth salt:** `fuchsia_salt_2024`
+- **Auth salt:** configured in server code; never use the seed password as a source-controlled value.
 - **Guest email domain:** `@guest.fuchsia`
 
 ## Where things live
