@@ -1,0 +1,9 @@
+# Keep Cloud Run source archives small and free of workspace-only links.
+.git
+.git/**
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example

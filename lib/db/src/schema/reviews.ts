@@ -1,12 +1,12 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { mysqlTable, text, varchar, int, timestamp } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const reviewsTable = pgTable("reviews", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull(),
-  customerName: text("customer_name").notNull().default("عميل"),
-  rating: integer("rating").notNull(),
+export const reviewsTable = mysqlTable("reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("product_id").notNull(),
+  customerName: varchar("customer_name", { length: 120 }).notNull().default("عميل"),
+  rating: int("rating").notNull(),
   comment: text("comment"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

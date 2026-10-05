@@ -43,7 +43,9 @@ router.get("/:id", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const data = insertStoreSchema.parse(req.body);
-    const [store] = await db.insert(storesTable).values(data).returning();
+    await db.insert(storesTable).values(data);
+    const [store] = await db.select().from(storesTable).where(eq(storesTable.nameAr, data.nameAr));
+    if (!store) { res.status(400).json({ error: "تعذر إنشاء المتجر" }); return; }
     res.status(201).json(store);
   } catch (err) {
     req.log.error({ err }, "Failed to create store");

@@ -20,7 +20,8 @@ router.get("/all", requireAdmin, async (_req, res): Promise<void> => {
 router.post("/", requireAdmin, async (req, res): Promise<void> => {
   try {
     const data = insertPaymentWalletSchema.parse(req.body);
-    const [wallet] = await db.insert(paymentWalletsTable).values(data).returning();
+    await db.insert(paymentWalletsTable).values(data);
+    const [wallet] = await db.select().from(paymentWalletsTable).where(eq(paymentWalletsTable.accountNumber, data.accountNumber));
     res.status(201).json(wallet);
   } catch {
     res.status(400).json({ error: "بيانات المحفظة غير صحيحة" });
@@ -32,7 +33,8 @@ router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
     const id = Number.parseInt(rawId, 10);
     if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "معرّف المحفظة غير صحيح" }); return; }
     const data = insertPaymentWalletSchema.partial().parse(req.body);
-    const [wallet] = await db.update(paymentWalletsTable).set(data).where(eq(paymentWalletsTable.id, id)).returning();
+    await db.update(paymentWalletsTable).set(data).where(eq(paymentWalletsTable.id, id));
+    const [wallet] = await db.select().from(paymentWalletsTable).where(eq(paymentWalletsTable.id, id));
     if (!wallet) { res.status(404).json({ error: "المحفظة غير موجودة" }); return; }
     res.json(wallet);
   } catch {

@@ -14,8 +14,12 @@ function hashPassword(password: string): string {
 async function main() {
   console.log("🌸 Seeding Fuchsia database...");
 
-  // Clear existing data
-  await db.execute(sql`TRUNCATE TABLE email_verification_codes, reviews, cart_items, order_items, orders, notifications, notification_channel_settings, products, banners, coupons, favorites, payment_wallets, categories, stores, users RESTART IDENTITY CASCADE`);
+  // Clear catalog and transactional data while preserving customer accounts.
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+  for (const table of ["email_verification_codes", "reviews", "cart_items", "order_items", "orders", "notifications", "notification_channel_settings", "products", "banners", "coupons", "favorites", "payment_wallets", "categories", "stores"]) {
+    await db.execute(sql.raw(`TRUNCATE TABLE \`${table}\``));
+  }
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   console.log("✓ Cleared existing data");
 
   // ─── USERS ───────────────────────────────────────────────────────────────
@@ -50,20 +54,21 @@ async function main() {
 
 
   // ─── CATEGORIES ─────────────────────────────────────────────────────────
-  const categories = await db.insert(schema.categoriesTable).values([
+  await db.insert(schema.categoriesTable).values([
     { nameAr: "كوش الأعراس",     nameEn: "Wedding Arches",    icon: "flower-2",  color: "#D81B60", imageUrl: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "تجهيز الخطوبة",   nameEn: "Engagement Setup",  icon: "diamond",   color: "#F48FB1", imageUrl: "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الطاولات",         nameEn: "Tables",            icon: "table",     color: "#E91E8C", imageUrl: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الهدايا الفاخرة",  nameEn: "Luxury Gifts",      icon: "gift",      color: "#C2185B", imageUrl: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "التغليف الفاخر",   nameEn: "Luxury Wrapping",   icon: "package",   color: "#AD1457", imageUrl: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الورود والزهور",   nameEn: "Roses & Flowers",   icon: "flower",    color: "#F06292", imageUrl: "https://images.unsplash.com/photo-1487530811015-2780be2b99f6?w=400&h=400&fit=crop", productCount: 0 },
-  ]).returning();
+  ]);
+  const categories = await db.select().from(schema.categoriesTable).orderBy(schema.categoriesTable.id);
   console.log("✓ Categories seeded:", categories.length);
 
   const [catKosh, catKhitba, catTables, catGifts, catWrapping, catFlowers] = categories;
 
   // ─── STORES ─────────────────────────────────────────────────────────────
-  const stores = await db.insert(schema.storesTable).values([
+  await db.insert(schema.storesTable).values([
     {
       nameAr: "أتيلييه فوشيا للكوش",
       nameEn: "Fuchsia Kosh Atelier",
@@ -114,13 +119,14 @@ async function main() {
       workingHours: "٨ صباحاً – ١٠ مساءً", phone: "777901234",
       location: "شارع الجمهورية، صنعاء", isFeatured: true, productCount: 0,
     },
-  ]).returning();
+  ]);
+  const stores = await db.select().from(schema.storesTable).orderBy(schema.storesTable.id);
   console.log("✓ Stores seeded:", stores.length);
 
   const [sKosh, sKhitba, sGifts, sWrapping, sFlowers] = stores;
 
   // ─── PRODUCTS ────────────────────────────────────────────────────────────
-  const products = await db.insert(schema.productsTable).values([
+  await db.insert(schema.productsTable).values([
     // كوش الأعراس
     {
       nameAr: "كوش عرس ملكي بالورود الطبيعية",
@@ -292,7 +298,8 @@ async function main() {
       tags: JSON.stringify(["تنسيق", "زهور", "شامل"]),
       occasionTags: JSON.stringify(["زفاف", "خطوبة"]),
     },
-  ]).returning();
+  ]);
+  const products = await db.select().from(schema.productsTable).orderBy(schema.productsTable.id);
   console.log("✓ Products seeded:", products.length);
 
   // Update counts
