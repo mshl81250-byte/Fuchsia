@@ -46,6 +46,8 @@ export default function Admin() {
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
   const [couponForm, setCouponForm] = useState({ code: "", discountType: "percentage", discountValue: "" });
   const [walletForm, setWalletForm] = useState({ nameAr: "", nameEn: "", accountNumber: "", instructions: "", iconUrl: "" });
+  const [editingWalletId, setEditingWalletId] = useState<number | null>(null);
+  const [editingWalletForm, setEditingWalletForm] = useState({ nameAr: "", nameEn: "", accountNumber: "", instructions: "", iconUrl: "" });
   const [adminWallets, setAdminWallets] = useState<any[]>([]);
   const [channelSettings, setChannelSettings] = useState<Record<string, any>>({});
   const [lastOrderCount, setLastOrderCount] = useState<number>(0);
@@ -153,13 +155,14 @@ export default function Admin() {
     }
   }
   function handleEditWallet(wallet: any) {
-    const nameAr = window.prompt("اسم المحفظة", wallet.nameAr);
-    if (!nameAr?.trim()) return;
-    const accountNumber = window.prompt("رقم الحساب أو نقطة البيع", wallet.accountNumber);
-    if (!accountNumber?.trim()) return;
-    const instructions = window.prompt("تعليمات الدفع", wallet.instructions ?? "") ?? "";
-    const iconUrl = window.prompt("رابط أيقونة المحفظة", wallet.iconUrl ?? "") ?? "";
-    void handleWalletPatch(wallet.id, { nameAr: nameAr.trim(), accountNumber: accountNumber.trim(), instructions: instructions.trim() || null, iconUrl: iconUrl.trim() || null });
+    setEditingWalletId(wallet.id);
+    setEditingWalletForm({ nameAr: wallet.nameAr ?? "", nameEn: wallet.nameEn ?? "", accountNumber: wallet.accountNumber ?? "", instructions: wallet.instructions ?? "", iconUrl: wallet.iconUrl ?? "" });
+  }
+  async function handleSaveWalletEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editingWalletId == null || !editingWalletForm.nameAr.trim() || !editingWalletForm.accountNumber.trim()) return;
+    await handleWalletPatch(editingWalletId, { ...editingWalletForm, nameAr: editingWalletForm.nameAr.trim(), accountNumber: editingWalletForm.accountNumber.trim(), instructions: editingWalletForm.instructions.trim() || null, iconUrl: editingWalletForm.iconUrl.trim() || null });
+    setEditingWalletId(null);
   }
   async function handlePaymentReview(orderId: number, status: "verified" | "rejected") {
     try {
@@ -624,7 +627,14 @@ export default function Admin() {
                   <div className="flex-1"><div className="flex items-center gap-2"><p className="font-bold">{wallet.nameAr}</p><span className={`text-xs px-2 py-1 rounded-full ${wallet.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>{wallet.isActive ? "فعالة" : "معطلة"}</span></div><p className="text-sm text-[#6B6B6B]" dir="ltr">{wallet.accountNumber}</p><p className="text-xs text-[#6B6B6B]">الترتيب: {toArabicNumerals(wallet.sortOrder)}</p></div>
                   <div className="flex items-center gap-2"><button type="button" onClick={() => handleWalletPatch(wallet.id, { isActive: !wallet.isActive })} className="px-3 py-2 rounded-lg border border-[#F0D4E5] text-xs font-bold hover:text-[#D81B60]">{wallet.isActive ? "تعطيل" : "تفعيل"}</button><button type="button" onClick={() => handleEditWallet(wallet)} className="px-3 py-2 rounded-lg border border-[#F0D4E5] text-xs font-bold hover:text-[#D81B60]">تعديل البيانات</button><button type="button" disabled={index === 0} onClick={() => handleWalletPatch(wallet.id, { sortOrder: Math.max(0, wallet.sortOrder - 1) })} className="px-2 py-2 rounded-lg border border-[#F0D4E5] text-xs disabled:opacity-30">↑</button><button type="button" disabled={index === adminWallets.length - 1} onClick={() => handleWalletPatch(wallet.id, { sortOrder: wallet.sortOrder + 1 })} className="px-2 py-2 rounded-lg border border-[#F0D4E5] text-xs disabled:opacity-30">↓</button></div>
                 </div>
-                {wallet.instructions && <p className="text-xs text-[#6B6B6B] mt-3 border-t border-[#F0D4E5] pt-3">{wallet.instructions}</p>}
+                {editingWalletId === wallet.id ? <form onSubmit={handleSaveWalletEdit} className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-[#F0D4E5] pt-4">
+                  <div><Label className="text-xs">اسم المحفظة</Label><Input required value={editingWalletForm.nameAr} onChange={e => setEditingWalletForm(f => ({ ...f, nameAr: e.target.value }))} className="mt-1 bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /></div>
+                  <div><Label className="text-xs">الاسم بالإنجليزية</Label><Input value={editingWalletForm.nameEn} onChange={e => setEditingWalletForm(f => ({ ...f, nameEn: e.target.value }))} dir="ltr" className="mt-1 bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /></div>
+                  <div><Label className="text-xs">رقم الحساب أو نقطة البيع</Label><Input required value={editingWalletForm.accountNumber} onChange={e => setEditingWalletForm(f => ({ ...f, accountNumber: e.target.value }))} dir="ltr" className="mt-1 bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /></div>
+                  <div><Label className="text-xs">رابط الأيقونة</Label><Input value={editingWalletForm.iconUrl} onChange={e => setEditingWalletForm(f => ({ ...f, iconUrl: e.target.value }))} dir="ltr" className="mt-1 bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /></div>
+                  <div className="md:col-span-2"><Label className="text-xs">تعليمات الدفع</Label><Textarea value={editingWalletForm.instructions} onChange={e => setEditingWalletForm(f => ({ ...f, instructions: e.target.value }))} className="mt-1 bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /></div>
+                  <div className="md:col-span-2 flex gap-2 justify-end"><button type="button" onClick={() => setEditingWalletId(null)} className="px-4 py-2 rounded-xl border border-[#F0D4E5] text-sm font-bold">إلغاء</button><button type="submit" className="px-5 py-2 rounded-xl bg-[#D81B60] text-white text-sm font-bold">حفظ بيانات المحفظة</button></div>
+                </form> : wallet.instructions && <p className="text-xs text-[#6B6B6B] mt-3 border-t border-[#F0D4E5] pt-3">{wallet.instructions}</p>}
               </div>)}
             </div></div>
           </div>
