@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import {
   usersTable, productsTable, storesTable, ordersTable,
   categoriesTable, bannersTable, couponsTable, insertCouponSchema,
-  orderItemsTable
+  orderItemsTable, notificationChannelSettingsTable
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
@@ -54,6 +54,37 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.use(requireAdmin);
+
+router.get("/notification-settings", async (_req, res): Promise<void> => {
+  try {
+    const settings = await db.select().from(notificationChannelSettingsTable);
+    res.json({ settings, credentials: { whatsapp: Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID), email: Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST) } });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر تحميل إعدادات الإشعارات" });
+  }
+});
+
+router.patch("/notification-settings/:channel", async (req, res): Promise<void> => {
+  try {
+    const channel = req.params.channel;
+    if (!["whatsapp", "email"].includes(channel)) {
+      res.status(400).json({ error: "القناة غير صحيحة" });
+      return;
+    }
+    const { enabled, provider, sender, template } = req.body ?? {};
+    if (typeof enabled !== "boolean" || typeof provider !== "string" || typeof template !== "string") {
+      res.status(400).json({ error: "إعدادات القناة غير مكتملة" });
+      return;
+    }
+    const [setting] = await db.insert(notificationChannelSettingsTable).values({
+      channel, enabled, provider: provider.slice(0, 80), sender: typeof sender === "string" ? sender.slice(0, 160) : null, template: template.slice(0, 1000), updatedAt: new Date(),
+    }).onConflictDoUpdate({ target: notificationChannelSettingsTable.channel, set: { enabled, provider: provider.slice(0, 80), sender: typeof sender === "string" ? sender.slice(0, 160) : null, template: template.slice(0, 1000), updatedAt: new Date() } }).returning();
+    res.json(setting);
+  } catch (err) {
+    req.log.error({ err }, "Admin notification settings update failed");
+    res.status(500).json({ error: "تعذر حفظ إعدادات القناة" });
+  }
+});
 
 router.get("/users", async (req, res) => {
   try {
@@ -116,7 +147,8 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
       received: { title: "تم تحديث طلبك", message: `تم تحديث حالة الطلب رقم ${order.id}.` },
     };
     const statusMessage = statusMessages[status];
-    if (statusMessage) await createCustomerNotification({ sessionId: order.sessionId, orderId: order.id, type: "order_status", ...statusMessage });
+    const [statusRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
+    if (statusMessage) await createCustomerNotification({ sessionId: order.sessionId, orderId: order.id, type: "order_status", ...statusMessage, customerName: order.customerName, phone: order.customerPhone, email: statusRecipient?.email });
 
     const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
     res.json({ ...order, items, createdAt: order.createdAt.toISOString() });
@@ -140,12 +172,16 @@ router.patch("/orders/:id/payment", async (req, res): Promise<void> => {
       return;
     }
     const [order] = await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id)).returning();
+    const [paymentRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
     await createCustomerNotification({
       sessionId: order.sessionId,
       orderId: order.id,
       type: status === "verified" ? "payment_verified" : "payment_rejected",
       title: status === "verified" ? "تم اعتماد إيصال الدفع" : "تعذر اعتماد إيصال الدفع",
       message: status === "verified" ? `تم اعتماد التحويل الخاص بالطلب رقم ${order.id}.` : `يرجى مراجعة إيصال التحويل وإرساله مجدداً للطلب رقم ${order.id}.`,
+      customerName: order.customerName,
+      phone: order.customerPhone,
+      email: paymentRecipient?.email,
     });
     const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
     res.json({ ...order, items, createdAt: order.createdAt.toISOString() });

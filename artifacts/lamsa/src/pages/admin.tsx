@@ -16,11 +16,11 @@ import {
   LayoutDashboard, Users, ShoppingBag, Tag, LogOut,
   Package, TrendingUp, Phone, MapPin, CreditCard, FileText,
   ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle2,
-  Truck, Star, Bell, X, Filter,
+  Truck, Star, Bell, X, Filter, Settings,
 } from "lucide-react";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
 
-type Section = "overview" | "orders" | "users" | "coupons" | "wallets";
+type Section = "overview" | "orders" | "users" | "coupons" | "wallets" | "notification-settings";
 type StatusFilter = "all" | "received" | "preparing" | "delivering" | "delivered";
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof Clock; next?: string; nextLabel?: string }> = {
@@ -46,6 +46,7 @@ export default function Admin() {
   const [couponForm, setCouponForm] = useState({ code: "", discountType: "percentage", discountValue: "" });
   const [walletForm, setWalletForm] = useState({ nameAr: "", nameEn: "", accountNumber: "", instructions: "", iconUrl: "" });
   const [adminWallets, setAdminWallets] = useState<any[]>([]);
+  const [channelSettings, setChannelSettings] = useState<Record<string, any>>({});
   const [lastOrderCount, setLastOrderCount] = useState<number>(0);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const prevOrderIds = useRef<Set<number>>(new Set());
@@ -84,6 +85,11 @@ export default function Admin() {
     prevOrderIds.current = ids;
     setLastOrderCount(ordersQuery.data.length);
   }, [ordersQuery.data]);
+  useEffect(() => {
+    if (!isAdmin || (section !== "wallets" && section !== "notification-settings")) return;
+    if (section === "wallets") fetch("/api/payment-wallets/all").then(r => r.ok ? r.json() : []).then(setAdminWallets).catch(() => undefined);
+    fetch("/api/admin/notification-settings").then(r => r.ok ? r.json() : { settings: [], credentials: {} }).then((payload: any) => setChannelSettings({ ...Object.fromEntries((payload.settings ?? []).map((item: any) => [item.channel, item])), credentials: payload.credentials ?? {} })).catch(() => undefined);
+  }, [isAdmin, section]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -162,6 +168,14 @@ export default function Admin() {
       toast({ variant: "destructive", title: "خطأ", description: "تعذر تحديث حالة الدفع" });
     }
   }
+  async function handleChannelSave(channel: "whatsapp" | "email", changes: any) {
+    const current = { ...(channelSettings[channel] ?? {}), ...changes, channel };
+    const response = await fetch(`/api/admin/notification-settings/${channel}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current) });
+    if (!response.ok) { toast({ variant: "destructive", title: "خطأ", description: "تعذر حفظ إعدادات القناة" }); return; }
+    const saved = await response.json();
+    setChannelSettings(value => ({ ...value, [channel]: saved }));
+    toast({ title: "تم الحفظ", description: `تم تحديث إعدادات ${channel === "whatsapp" ? "واتساب" : "البريد الإلكتروني"}` });
+  }
 
   if (!isAdmin) {
     return (
@@ -215,6 +229,7 @@ export default function Admin() {
     { id: "users",    label: "العملاء",    icon: Users },
     { id: "coupons",  label: "الكوبونات",  icon: Tag },
     { id: "wallets",   label: "المحافظ",    icon: CreditCard },
+    { id: "notification-settings", label: "قنوات التنبيه", icon: Settings },
   ];
 
   return (
@@ -600,6 +615,16 @@ export default function Admin() {
                 {wallet.instructions && <p className="text-xs text-[#6B6B6B] mt-3 border-t border-[#F0D4E5] pt-3">{wallet.instructions}</p>}
               </div>)}
             </div></div>
+          </div>
+        )}
+        {section === "notification-settings" && (
+          <div className="p-6 max-w-4xl space-y-6">
+            <div><h2 className="text-xl font-bold text-[#1A1A1A]">قنوات إشعارات العملاء</h2><p className="text-sm text-[#6B6B6B] mt-1">فعّل واتساب والبريد لإرسال تحديثات حالة الطلب ومراجعة الإيصالات.</p></div>
+            {[
+              { channel: "whatsapp" as const, title: "واتساب", description: "رسائل WhatsApp Business للعملاء", configured: channelSettings.credentials?.whatsapp, providers: ["WhatsApp Business Cloud API", "Twilio WhatsApp"], placeholder: "مثال: +967777000000", defaultTemplate: "مرحباً {name}، تم تحديث طلبك رقم {order} إلى: {status}." },
+              { channel: "email" as const, title: "البريد الإلكتروني", description: "رسائل بريدية لتأكيدات الطلب والدفع", configured: channelSettings.credentials?.email, providers: ["Resend", "SMTP"], placeholder: "مثال: notifications@fuchsia.ye", defaultTemplate: "مرحباً {name}، تم تحديث طلبك رقم {order} إلى: {status}." },
+            ].map(item => { const value = channelSettings[item.channel] ?? { enabled: true, provider: item.providers[0], sender: "", template: item.defaultTemplate }; return <div key={item.channel} className="bg-white rounded-2xl border border-[#F0D4E5] p-5 shadow-sm space-y-4"><div className="flex items-start justify-between gap-4"><div><h3 className="font-bold text-lg">{item.title}</h3><p className="text-sm text-[#6B6B6B]">{item.description}</p></div><button type="button" onClick={() => void handleChannelSave(item.channel, { ...value, enabled: !value.enabled })} className={`relative w-14 h-8 rounded-full transition-colors ${value.enabled ? "bg-[#D81B60]" : "bg-[#E8D9E2]"}`} aria-label={`تفعيل ${item.title}`}><span className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all ${value.enabled ? "right-1" : "left-1"}`} /></button></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div><Label>مزود الخدمة</Label><select value={value.provider} onChange={e => setChannelSettings(current => ({ ...current, [item.channel]: { ...value, provider: e.target.value } }))} className="w-full h-11 rounded-xl border border-[#F0D4E5] bg-[#FFF0F6] px-3">{item.providers.map(provider => <option key={provider}>{provider}</option>)}</select></div><div><Label>{item.channel === "whatsapp" ? "رقم واتساب المرسل" : "بريد المرسل"}</Label><Input value={value.sender ?? ""} onChange={e => setChannelSettings(current => ({ ...current, [item.channel]: { ...value, sender: e.target.value } }))} placeholder={item.placeholder} dir="ltr" className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl h-11" /></div></div><div><Label>قالب الرسالة</Label><Textarea value={value.template ?? item.defaultTemplate} onChange={e => setChannelSettings(current => ({ ...current, [item.channel]: { ...value, template: e.target.value } }))} className="bg-[#FFF0F6] border-[#F0D4E5] rounded-xl" /><p className="text-xs text-[#6B6B6B] mt-1">المتغيرات المتاحة: {'{name}'}، {'{order}'}، {'{status}'}</p></div><div className="flex items-center justify-between gap-3 border-t border-[#F0D4E5] pt-3"><span className={`text-xs px-2.5 py-1.5 rounded-full ${item.configured ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{item.configured ? "بيانات الربط متوفرة" : "بانتظار مفاتيح الربط في الخادم"}</span><button type="button" onClick={() => void handleChannelSave(item.channel, value)} className="px-5 h-10 rounded-xl bg-[#D81B60] text-white font-bold text-sm">حفظ إعدادات {item.title}</button></div></div> })}
+            <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 text-sm text-blue-800">لا يتم حفظ مفاتيح API أو كلمات مرور SMTP في قاعدة البيانات أو عرضها في اللوحة. بعد إضافة المفاتيح إلى بيئة الخادم ستتحول حالة القناة إلى جاهزة للإرسال.</div>
           </div>
         )}
         {/* ══════════ COUPONS SECTION ══════════ */}
