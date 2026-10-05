@@ -426,6 +426,7 @@ export default function Admin() {
                                       <span className="text-xs font-semibold">العنوان</span>
                                     </div>
                                     <p className="text-sm">{order.deliveryAddress}</p>
+                                    {(order as any).deliveryLatitude != null && (order as any).deliveryLongitude != null && <a className="inline-flex mt-2 text-xs font-bold text-[#D81B60] hover:underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${(order as any).deliveryLatitude},${(order as any).deliveryLongitude}`}>فتح الموقع على الخريطة ↗</a>}
                                   </div>
                                   <div className="bg-[#FFF0F6] rounded-xl p-3">
                                     <div className="flex items-center gap-1.5 text-[#D81B60] mb-1">

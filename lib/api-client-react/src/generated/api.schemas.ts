@@ -246,6 +246,10 @@ export interface Order {
   /** @nullable */
   deliveryAddress?: string | null;
   /** @nullable */
+  deliveryLatitude?: number | null;
+  /** @nullable */
+  deliveryLongitude?: number | null;
+  /** @nullable */
   customerName?: string | null;
   /** @nullable */
   customerPhone?: string | null;
@@ -279,6 +283,16 @@ export const OrderInputPaymentMethod = {
 export interface OrderInput {
   sessionId: string;
   deliveryAddress: string;
+  /**
+     * @minimum 15.1
+     * @maximum 15.7
+     */
+  deliveryLatitude: number;
+  /**
+     * @minimum 43.8
+     * @maximum 44.6
+     */
+  deliveryLongitude: number;
   customerName: string;
   customerPhone: string;
   paymentMethod: OrderInputPaymentMethod;

@@ -10,6 +10,16 @@ import type { OrderInputPaymentMethod } from './orderInputPaymentMethod';
 export interface OrderInput {
   sessionId: string;
   deliveryAddress: string;
+  /**
+     * @minimum 15.1
+     * @maximum 15.7
+     */
+  deliveryLatitude: number;
+  /**
+     * @minimum 43.8
+     * @maximum 44.6
+     */
+  deliveryLongitude: number;
   customerName: string;
   customerPhone: string;
   paymentMethod: OrderInputPaymentMethod;

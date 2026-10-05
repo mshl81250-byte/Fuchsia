@@ -582,6 +582,8 @@ export const ListOrdersResponseItem = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),
@@ -605,9 +607,19 @@ export const ListOrdersResponse = zod.array(ListOrdersResponseItem)
 /**
  * @summary Place a new order
  */
+export const createOrderBodyDeliveryLatitudeMin = 15.1;
+export const createOrderBodyDeliveryLatitudeMax = 15.7;
+
+export const createOrderBodyDeliveryLongitudeMin = 43.8;
+export const createOrderBodyDeliveryLongitudeMax = 44.6;
+
+
+
 export const CreateOrderBody = zod.object({
   "sessionId": zod.string(),
   "deliveryAddress": zod.string(),
+  "deliveryLatitude": zod.number().min(createOrderBodyDeliveryLatitudeMin).max(createOrderBodyDeliveryLatitudeMax),
+  "deliveryLongitude": zod.number().min(createOrderBodyDeliveryLongitudeMin).max(createOrderBodyDeliveryLongitudeMax),
   "customerName": zod.string(),
   "customerPhone": zod.string(),
   "paymentMethod": zod.enum(['cash_on_delivery', 'jaib', 'flousy', 'mobile_money', 'jawali', 'cash', 'one_cash', 'bank_transfer']),
@@ -632,6 +644,8 @@ export const GetOrderResponse = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),
@@ -672,6 +686,8 @@ export const UpdateOrderStatusResponse = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),
@@ -893,6 +909,8 @@ export const AdminListOrdersResponseItem = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),
@@ -934,6 +952,8 @@ export const AdminUpdateOrderStatusResponse = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),
@@ -1029,6 +1049,8 @@ export const VendorListOrdersResponseItem = zod.object({
   "deliveryFee": zod.number().optional(),
   "discount": zod.number().optional(),
   "deliveryAddress": zod.string().nullish(),
+  "deliveryLatitude": zod.number().nullish(),
+  "deliveryLongitude": zod.number().nullish(),
   "customerName": zod.string().nullish(),
   "customerPhone": zod.string().nullish(),
   "driverName": zod.string().nullish(),

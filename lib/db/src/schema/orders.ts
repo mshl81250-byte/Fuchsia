@@ -12,6 +12,8 @@ export const ordersTable = pgTable("orders", {
   deliveryFee: real("delivery_fee").notNull().default(500),
   discount: real("discount").notNull().default(0),
   deliveryAddress: text("delivery_address"),
+  deliveryLatitude: real("delivery_latitude"),
+  deliveryLongitude: real("delivery_longitude"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
   driverName: text("driver_name"),

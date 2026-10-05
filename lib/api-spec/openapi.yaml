@@ -1231,6 +1231,10 @@ components:
           type: number
         deliveryAddress:
           type: ["string", "null"]
+        deliveryLatitude:
+          type: ["number", "null"]
+        deliveryLongitude:
+          type: ["number", "null"]
         customerName:
           type: ["string", "null"]
         customerPhone:
@@ -1271,12 +1275,20 @@ components:
 
     OrderInput:
       type: object
-      required: [sessionId, deliveryAddress, customerName, customerPhone, paymentMethod]
+      required: [sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone, paymentMethod]
       properties:
         sessionId:
           type: string
         deliveryAddress:
           type: string
+        deliveryLatitude:
+          type: number
+          minimum: 15.1
+          maximum: 15.7
+        deliveryLongitude:
+          type: number
+          minimum: 43.8
+          maximum: 44.6
         customerName:
           type: string
         customerPhone:
