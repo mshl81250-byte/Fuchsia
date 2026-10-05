@@ -10,6 +10,7 @@ import {
 import { Logo } from "@/components/Logo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -49,6 +50,7 @@ export default function Admin() {
   const [channelSettings, setChannelSettings] = useState<Record<string, any>>({});
   const [lastOrderCount, setLastOrderCount] = useState<number>(0);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
+  const [driverForm, setDriverForm] = useState<Record<number, { name: string; phone: string }>>({});
   const prevOrderIds = useRef<Set<number>>(new Set());
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -104,7 +106,8 @@ export default function Admin() {
 
   async function handleStatusUpdate(orderId: number, newStatus: string) {
     try {
-      await updateStatus.mutateAsync({ id: orderId, data: { status: newStatus as any } });
+      const driver = driverForm[orderId];
+      await updateStatus.mutateAsync({ id: orderId, data: { status: newStatus as any, ...(newStatus === "delivering" ? { driverName: driver?.name?.trim(), driverPhone: driver?.phone?.trim() } : {}) } as any });
       queryClient.invalidateQueries({ queryKey: getAdminListOrdersQueryKey() });
       const cfg = STATUS_CONFIG[newStatus];
       toast({ title: "تم التحديث ✓", description: `الطلب #${orderId} — ${cfg?.label}` });
@@ -484,11 +487,18 @@ export default function Admin() {
 
                                 {/* Action buttons */}
                                 {cfg.next && (
-                                  <div className="flex gap-3 pt-1">
+                                  <div className="space-y-3 pt-1">
+                                    {cfg.next === "delivering" && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3">
+                                        <div><Label className="text-xs">اسم الموصّل</Label><Input value={driverForm[order.id]?.name ?? (order as any).driverName ?? ""} onChange={e => setDriverForm(current => ({ ...current, [order.id]: { name: e.target.value, phone: current[order.id]?.phone ?? (order as any).driverPhone ?? "" } }))} placeholder="مثال: محمد أحمد" className="mt-1 bg-white" /></div>
+                                        <div><Label className="text-xs">رقم جوال الموصّل</Label><Input value={driverForm[order.id]?.phone ?? (order as any).driverPhone ?? ""} onChange={e => setDriverForm(current => ({ ...current, [order.id]: { name: current[order.id]?.name ?? (order as any).driverName ?? "", phone: e.target.value } }))} placeholder="77XXXXXXX" dir="ltr" className="mt-1 bg-white" /></div>
+                                      </div>
+                                    )}
+                                  <div className="flex gap-3">
                                     <motion.button
                                       whileTap={{ scale: 0.97 }}
                                       onClick={() => handleStatusUpdate(order.id, cfg.next!)}
-                                      disabled={updateStatus.isPending}
+                                      disabled={updateStatus.isPending || (cfg.next === "delivering" && (!driverForm[order.id]?.name?.trim() || !driverForm[order.id]?.phone?.trim()) && (!(order as any).driverName || !(order as any).driverPhone))}
                                       className="flex-1 h-11 rounded-xl text-white font-bold text-sm"
                                       style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}
                                     >
@@ -499,6 +509,7 @@ export default function Admin() {
                                       <Phone className="w-4 h-4" />
                                       اتصل
                                     </a>
+                                  </div>
                                   </div>
                                 )}
                                 {!cfg.next && (

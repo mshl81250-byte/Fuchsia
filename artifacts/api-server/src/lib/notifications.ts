@@ -1,6 +1,29 @@
 import { eq } from "drizzle-orm";
 import { db, notificationChannelSettingsTable, notificationsTable } from "@workspace/db";
 
+export async function sendVerificationCodeEmail(input: { email: string; name: string; code: string }): Promise<void> {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const logoUrl = process.env.EMAIL_LOGO_URL || "https://fuchsia.ye/logo.png";
+  const html = `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#fff0f6;font-family:Arial,sans-serif;color:#24131d">
+    <div style="max-width:560px;margin:32px auto;padding:0 16px"><div style="background:#fff;border:1px solid #f0d4e5;border-radius:28px;overflow:hidden;box-shadow:0 12px 36px rgba(216,27,96,.12)">
+      <div style="padding:30px;text-align:center;background:linear-gradient(135deg,#d81b60,#f48fb1)"><img src="${logoUrl}" alt="فوشيا" style="width:76px;height:76px;object-fit:contain;background:#fff;border-radius:22px;padding:8px"><h1 style="color:#fff;margin:14px 0 0;font-size:28px">فوشيا</h1></div>
+      <div style="padding:34px 28px;text-align:center"><p style="font-size:18px;margin:0 0 12px">مرحباً ${input.name || "بك"}</p><p style="font-size:15px;line-height:1.8;color:#6b6b6b">استخدم رمز التحقق التالي لإكمال إنشاء حسابك في فوشيا:</p>
+        <div style="direction:ltr;letter-spacing:10px;font-size:34px;font-weight:700;color:#d81b60;background:#fff0f6;border:1px dashed #d81b60;border-radius:16px;padding:18px;margin:24px 0">${input.code}</div>
+        <p style="font-size:13px;color:#8a6b78;margin:0">صلاحية الرمز 3 دقائق فقط. إذا لم تطلب إنشاء الحساب فتجاهل هذه الرسالة.</p>
+      </div><div style="padding:18px;text-align:center;background:#fff8fb;color:#9b7a88;font-size:12px">فوشيا — روعة المناسبات في مكان واحد</div>
+    </div></div></body></html>`;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: process.env.EMAIL_FROM || "notifications@fuchsia.ye", to: [input.email], subject: "رمز التحقق لإنشاء حسابك في فوشيا", html }),
+  });
+  if (!response.ok) throw new Error(`Verification email failed with status ${response.status}`);
+}
+
 type NotificationInput = {
   sessionId: string;
   orderId?: number | null;

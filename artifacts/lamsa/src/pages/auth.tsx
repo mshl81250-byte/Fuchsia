@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Logo } from "@/components/Logo";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useLogin, useRegister, useLoginAsGuest } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, Timer, ArrowRight } from "lucide-react";
 
 type Tab = "login" | "register";
 
@@ -25,6 +25,17 @@ export default function AuthPage() {
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState({ fullName: "", email: "", password: "", phone: "" });
+  const [verificationCode, setVerificationCode] = useState("");
+  const [registrationStep, setRegistrationStep] = useState<"details" | "verify">("details");
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+
+  useEffect(() => {
+    if (registrationStep !== "verify" || secondsLeft <= 0) return;
+    const timer = window.setInterval(() => setSecondsLeft(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [registrationStep, secondsLeft]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -39,13 +50,41 @@ export default function AuthPage() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
+    setIsSendingCode(true);
     try {
-      const res = await registerMutation.mutateAsync({ data: registerForm });
-      saveUser(res.user as any, res.token);
-      setLocation("/");
+      const response = await fetch("/api/auth/register/request-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(registerForm) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "تعذر إرسال الرمز");
+      setRegistrationStep("verify");
+      setSecondsLeft(180);
+      toast({ title: "تم إرسال رمز التحقق", description: "تحقق من بريدك الإلكتروني. صلاحية الرمز 3 دقائق." });
     } catch {
-      toast({ variant: "destructive", title: "خطأ", description: "البريد الإلكتروني مستخدم بالفعل" });
+      toast({ variant: "destructive", title: "تعذر إرسال الرمز", description: "تحقق من البيانات وحاول مرة أخرى" });
+    } finally {
+      setIsSendingCode(false);
     }
+  }
+
+  async function verifyRegistrationCode(e: React.FormEvent) {
+    e.preventDefault();
+    setIsVerifyingCode(true);
+    try {
+      const response = await fetch("/api/auth/register/verify-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: registerForm.email, code: verificationCode }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "رمز غير صحيح");
+      saveUser(payload.user as any, payload.token);
+      setLocation("/");
+    } catch (error) {
+      toast({ variant: "destructive", title: "رمز غير صحيح", description: error instanceof Error ? error.message : "أدخل الرمز المرسل إلى بريدك" });
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  }
+
+  async function resendVerificationCode() {
+    if (secondsLeft > 0 || isSendingCode) return;
+    const fakeEvent = { preventDefault() {} } as React.FormEvent;
+    await handleRegister(fakeEvent);
   }
 
   async function handleGuest() {
@@ -133,6 +172,15 @@ export default function AuthPage() {
                   {loginMutation.isPending ? "جاري الدخول..." : "تسجيل الدخول"}
                 </motion.button>
               </form>
+            ) : registrationStep === "verify" ? (
+              <form onSubmit={verifyRegistrationCode} className="flex flex-col gap-5 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#FFF0F6] text-[#D81B60]"><Mail className="h-8 w-8" /></div>
+                <div><h2 className="text-xl font-bold text-[#1A1A1A]">تحقق من بريدك الإلكتروني</h2><p className="mt-2 text-sm leading-7 text-[#6B6B6B]">أرسلنا رمزاً من 6 أرقام إلى<br /><span className="font-bold text-[#D81B60]" dir="ltr">{registerForm.email}</span></p></div>
+                <Input autoFocus inputMode="numeric" maxLength={6} value={verificationCode} onChange={e => setVerificationCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" className="h-14 rounded-xl bg-[#FFF0F6] text-center text-2xl tracking-[0.6em] border-[#F0D4E5] focus:border-[#D81B60]" dir="ltr" required />
+                <div className="flex items-center justify-center gap-2 text-sm text-[#6B6B6B]"><Timer className="h-4 w-4 text-[#D81B60]" />{secondsLeft > 0 ? `ينتهي الرمز خلال ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}` : "انتهت صلاحية الرمز"}</div>
+                <motion.button whileTap={{ scale: 0.98 }} type="submit" disabled={isVerifyingCode || verificationCode.length !== 6} className="w-full h-13 rounded-2xl text-white font-bold py-3 text-base disabled:opacity-50" style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)" }}>{isVerifyingCode ? "جاري التحقق..." : "تأكيد وإنشاء الحساب"}</motion.button>
+                <div className="flex items-center justify-between text-sm"><button type="button" onClick={() => { setRegistrationStep("details"); setVerificationCode(""); }} className="inline-flex items-center gap-1 text-[#6B6B6B] hover:text-[#D81B60]"><ArrowRight className="h-4 w-4" />تعديل البيانات</button><button type="button" onClick={() => void resendVerificationCode()} disabled={secondsLeft > 0 || isSendingCode} className="font-bold text-[#D81B60] disabled:text-[#B9A5AE]">إعادة إرسال الرمز</button></div>
+              </form>
             ) : (
               <form onSubmit={handleRegister} className="flex flex-col gap-4">
                 <div className="space-y-1.5">
@@ -177,11 +225,11 @@ export default function AuthPage() {
                 <motion.button
                   whileTap={{ scale: 0.98 }}
                   type="submit"
-                  disabled={registerMutation.isPending}
+                  disabled={isSendingCode}
                   className="w-full h-13 rounded-2xl text-white font-bold py-3 text-base mt-2"
                   style={{ background: "linear-gradient(135deg, #D81B60, #F48FB1 150%)", boxShadow: "0 4px 16px #D81B6040" }}
                 >
-                  {registerMutation.isPending ? "جاري الإنشاء..." : "إنشاء حساب"}
+                  {isSendingCode ? "جاري إرسال الرمز..." : "إرسال رمز التحقق"}
                 </motion.button>
               </form>
             )}
