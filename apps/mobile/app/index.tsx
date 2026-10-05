@@ -12,9 +12,7 @@ export default function Welcome() {
     <View style={{ flex: 1, backgroundColor: isFirst ? "rgba(29,8,18,.74)" : "rgba(29,8,18,.84)" }}>
       <SafeAreaView style={{ flex: 1, padding: 24, justifyContent: "space-between" }}>
         <View style={{ alignItems: "flex-end", marginTop: 14 }}>
-          <View style={{ backgroundColor: "rgba(255,247,241,.93)", borderRadius: 18, paddingHorizontal: 10, paddingVertical: 5 }}>
-            <Image source={logo} resizeMode="contain" style={{ width: 112, height: 86 }} />
-          </View>
+          <Image source={logo} resizeMode="contain" style={{ width: 132, height: 96 }} />
         </View>
         <View style={{ alignItems: "center", marginTop: isFirst ? 10 : 0 }}>
           <Text style={{ color: "#F4B6C8", fontSize: isFirst ? 32 : 27, fontWeight: "900", textAlign: "center" }}>{isFirst ? "هدايا تليق بلحظتك" : "اختاري هديتك واجعلي اللحظة أجمل"}</Text>
