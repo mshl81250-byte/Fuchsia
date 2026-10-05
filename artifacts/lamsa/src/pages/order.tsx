@@ -3,7 +3,7 @@ import { OrderStatus } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Package, Truck, Home, PackageCheck, ChevronRight, UserRound, Phone } from "lucide-react";
+import { CheckCircle2, Package, Truck, Home, PackageCheck, ChevronRight, UserRound, Phone, Gift, Clock3, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 
 const statusSteps = [
@@ -53,7 +53,8 @@ export default function OrderDetail() {
         
         <PackageCheck className="w-16 h-16 text-primary mb-4" />
         <h1 className="text-3xl font-serif font-bold text-foreground mb-2">طلب رقم #{toArabicNumerals(order.id)}</h1>
-        <p className="text-muted-foreground">شكراً لاختيارك فوشيا. طلبك الآن قيد المعالجة.</p>
+        <p className="text-muted-foreground">{order.status === OrderStatus.delivered ? "تم توصيل طلبك بنجاح" : "طلبك قيد المعالجة وسنحدّثك عند كل مرحلة"}</p>
+        <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary px-4 py-2 text-sm font-bold"><Clock3 className="w-4 h-4" /> يتحدث تلقائياً كل ١٠ ثوانٍ</div>
       </div>
 
       {/* Status Progress */}
@@ -112,6 +113,7 @@ export default function OrderDetail() {
                 <span className="font-medium">{order.customerName}</span>
               </div>
             )}
+            {(order as any).isGift && <div className="rounded-xl bg-primary/5 border border-primary/15 p-4 space-y-2"><div className="flex items-center gap-2 text-primary font-bold"><Gift className="w-4 h-4" /> تفاصيل الهدية</div><p className="text-sm">مستلم الهدية: <strong>{(order as any).giftRecipientName || "—"}</strong></p>{(order as any).giftMessage && <p className="text-sm text-muted-foreground">“{(order as any).giftMessage}”</p>}<p className="text-xs text-muted-foreground">{(order as any).hidePrice ? "السعر مخفي عن المستلم" : "السعر ظاهر للمستلم"}</p></div>}
             {order.deliveryAddress && (
               <div className="flex flex-col gap-1">
                 <span className="text-muted-foreground">عنوان التوصيل</span>
@@ -148,6 +150,7 @@ export default function OrderDetail() {
                 <span className="font-medium leading-relaxed text-sm bg-muted/30 p-3 rounded-lg">{order.notes}</span>
               </div>
             )}
+            {(order as any).paymentType && <div className="flex flex-col gap-2 border-t border-border pt-4"><span className="flex items-center gap-2 text-muted-foreground"><CreditCard className="w-4 h-4" /> حالة الدفع</span><span className="font-medium">{(order as any).paymentType === "cash_on_delivery" ? "الدفع عند التوصيل" : (order as any).paymentStatus === "pending_review" ? "بانتظار مراجعة التحويل" : "تم تسجيل الدفع"}</span>{(order as any).remainingAmount > 0 && <span className="text-sm text-muted-foreground">المتبقي عند التوصيل: {formatCurrency((order as any).remainingAmount)}</span>}</div>}
           </div>
         </div>
 

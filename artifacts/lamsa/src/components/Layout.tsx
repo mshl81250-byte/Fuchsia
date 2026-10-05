@@ -1,12 +1,13 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Search, User, Home, LayoutGrid, Heart } from "lucide-react";
+import { ShoppingBag, Search, User, Home, LayoutGrid, Heart, Bell } from "lucide-react";
 import { Logo } from "./Logo";
 import { useSession } from "@/hooks/use-session";
 import { useGetCart, getGetCartQueryKey } from "@workspace/api-client-react";
 import { toArabicNumerals } from "@/lib/format";
 import { Button } from "./ui/button";
 import { motion } from "framer-motion";
+import { useNotifications } from "@/hooks/use-notifications";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -18,6 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 
   const cartItemCount = cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const { unreadCount } = useNotifications();
 
   const navItems = [
     { href: "/", label: "الرئيسية", icon: Home },
@@ -68,6 +70,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {toArabicNumerals(cartItemCount)}
                   </span>
                 )}
+              </Button>
+            </Link>
+            <Link href="/notifications">
+              <Button variant="ghost" size="icon" className="relative text-[#6B6B6B] hover:text-[#D81B60] hover:bg-[#FFF0F6] rounded-full">
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#D81B60] px-1 text-[10px] font-bold text-white">{unreadCount > 9 ? "٩+" : toArabicNumerals(unreadCount)}</span>}
               </Button>
             </Link>
             <Link href="/profile">

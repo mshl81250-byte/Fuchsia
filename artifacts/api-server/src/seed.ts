@@ -15,7 +15,7 @@ async function main() {
   console.log("🌸 Seeding Fuchsia database...");
 
   // Clear existing data
-  await db.execute(sql`TRUNCATE TABLE reviews, cart_items, order_items, orders, products, banners, coupons, favorites, categories, stores, users RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE TABLE reviews, cart_items, order_items, orders, products, banners, coupons, favorites, payment_wallets, categories, stores, users RESTART IDENTITY CASCADE`);
   console.log("✓ Cleared existing data");
 
   // ─── USERS ───────────────────────────────────────────────────────────────
@@ -32,6 +32,16 @@ async function main() {
     },
   ]);
   console.log("✓ Users seeded");
+  await db.insert(schema.paymentWalletsTable).values([
+    { nameAr: "جيب", nameEn: "Jaib", accountNumber: "أضف رقم حساب جيب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 1 },
+    { nameAr: "جوالي", nameEn: "Jawali", accountNumber: "أضف رقم حساب جوالي من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 2 },
+    { nameAr: "موبايل موني", nameEn: "Mobile Money", accountNumber: "أضف رقم حساب موبايل موني من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 3 },
+    { nameAr: "محفظتي", nameEn: "Mahfazati", accountNumber: "أضف رقم الحساب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 4 },
+    { nameAr: "كاش", nameEn: "Cash", accountNumber: "أضف رقم الحساب من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 5 },
+    { nameAr: "فلوسك", nameEn: "Floosi", accountNumber: "أضف رقم حساب فلوسك من لوحة الإدارة", instructions: "حوّل المبلغ ثم أرفق الإيصال", iconUrl: null, sortOrder: 6 },
+  ]);
+  console.log("✓ Payment wallets seeded");
+
 
   // ─── CATEGORIES ─────────────────────────────────────────────────────────
   const categories = await db.insert(schema.categoriesTable).values([
