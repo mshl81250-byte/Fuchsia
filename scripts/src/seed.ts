@@ -15,7 +15,11 @@ async function main() {
   console.log("🌸 Seeding Fuchsia database...");
 
   // Clear existing data in correct order
-  await db.execute(sql`TRUNCATE TABLE reviews, cart_items, cart, order_items, orders, products, banners, coupons, categories, stores, users RESTART IDENTITY CASCADE`);
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+  for (const table of ["reviews", "cart_items", "cart", "order_items", "orders", "products", "banners", "coupons", "categories", "stores", "users"]) {
+    await db.execute(sql.raw(`TRUNCATE TABLE \`${table}\``));
+  }
+  await db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   console.log("✓ Cleared existing data");
 
   // ─── USERS ───────────────────────────────────────────────────────────────
@@ -44,20 +48,21 @@ async function main() {
   console.log("✓ Payment wallets seeded");
 
   // ─── CATEGORIES ─────────────────────────────────────────────────────────
-  const categories = await db.insert(schema.categoriesTable).values([
+  await db.insert(schema.categoriesTable).values([
     { nameAr: "كوش الأعراس",     nameEn: "Wedding Arches",    icon: "🌸", color: "#D81B60", imageUrl: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "تجهيز الخطوبة",   nameEn: "Engagement Setup",  icon: "💍", color: "#F48FB1", imageUrl: "https://images.unsplash.com/photo-1515934751635-c81c6bc9a2d8?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الطاولات",         nameEn: "Tables",            icon: "🍽️", color: "#E91E8C", imageUrl: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الهدايا الفاخرة",  nameEn: "Luxury Gifts",      icon: "🎁", color: "#C2185B", imageUrl: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "التغليف الفاخر",   nameEn: "Luxury Wrapping",   icon: "🎀", color: "#AD1457", imageUrl: "https://images.unsplash.com/photo-1549465220-1a8b9238cd48?w=400&h=400&fit=crop", productCount: 0 },
     { nameAr: "الورود والزهور",   nameEn: "Roses & Flowers",   icon: "🌹", color: "#F06292", imageUrl: "https://images.unsplash.com/photo-1487530811015-2780be2b99f6?w=400&h=400&fit=crop", productCount: 0 },
-  ]).returning();
+  ]);
+  const categories = await db.select().from(schema.categoriesTable).orderBy(schema.categoriesTable.id);
   console.log("✓ Categories seeded:", categories.length);
 
   const [catKosh, catKhitba, catTables, catGifts, catWrapping, catFlowers] = categories;
 
   // ─── STORES ─────────────────────────────────────────────────────────────
-  const stores = await db.insert(schema.storesTable).values([
+  await db.insert(schema.storesTable).values([
     {
       nameAr: "أتيلييه فوشيا للكوش",
       nameEn: "Fuchsia Kosh Atelier",
@@ -133,13 +138,14 @@ async function main() {
       isFeatured: true,
       productCount: 0,
     },
-  ]).returning();
+  ]);
+  const stores = await db.select().from(schema.storesTable).orderBy(schema.storesTable.id);
   console.log("✓ Stores seeded:", stores.length);
 
   const [sKosh, sKhitba, sGifts, sWrapping, sFlowers] = stores;
 
   // ─── PRODUCTS ────────────────────────────────────────────────────────────
-  const products = await db.insert(schema.productsTable).values([
+  await db.insert(schema.productsTable).values([
     // كوش الأعراس
     {
       nameAr: "كوش عرس ملكي بالورود الطبيعية",
@@ -403,7 +409,8 @@ async function main() {
       tags: JSON.stringify(["تنسيق", "زهور", "شامل"]),
       occasionTags: JSON.stringify(["زفاف", "خطوبة"]),
     },
-  ]).returning();
+  ]);
+  const products = await db.select().from(schema.productsTable).orderBy(schema.productsTable.id);
   console.log("✓ Products seeded:", products.length);
 
   // Update product counts per category

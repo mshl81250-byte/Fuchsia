@@ -33,9 +33,10 @@ router.patch("/:id/read", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const [notification] = await db.update(notificationsTable).set({ isRead: true })
-      .where(and(eq(notificationsTable.id, id), eq(notificationsTable.sessionId, sessionId)))
-      .returning();
+    await db.update(notificationsTable).set({ isRead: true })
+      .where(and(eq(notificationsTable.id, id), eq(notificationsTable.sessionId, sessionId)));
+    const [notification] = await db.select().from(notificationsTable)
+      .where(and(eq(notificationsTable.id, id), eq(notificationsTable.sessionId, sessionId)));
     if (!notification) {
       res.status(404).json({ error: "الإشعار غير موجود" });
       return;

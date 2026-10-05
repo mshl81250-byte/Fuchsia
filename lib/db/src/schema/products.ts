@@ -1,31 +1,31 @@
-import { pgTable, text, serial, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { mysqlTable, text, varchar, double, int, boolean, timestamp } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const productsTable = pgTable("products", {
-  id: serial("id").primaryKey(),
+export const productsTable = mysqlTable("products", {
+  id: int("id").autoincrement().primaryKey(),
   nameAr: text("name_ar").notNull(),
   nameEn: text("name_en"),
   description: text("description"),
-  price: real("price").notNull(),
-  discountPrice: real("discount_price"),
-  categoryId: integer("category_id").notNull(),
-  storeId: integer("store_id").notNull(),
+  price: double("price").notNull(),
+  discountPrice: double("discount_price"),
+  categoryId: int("category_id").notNull(),
+  storeId: int("store_id").notNull(),
   imageUrl: text("image_url").notNull(),
-  images: text("images").notNull().default("[]"),
+  images: varchar("images", { length: 4000 }).notNull().default("[]"),
   videoUrl: text("video_url"),
   brand: text("brand"),
   inStock: boolean("in_stock").notNull().default(true),
-  stockQuantity: integer("stock_quantity"),
-  rating: real("rating").notNull().default(0),
-  reviewCount: integer("review_count").notNull().default(0),
+  stockQuantity: int("stock_quantity"),
+  rating: double("rating").notNull().default(0),
+  reviewCount: int("review_count").notNull().default(0),
   isFeatured: boolean("is_featured").notNull().default(false),
   isNew: boolean("is_new").notNull().default(false),
-  deliveryDays: integer("delivery_days"),
-  tags: text("tags").notNull().default("[]"),
-  occasionTags: text("occasion_tags").notNull().default("[]"),
-  views: integer("views").notNull().default(0),
-  salesCount: integer("sales_count").notNull().default(0),
+  deliveryDays: int("delivery_days"),
+  tags: varchar("tags", { length: 4000 }).notNull().default("[]"),
+  occasionTags: varchar("occasion_tags", { length: 4000 }).notNull().default("[]"),
+  views: int("views").notNull().default(0),
+  salesCount: int("sales_count").notNull().default(0),
   offerEndsAt: timestamp("offer_ends_at"),
 });
 

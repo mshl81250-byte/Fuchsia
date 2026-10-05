@@ -1,8 +1,8 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { mysqlTable, int, text, varchar, boolean, timestamp } from "drizzle-orm/mysql-core";
 
-export const notificationChannelSettingsTable = pgTable("notification_channel_settings", {
-  id: serial("id").primaryKey(),
-  channel: text("channel").notNull().unique(),
+export const notificationChannelSettingsTable = mysqlTable("notification_channel_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  channel: varchar("channel", { length: 64 }).notNull().unique(),
   enabled: boolean("enabled").notNull().default(false),
   provider: text("provider").notNull(),
   sender: text("sender"),

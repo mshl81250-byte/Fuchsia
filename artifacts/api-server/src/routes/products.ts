@@ -136,7 +136,9 @@ router.get("/:id", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const data = insertProductSchema.parse(req.body);
-    const [product] = await db.insert(productsTable).values(data).returning();
+    await db.insert(productsTable).values(data);
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.nameAr, data.nameAr));
+    if (!product) { res.status(400).json({ error: "تعذر إنشاء المنتج" }); return; }
     res.status(201).json(parseProduct(product));
   } catch (err) {
     req.log.error({ err }, "Failed to create product");
@@ -148,7 +150,8 @@ router.patch("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
     const updates = req.body;
-    const [product] = await db.update(productsTable).set(updates).where(eq(productsTable.id, id)).returning();
+    await db.update(productsTable).set(updates).where(eq(productsTable.id, id));
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id));
     if (!product) {
       res.status(404).json({ error: "Product not found" });
       return;

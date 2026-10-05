@@ -100,7 +100,7 @@ router.post("/", async (req, res): Promise<void> => {
     const actualPaymentAmount = normalizedPaymentType === "full" ? total : requestedPaymentAmount;
     const paymentStatus = normalizedPaymentType === "cash_on_delivery" ? "unpaid" : "pending_review";
 
-    const [order] = await db.insert(ordersTable).values({
+    await db.insert(ordersTable).values({
       sessionId,
       userId: userId ?? null,
       status: "received",
@@ -131,7 +131,9 @@ router.post("/", async (req, res): Promise<void> => {
       giftCardStyle: giftCardStyle ?? null,
       hidePrice: hidePrice ?? false,
       scheduledDelivery: scheduledDelivery ? new Date(scheduledDelivery) : null,
-    }).returning();
+    });
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
+    if (!order) { res.status(500).json({ error: "تعذر إنشاء الطلب" }); return; }
     const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
     await createCustomerNotification({
       sessionId,
@@ -195,11 +197,12 @@ router.patch("/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [order] = await db.update(ordersTable).set({
+    await db.update(ordersTable).set({
       status,
       driverName: driverName === undefined ? undefined : (driverName || null),
       driverPhone: driverPhone === undefined ? undefined : (driverPhone || null),
-    }).where(eq(ordersTable.id, id)).returning();
+    }).where(eq(ordersTable.id, id));
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;

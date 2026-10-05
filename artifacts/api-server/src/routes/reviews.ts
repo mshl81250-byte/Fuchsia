@@ -23,7 +23,9 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const data = insertReviewSchema.parse(req.body);
-    const [review] = await db.insert(reviewsTable).values(data).returning();
+    await db.insert(reviewsTable).values(data);
+    const [review] = await db.select().from(reviewsTable).where(eq(reviewsTable.productId, data.productId)).orderBy(desc(reviewsTable.id)).limit(1);
+    if (!review) { res.status(400).json({ error: "تعذر إنشاء المراجعة" }); return; }
 
     const [stats] = await db.select({
       avgRating: avg(reviewsTable.rating),

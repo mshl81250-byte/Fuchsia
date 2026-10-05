@@ -1,16 +1,16 @@
-import { pgTable, text, serial, boolean, integer } from "drizzle-orm/pg-core";
+import { mysqlTable, text, boolean, int } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const paymentWalletsTable = pgTable("payment_wallets", {
-  id: serial("id").primaryKey(),
+export const paymentWalletsTable = mysqlTable("payment_wallets", {
+  id: int("id").autoincrement().primaryKey(),
   nameAr: text("name_ar").notNull(),
   nameEn: text("name_en"),
   accountNumber: text("account_number").notNull(),
   instructions: text("instructions"),
   iconUrl: text("icon_url"),
   isActive: boolean("is_active").notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
+  sortOrder: int("sort_order").notNull().default(0),
 });
 export const insertPaymentWalletSchema = createInsertSchema(paymentWalletsTable).omit({ id: true });
 export type InsertPaymentWallet = z.infer<typeof insertPaymentWalletSchema>;

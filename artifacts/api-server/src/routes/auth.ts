@@ -58,7 +58,7 @@ router.post("/register/request-code", async (req, res): Promise<void> => {
       codeHash: hashVerificationCode(code),
       expiresAt: new Date(Date.now() + 3 * 60 * 1000),
       attempts: 0,
-    }).onConflictDoUpdate({ target: emailVerificationCodesTable.email, set: {
+    }).onDuplicateKeyUpdate({ set: {
       fullName, passwordHash: hashPassword(password), phone, codeHash: hashVerificationCode(code),
       expiresAt: new Date(Date.now() + 3 * 60 * 1000), attempts: 0, createdAt: new Date(),
     } });
@@ -92,7 +92,9 @@ router.post("/register/verify-code", async (req, res): Promise<void> => {
       res.status(401).json({ error: "رمز التحقق غير صحيح" });
       return;
     }
-    const [user] = await db.insert(usersTable).values({ fullName: pending.fullName, email: pending.email, passwordHash: pending.passwordHash, phone: pending.phone, isGuest: false, rewardPoints: 50, referralCode: generateReferralCode(pending.fullName) }).returning();
+    await db.insert(usersTable).values({ fullName: pending.fullName, email: pending.email, passwordHash: pending.passwordHash, phone: pending.phone, isGuest: false, rewardPoints: 50, referralCode: generateReferralCode(pending.fullName) });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, pending.email));
+    if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
     await db.delete(emailVerificationCodesTable).where(eq(emailVerificationCodesTable.id, pending.id));
     res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
   } catch (err) {
@@ -115,7 +117,7 @@ router.post("/register", async (req, res): Promise<void> => {
       return;
     }
 
-    const [user] = await db.insert(usersTable).values({
+    await db.insert(usersTable).values({
       fullName,
       email,
       passwordHash: hashPassword(password),
@@ -123,7 +125,9 @@ router.post("/register", async (req, res): Promise<void> => {
       isGuest: false,
       rewardPoints: 50,
       referralCode: generateReferralCode(fullName),
-    }).returning();
+    });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
 
     res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
   } catch (err) {
@@ -161,12 +165,18 @@ router.post("/login", async (req, res): Promise<void> => {
 router.post("/guest", async (req, res): Promise<void> => {
   try {
     const guestName = `زائر_${Date.now()}`;
-    const [user] = await db.insert(usersTable).values({
+    const email = `${guestName}@guest.fuchsia`;
+    await db.insert(usersTable).values({
       fullName: "زائر",
-      email: `${guestName}@guest.fuchsia`,
+      email,
       isGuest: true,
       rewardPoints: 0,
-    }).returning();
+    });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    if (!user) {
+      res.status(500).json({ error: "تعذر إنشاء حساب الضيف" });
+      return;
+    }
 
     res.json({ user: safeUser(user), token: generateToken(user.id) });
   } catch (err) {
@@ -210,7 +220,9 @@ router.patch("/profile", async (req, res): Promise<void> => {
     if (address !== undefined) updates.address = address;
     if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
 
-    const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, userId)).returning();
+    await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) { res.status(404).json({ error: "المستخدم غير موجود" }); return; }
     res.json(safeUser(user));
   } catch (err) {
     req.log.error({ err }, "Update profile failed");

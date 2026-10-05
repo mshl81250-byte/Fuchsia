@@ -1,29 +1,29 @@
-import { pgTable, text, serial, real, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { mysqlTable, text, varchar, double, int, boolean, timestamp } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const ordersTable = pgTable("orders", {
-  id: serial("id").primaryKey(),
+export const ordersTable = mysqlTable("orders", {
+  id: int("id").autoincrement().primaryKey(),
   sessionId: text("session_id").notNull(),
-  userId: integer("user_id"),
-  status: text("status").notNull().default("received"),
-  total: real("total").notNull(),
-  subtotal: real("subtotal").notNull().default(0),
-  deliveryFee: real("delivery_fee").notNull().default(500),
-  discount: real("discount").notNull().default(0),
+  userId: int("user_id"),
+  status: varchar("status", { length: 64 }).notNull().default("received"),
+  total: double("total").notNull(),
+  subtotal: double("subtotal").notNull().default(0),
+  deliveryFee: double("delivery_fee").notNull().default(500),
+  discount: double("discount").notNull().default(0),
   deliveryAddress: text("delivery_address"),
-  deliveryLatitude: real("delivery_latitude"),
-  deliveryLongitude: real("delivery_longitude"),
+  deliveryLatitude: double("delivery_latitude"),
+  deliveryLongitude: double("delivery_longitude"),
   customerName: text("customer_name"),
   customerPhone: text("customer_phone"),
   driverName: text("driver_name"),
   driverPhone: text("driver_phone"),
-  paymentMethod: text("payment_method").notNull().default("cash_on_delivery"),
-  paymentType: text("payment_type").notNull().default("cash_on_delivery"),
-  paymentStatus: text("payment_status").notNull().default("unpaid"),
-  paymentWalletId: integer("payment_wallet_id"),
-  paymentAmount: real("payment_amount").notNull().default(0),
-  remainingAmount: real("remaining_amount").notNull().default(0),
+  paymentMethod: varchar("payment_method", { length: 64 }).notNull().default("cash_on_delivery"),
+  paymentType: varchar("payment_type", { length: 64 }).notNull().default("cash_on_delivery"),
+  paymentStatus: varchar("payment_status", { length: 64 }).notNull().default("unpaid"),
+  paymentWalletId: int("payment_wallet_id"),
+  paymentAmount: double("payment_amount").notNull().default(0),
+  remainingAmount: double("remaining_amount").notNull().default(0),
   transactionReference: text("transaction_reference"),
   paymentReceiptUrl: text("payment_receipt_url"),
   couponCode: text("coupon_code"),
@@ -37,13 +37,13 @@ export const ordersTable = pgTable("orders", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const orderItemsTable = pgTable("order_items", {
-  id: serial("id").primaryKey(),
-  orderId: integer("order_id").notNull(),
-  productId: integer("product_id").notNull(),
+export const orderItemsTable = mysqlTable("order_items", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("order_id").notNull(),
+  productId: int("product_id").notNull(),
   productName: text("product_name").notNull(),
-  price: real("price").notNull(),
-  quantity: integer("quantity").notNull(),
+  price: double("price").notNull(),
+  quantity: int("quantity").notNull(),
   imageUrl: text("image_url").notNull(),
 });
 

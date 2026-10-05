@@ -76,9 +76,11 @@ router.patch("/notification-settings/:channel", async (req, res): Promise<void> 
       res.status(400).json({ error: "إعدادات القناة غير مكتملة" });
       return;
     }
-    const [setting] = await db.insert(notificationChannelSettingsTable).values({
+    await db.insert(notificationChannelSettingsTable).values({
       channel, enabled, provider: provider.slice(0, 80), sender: typeof sender === "string" ? sender.slice(0, 160) : null, template: template.slice(0, 1000), updatedAt: new Date(),
-    }).onConflictDoUpdate({ target: notificationChannelSettingsTable.channel, set: { enabled, provider: provider.slice(0, 80), sender: typeof sender === "string" ? sender.slice(0, 160) : null, template: template.slice(0, 1000), updatedAt: new Date() } }).returning();
+    }).onDuplicateKeyUpdate({ set: { enabled, provider: provider.slice(0, 80), sender: typeof sender === "string" ? sender.slice(0, 160) : null, template: template.slice(0, 1000), updatedAt: new Date() } });
+    const [setting] = await db.select().from(notificationChannelSettingsTable).where(eq(notificationChannelSettingsTable.channel, channel));
+    if (!setting) { res.status(500).json({ error: "تعذر حفظ إعدادات القناة" }); return; }
     res.json(setting);
   } catch (err) {
     req.log.error({ err }, "Admin notification settings update failed");
@@ -129,11 +131,12 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
       return;
     }
 
-    const [order] = await db.update(ordersTable).set({
+    await db.update(ordersTable).set({
       status,
       driverName: driverName === undefined ? undefined : (driverName || null),
       driverPhone: driverPhone === undefined ? undefined : (driverPhone || null),
-    }).where(eq(ordersTable.id, id)).returning();
+    }).where(eq(ordersTable.id, id));
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
 
     if (!order) {
       res.status(404).json({ error: "الطلب غير موجود" });
@@ -171,7 +174,9 @@ router.patch("/orders/:id/payment", async (req, res): Promise<void> => {
       res.status(404).json({ error: "الطلب غير موجود" });
       return;
     }
-    const [order] = await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id)).returning();
+    await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id));
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
     const [paymentRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
     await createCustomerNotification({
       sessionId: order.sessionId,
@@ -204,7 +209,9 @@ router.get("/coupons", async (req, res) => {
 router.post("/coupons", async (req, res) => {
   try {
     const data = insertCouponSchema.parse(req.body);
-    const [coupon] = await db.insert(couponsTable).values(data).returning();
+    await db.insert(couponsTable).values(data);
+    const [coupon] = await db.select().from(couponsTable).where(eq(couponsTable.code, data.code));
+    if (!coupon) { res.status(400).json({ error: "تعذر إنشاء القسيمة" }); return; }
     res.status(201).json(coupon);
   } catch (err) {
     req.log.error({ err }, "Admin create coupon failed");
