@@ -64,7 +64,7 @@ import java.util.Locale
 @Composable
 fun ReservationScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val sessionId = remember(context) { SessionVault.sessionId(context) }
+    val bearerToken = remember(context) { SessionVault.token(context) }
     val user = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -91,8 +91,8 @@ fun ReservationScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf("") }
     var expandedStores by remember { mutableStateOf(false) }
 
-    LaunchedEffect(sessionId) {
-        if (sessionId == null) {
+    LaunchedEffect(bearerToken) {
+        if (bearerToken == null) {
             error = "يرجى تسجيل الدخول أو بدء التصفح دون حساب لتسجيل طلب الحجز."
             loading = false
             return@LaunchedEffect
@@ -101,7 +101,7 @@ fun ReservationScreen(onBack: () -> Unit) {
         try {
             stores = FuchsiaApi.stores()
             if (selectedStoreId == 0) selectedStoreId = stores.firstOrNull { it.isOpen }?.id ?: stores.firstOrNull()?.id ?: 0
-            previousReservations = runCatching { FuchsiaApi.reservations(sessionId) }.getOrDefault(emptyList())
+            previousReservations = runCatching { FuchsiaApi.reservations(bearerToken) }.getOrDefault(emptyList())
         } catch (failure: Throwable) {
             error = failure.message ?: "تعذر تحميل الفروع."
         } finally {
@@ -149,9 +149,9 @@ fun ReservationScreen(onBack: () -> Unit) {
     }
 
     fun submitReservation() {
-        val currentSession = sessionId
+        val currentToken = bearerToken
         val store = selectedStore
-        if (currentSession == null) {
+        if (currentToken == null) {
             snackbarShow(scope, snackbar, "يرجى تسجيل الدخول أو بدء التصفح دون حساب لإرسال الحجز.")
             return
         }
@@ -169,8 +169,6 @@ fun ReservationScreen(onBack: () -> Unit) {
         }
         val isoDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).format(selectedDateTime.time)
         val payload = JSONObject()
-            .put("sessionId", currentSession)
-            .put("userId", SessionVault.userId(context) ?: JSONObject.NULL)
             .put("storeId", store.id)
             .put("reservationAt", isoDate)
             .put("partySize", partySize)
@@ -183,7 +181,7 @@ fun ReservationScreen(onBack: () -> Unit) {
             submitting = true
             error = ""
             try {
-                val created = FuchsiaApi.createReservation(payload)
+                val created = FuchsiaApi.createReservation(payload, currentToken)
                 submitted = created
                 previousReservations = listOf(created) + previousReservations
                 snackbar.showSnackbar("وصل طلب الحجز إلى الخادم، وبانتظار تأكيد الفرع.")

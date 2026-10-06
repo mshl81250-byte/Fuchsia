@@ -271,8 +271,8 @@ object FuchsiaApi {
         )
     }
 
-    suspend fun reservations(sessionId: String): List<TableReservation> = withContext(Dispatchers.IO) {
-        val array = JSONArray(getText("/api/reservations?sessionId=${urlEncode(sessionId)}"))
+    suspend fun reservations(bearerToken: String): List<TableReservation> = withContext(Dispatchers.IO) {
+        val array = JSONArray(getText("/api/reservations", bearerToken))
         buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
@@ -281,8 +281,8 @@ object FuchsiaApi {
         }
     }
 
-    suspend fun createReservation(payload: JSONObject): TableReservation =
-        post("/api/reservations", payload).toReservation()
+    suspend fun createReservation(payload: JSONObject, bearerToken: String): TableReservation =
+        sendJson("/api/reservations", "POST", payload, bearerToken = bearerToken).toReservation()
 
     suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
@@ -381,15 +381,17 @@ object FuchsiaApi {
         path: String,
         body: JSONObject,
         includeDebugOtp: Boolean = false,
-    ): JSONObject = sendJson(path, "POST", body, includeDebugOtp)
+        bearerToken: String? = null,
+    ): JSONObject = sendJson(path, "POST", body, includeDebugOtp, bearerToken)
 
     private suspend fun sendJson(
         path: String,
         method: String,
         body: JSONObject? = null,
         includeDebugOtp: Boolean = false,
+        bearerToken: String? = null,
     ): JSONObject = withContext(Dispatchers.IO) {
-        val connection = open(path, method)
+        val connection = open(path, method, bearerToken)
         try {
             if (includeDebugOtp) connection.setRequestProperty("X-Fuchsia-OTP-Debug", "true")
             if (body != null) {

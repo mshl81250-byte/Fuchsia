@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, storesTable, tableReservationsTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 const MIN_LEAD_MS = 30 * 60 * 1000;
@@ -16,13 +17,13 @@ function serializeReservation(row: typeof tableReservationsTable.$inferSelect) {
 
 router.get("/", async (req, res): Promise<void> => {
   try {
-    const sessionId = typeof req.query.sessionId === "string" ? req.query.sessionId.trim() : "";
-    if (!sessionId) {
-      res.status(400).json({ error: "معرّف الجلسة مطلوب" });
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض الحجوزات" });
       return;
     }
     const rows = await db.select().from(tableReservationsTable)
-      .where(eq(tableReservationsTable.sessionId, sessionId))
+      .where(eq(tableReservationsTable.userId, userId))
       .orderBy(desc(tableReservationsTable.reservationAt));
     res.json(rows.map(serializeReservation));
   } catch (error) {
@@ -33,8 +34,12 @@ router.get("/", async (req, res): Promise<void> => {
 
 router.post("/", async (req, res): Promise<void> => {
   try {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "يلزم تسجيل الدخول لإرسال طلب الحجز" });
+      return;
+    }
     const body = req.body as Record<string, unknown>;
-    const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
     const customerName = typeof body.customerName === "string" ? body.customerName.trim() : "";
     const customerPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim() : "";
     const occasion = typeof body.occasion === "string" ? body.occasion.trim().slice(0, 120) : "";
@@ -43,8 +48,8 @@ router.post("/", async (req, res): Promise<void> => {
     const partySize = Number(body.partySize);
     const reservationAt = typeof body.reservationAt === "string" ? new Date(body.reservationAt) : new Date(NaN);
 
-    if (!sessionId || sessionId.length > 200 || !customerName || customerName.length > 200 || !customerPhone || customerPhone.length > 40) {
-      res.status(400).json({ error: "يرجى إدخال الاسم ورقم الهاتف وبيانات الجلسة" });
+    if (!customerName || customerName.length > 200 || !customerPhone || customerPhone.length > 40) {
+      res.status(400).json({ error: "يرجى إدخال الاسم ورقم الهاتف" });
       return;
     }
     if (!Number.isInteger(storeId) || storeId < 1 || !Number.isInteger(partySize) || partySize < 1 || partySize > 20) {
@@ -62,10 +67,8 @@ router.post("/", async (req, res): Promise<void> => {
       return;
     }
 
-    const userIdValue = Number(body.userId);
-    const userId = Number.isInteger(userIdValue) && userIdValue > 0 ? userIdValue : null;
     const [insertResult] = await db.insert(tableReservationsTable).values({
-      sessionId,
+      sessionId: String(userId),
       userId,
       storeId,
       reservationAt,

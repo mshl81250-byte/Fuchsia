@@ -57,6 +57,10 @@ object SessionVault {
         ?.toString()
         ?.takeIf { it.isNotBlank() && it != "null" }
 
+    fun token(context: Context): String? = read(context)
+        ?.optString("token")
+        ?.takeIf(String::isNotBlank)
+
     fun userId(context: Context): Int? = read(context)
         ?.optJSONObject("user")
         ?.optInt("id")
