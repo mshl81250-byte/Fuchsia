@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -112,23 +113,25 @@ fun CartScreen(
         containerColor = FuchsiaColors.Cream,
         snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
-            val current = cart
-            if (!loading && !current?.items.isNullOrEmpty()) {
-                Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CommerceMoneyRow("الإجمالي شامل التوصيل", current?.total ?: 0.0, bold = true, accent = true)
-                        CommercePrimaryButton(
-                            text = "متابعة إلى إتمام الطلب",
-                            onClick = onCheckout,
-                            enabled = current?.items?.isNotEmpty() == true,
-                        )
+            Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+                val current = cart
+                if (!loading && !current?.items.isNullOrEmpty()) {
+                    Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CommerceMoneyRow("الإجمالي شامل التوصيل", current.total, bold = true, accent = true)
+                            CommercePrimaryButton(
+                                text = "متابعة إلى إتمام الطلب",
+                                onClick = onCheckout,
+                                enabled = current.items.isNotEmpty(),
+                            )
+                        }
                     }
                 }
+                bottomBar()
             }
-            bottomBar()
         },
     ) { contentPadding ->
         LazyColumn(
