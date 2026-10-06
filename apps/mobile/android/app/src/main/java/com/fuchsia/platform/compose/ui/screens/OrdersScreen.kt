@@ -184,6 +184,15 @@ fun OrdersScreen(
                         }
                     }
                 }
+                if (orders.isNotEmpty()) {
+                    item {
+                        OrderHistorySummary(
+                            total = orders.size,
+                            delivered = orders.count { it.status == "delivered" },
+                            active = orders.count { it.status in setOf("received", "preparing", "delivering") },
+                        )
+                    }
+                }
 
                 if (orders.isNotEmpty()) {
                     item {
@@ -227,6 +236,30 @@ fun OrdersScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OrderHistorySummary(total: Int, delivered: Int, active: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = BorderStroke(1.dp, FuchsiaColors.Line),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            HistoryStat("كل الطلبات", total)
+            HistoryStat("قيد التنفيذ", active)
+            HistoryStat("تم التسليم", delivered)
+        }
+    }
+}
+
+@Composable
+private fun HistoryStat(label: String, value: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(value.toString(), color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+        Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
     }
 }
 

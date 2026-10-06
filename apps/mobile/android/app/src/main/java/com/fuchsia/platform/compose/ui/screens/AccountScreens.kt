@@ -88,6 +88,7 @@ fun AccountScreen(
     val context = LocalContext.current
     val token = remember(context) { SessionVault.token(context) }
     var profile by remember(context) { mutableStateOf(SessionVault.read(context)?.optJSONObject("user")) }
+    var orderCount by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(token != null) }
     var error by remember { mutableStateOf("") }
     var confirmSignOut by remember { mutableStateOf(false) }
@@ -101,6 +102,7 @@ fun AccountScreen(
             val latest = FuchsiaApi.profile(token)
             profile = latest
             SessionVault.save(context, latest, token)
+            orderCount = runCatching { FuchsiaApi.customerOrders(token).size }.getOrDefault(orderCount)
             error = ""
         } catch (failure: Exception) {
             error = failure.message ?: "تعذر تحديث بيانات الحساب من الخادم."
@@ -190,6 +192,13 @@ fun AccountScreen(
                         }
                     }
                 }
+                item {
+                    AccountStatsCard(
+                        orderCount = orderCount,
+                        rewardPoints = profile?.optInt("rewardPoints", 0) ?: 0,
+                        totalSpent = profile?.optDouble("totalSpent", 0.0) ?: 0.0,
+                    )
+                }
                 item { AccountAction(Icons.AutoMirrored.Rounded.ReceiptLong, "طلباتي السابقة", "سجل الطلبات والتتبع المباشر", onOrders) }
                 item { AccountAction(Icons.Rounded.LocationOn, "عناوين التوصيل", "إضافة عناوين متعددة واختيار الافتراضي", onAddresses) }
                 item { AccountAction(Icons.Rounded.Settings, "الإعدادات والخصوصية", "المظهر والأمان وتفضيلات الاستخدام", onSettings) }
@@ -221,6 +230,31 @@ fun AccountScreen(
             },
             dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("إلغاء") } },
         )
+    }
+}
+
+@Composable
+private fun AccountStatsCard(orderCount: Int, rewardPoints: Int, totalSpent: Double) {
+    Card(
+        shape = RoundedCornerShape(19.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = BorderStroke(1.dp, FuchsiaColors.Line),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 15.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            AccountStat("الطلبات", orderCount.toString())
+            HorizontalDivider(Modifier.height(34.dp).width(1.dp), color = FuchsiaColors.Line)
+            AccountStat("النقاط", rewardPoints.toString())
+            HorizontalDivider(Modifier.height(34.dp).width(1.dp), color = FuchsiaColors.Line)
+            AccountStat("المصروف", formatRiyal(totalSpent))
+        }
+    }
+}
+
+@Composable
+private fun AccountStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(value, color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
     }
 }
 
