@@ -100,10 +100,9 @@ fun HomeScreen(
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val userId = remember(context) { SessionVault.userId(context) }
-    val greetingName = remember {
-        SessionVault.read(context)?.optJSONObject("user")?.optString("fullName")
-            ?.takeIf { !it.isNullOrBlank() && it != "null" }
-    }
+    val sessionUser = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
+    val isGuest = sessionUser?.optBoolean("isGuest", false) == true || sessionUser?.optString("email").orEmpty().endsWith("@guest.fuchsia")
+    val greetingName = sessionUser?.optString("fullName")?.takeIf { !it.isNullOrBlank() && it != "null" && !isGuest }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var categories by remember { mutableStateOf<List<StoreCategory>>(emptyList()) }
@@ -190,6 +189,7 @@ fun HomeScreen(
             item {
                 HomeHeader(
                     name = greetingName,
+                    isGuest = isGuest,
                     onCart = onCart,
                 )
             }
@@ -298,7 +298,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeHeader(name: String?, onCart: () -> Unit) {
+private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit)
@@ -309,7 +309,7 @@ private fun HomeHeader(name: String?, onCart: () -> Unit) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text("أهلًا ${name ?: "بك"}", color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
+                Text(if (isGuest) "أهلًا بك، ضيفنا" else "أهلًا ${name ?: "بك"}", color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(14.dp))
                     Text("صنعاء، اليمن", color = FuchsiaColors.Muted, fontSize = 10.sp)
