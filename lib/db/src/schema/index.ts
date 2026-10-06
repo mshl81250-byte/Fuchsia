@@ -8,6 +8,7 @@ export * from "./orders";
 export * from "./reviews";
 export * from "./promotions";
 export * from "./users";
+export * from "./user-addresses";
 export * from "./user-sessions";
 export * from "./payment-wallets";
 export * from "./notifications";

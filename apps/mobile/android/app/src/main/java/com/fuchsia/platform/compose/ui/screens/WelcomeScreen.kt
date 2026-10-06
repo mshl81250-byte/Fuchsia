@@ -1,8 +1,8 @@
 package com.fuchsia.platform.compose.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,12 +11,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -42,6 +41,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,76 +69,165 @@ fun WelcomeScreen(
     onReservation: () -> Unit,
     onGiftOrder: () -> Unit,
 ) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(FuchsiaColors.Cream),
-    ) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+    BackHandler(enabled = page == 1) { page = 0 }
+
+    if (page == 0) {
+        FirstWelcomePage(onNext = { page = 1 })
+    } else {
+        SecondWelcomePage(
+            onBack = { page = 0 },
+            onExplore = onExplore,
+            onLogin = onLogin,
+            onRegister = onRegister,
+            onCategory = onCategory,
+            onReservation = onReservation,
+            onGiftOrder = onGiftOrder,
+        )
+    }
+}
+
+@Composable
+private fun FirstWelcomePage(onNext: () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(FuchsiaColors.Cream)) {
         val compact = maxHeight < 700.dp
         val heroHeight = if (compact) 166.dp else (maxHeight * 0.255f).coerceIn(188.dp, 224.dp)
-        val baseModifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 20.dp, vertical = 9.dp)
-        val contentModifier = if (compact) baseModifier.verticalScroll(rememberScrollState()) else baseModifier
+        val base = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp, vertical = 9.dp)
+        val pageModifier = if (compact) base.verticalScroll(rememberScrollState()) else base
 
-        Column(modifier = contentModifier) {
+        Column(pageModifier) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 BrandHeader()
                 HeroCard(height = heroHeight)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        text = "لكل لحظة جميلة،\nهدية تليق بها",
+                        "لكل لحظة جميلة،\nهدية تليق بها",
                         style = MaterialTheme.typography.headlineMedium,
                         color = FuchsiaColors.Ink,
                         textAlign = TextAlign.Start,
                     )
                     Text(
-                        text = "هدايا، ورد، وتنسيق مناسبات بلمسة أنيقة.",
+                        "هدايا، ورود، وتنسيق مناسبات بلمسة أنيقة.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = FuchsiaColors.Muted,
                         textAlign = TextAlign.Start,
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        CategoryAction("هدايا فاخرة", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
-                        CategoryAction("طاولات مناسبات", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        CategoryAction("ورود وزهور", Icons.Rounded.LocalFlorist, { onCategory(6) }, Modifier.weight(1f))
-                        CategoryAction("تجهيز الخطوبة", Icons.Rounded.EventAvailable, { onCategory(2) }, Modifier.weight(1f))
-                    }
-                }
             }
 
-            if (compact) Spacer(Modifier.height(14.dp)) else Spacer(Modifier.weight(1f))
+            if (compact) Spacer(Modifier.height(19.dp)) else Spacer(Modifier.weight(1f))
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                WelcomePageIndicator(page = 0)
                 Button(
-                    onClick = onExplore,
+                    onClick = onNext,
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     shape = RoundedCornerShape(19.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp),
                 ) {
-                    Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(21.dp))
-                    Spacer(Modifier.width(11.dp))
-                    Text("استكشاف المتجر", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("التالي", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.width(9.dp))
+                    Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
+                Text("مقدمة قصيرة من صفحتين، تظهر عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun SecondWelcomePage(
+    onBack: () -> Unit,
+    onExplore: () -> Unit,
+    onLogin: () -> Unit,
+    onRegister: () -> Unit,
+    onCategory: (Int) -> Unit,
+    onReservation: () -> Unit,
+    onGiftOrder: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(FuchsiaColors.Cream)) {
+        val compact = maxHeight < 730.dp
+        val base = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp, vertical = 9.dp)
+        val pageModifier = if (compact) base.verticalScroll(rememberScrollState()) else base
+
+        Column(pageModifier) {
+            BrandHeader()
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.padding(top = 8.dp)) {
+                Text("كل ما يبهج مناسبتك، في مكان واحد", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium)
+                Text("تسوّق، أهدِ، احجز، وتابع طلباتك بكل سهولة.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+            }
+            Column(Modifier.padding(top = 13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    CategoryAction("هدايا فاخرة", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
+                    CategoryAction("حجز طاولة", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    CategoryAction("ورود وزهور", Icons.Rounded.LocalFlorist, { onCategory(6) }, Modifier.weight(1f))
+                    CategoryAction("تنسيق مناسبات", Icons.Rounded.EventAvailable, { onCategory(2) }, Modifier.weight(1f))
+                }
+            }
+            Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                WelcomeFeature(Icons.Rounded.Place, "عناوين وموقع توصيل محفوظ", "اختر نقطة التسليم على الخريطة واحفظ عناوينك المفضلة.")
+                WelcomeFeature(Icons.Rounded.ShoppingBag, "طلباتي وتتبّعها", "ارجع إلى سجل الطلبات لمتابعة آخر تحديث من المتجر.")
+            }
+
+            if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                WelcomePageIndicator(page = 1)
+                Button(
+                    onClick = onExplore,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
                 ) {
-                    TextButton(onClick = onLogin) {
-                        Text("تسجيل الدخول", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold)
-                    }
-                    Box(Modifier.width(1.dp).height(20.dp).background(FuchsiaColors.Line))
-                    TextButton(onClick = onRegister) {
-                        Text("إنشاء حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold)
-                    }
+                    Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Text("استكشاف المتجر", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
+                Row(Modifier.fillMaxWidth().height(43.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onLogin) { Text("تسجيل الدخول", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
+                    Box(Modifier.width(1.dp).height(19.dp).background(FuchsiaColors.Line))
+                    TextButton(onClick = onRegister) { Text("إنشاء حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
+                }
+                TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                    Text("العودة إلى الصفحة الأولى", color = FuchsiaColors.Muted)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WelcomePageIndicator(page: Int) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        repeat(2) { index ->
+            Box(
+                Modifier.padding(horizontal = 3.dp).size(width = if (index == page) 22.dp else 7.dp, height = 7.dp)
+                    .background(if (index == page) FuchsiaColors.Primary else FuchsiaColors.Line, CircleShape),
+            )
+        }
+        Spacer(Modifier.width(7.dp))
+        Text(if (page == 0) "١ من ٢" else "٢ من ٢", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun WelcomeFeature(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            Surface(Modifier.size(38.dp), shape = RoundedCornerShape(12.dp), color = FuchsiaColors.RoseLight) {
+                Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(20.dp)) }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                Text(subtitle, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -154,17 +246,8 @@ private fun BrandHeader() {
             modifier = Modifier.width(92.dp).height(62.dp),
             contentScale = ContentScale.Fit,
         )
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = FuchsiaColors.White,
-            tonalElevation = 0.dp,
-            shadowElevation = 1.dp,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
+        Surface(shape = RoundedCornerShape(50), color = FuchsiaColors.White, tonalElevation = 0.dp, shadowElevation = 1.dp) {
+            Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Rounded.Place, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(16.dp))
                 Text("صنعاء · اليمن", style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), color = FuchsiaColors.Ink)
             }
@@ -174,12 +257,7 @@ private fun BrandHeader() {
 
 @Composable
 private fun HeroCard(height: Dp) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .clip(RoundedCornerShape(25.dp)),
-    ) {
+    Box(Modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(25.dp))) {
         Image(
             painter = painterResource(R.drawable.welcome_hero),
             contentDescription = "هدية فاخرة مع باقة ورد",
@@ -187,33 +265,17 @@ private fun HeroCard(height: Dp) {
             contentScale = ContentScale.Crop,
         )
         Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0.0f to Color.Transparent,
-                    0.48f to Color(0x140D0710),
-                    1.0f to Color(0xB80D0710),
-                ),
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0.0f to Color.Transparent, 0.48f to Color(0x140D0710), 1.0f to Color(0xB80D0710)),
             ),
         )
-        Surface(
-            modifier = Modifier.align(Alignment.TopEnd).padding(13.dp),
-            shape = RoundedCornerShape(50),
-            color = FuchsiaColors.White.copy(alpha = 0.94f),
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+        Surface(Modifier.align(Alignment.TopEnd).padding(13.dp), shape = RoundedCornerShape(50), color = FuchsiaColors.White.copy(alpha = 0.94f)) {
+            Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(16.dp))
                 Text("تفاصيل تصنع الذكرى", style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp), color = FuchsiaColors.Ink)
             }
         }
-        Column(
-            modifier = Modifier.align(Alignment.BottomEnd).padding(15.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
+        Column(Modifier.align(Alignment.BottomEnd).padding(15.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("اختيارات بعناية لكل مناسبة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
             Text("هدايا · زهور · مناسبات", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
         }
@@ -234,24 +296,11 @@ private fun CategoryAction(
         border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Surface(modifier = Modifier.size(39.dp), shape = RoundedCornerShape(13.dp), color = FuchsiaColors.RoseLight) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
-                }
+        Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Surface(Modifier.size(39.dp), shape = RoundedCornerShape(13.dp), color = FuchsiaColors.RoseLight) {
+                Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp)) }
             }
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp),
-                color = FuchsiaColors.Ink,
-                maxLines = 1,
-                textAlign = TextAlign.Start,
-            )
+            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), color = FuchsiaColors.Ink, maxLines = 1, textAlign = TextAlign.Start)
             Box(Modifier.size(5.dp).background(FuchsiaColors.Gold.copy(alpha = 0.65f), CircleShape))
         }
     }

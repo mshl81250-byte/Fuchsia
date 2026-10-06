@@ -4,6 +4,7 @@ import { usersTable, emailVerificationCodesTable, userSessionsTable } from "@wor
 import { eq, and, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendVerificationCodeEmail } from "../lib/notifications";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -199,9 +200,9 @@ router.post("/guest", async (req, res): Promise<void> => {
 
 router.get("/profile", async (req, res): Promise<void> => {
   try {
-    const userId = parseInt(req.query.userId as string);
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض بيانات الحساب" });
       return;
     }
 
@@ -220,17 +221,38 @@ router.get("/profile", async (req, res): Promise<void> => {
 
 router.patch("/profile", async (req, res): Promise<void> => {
   try {
-    const { userId, fullName, phone, address, avatarUrl } = req.body;
+    const { fullName, phone, address, avatarUrl } = req.body ?? {};
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لتعديل بيانات الحساب" });
       return;
     }
 
     const updates: Record<string, unknown> = {};
-    if (fullName !== undefined) updates.fullName = fullName;
-    if (phone !== undefined) updates.phone = phone;
-    if (address !== undefined) updates.address = address;
-    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+    if (fullName !== undefined) {
+      if (typeof fullName !== "string" || fullName.trim().length < 2 || fullName.trim().length > 120) {
+        res.status(400).json({ error: "الاسم غير صحيح" });
+        return;
+      }
+      updates.fullName = fullName.trim();
+    }
+    if (phone !== undefined) {
+      if (typeof phone !== "string" || phone.trim().length > 40) {
+        res.status(400).json({ error: "رقم الهاتف غير صحيح" });
+        return;
+      }
+      updates.phone = phone.trim() || null;
+    }
+    if (address !== undefined) {
+      if (typeof address !== "string" || address.trim().length > 1000) {
+        res.status(400).json({ error: "عنوان التوصيل غير صحيح" });
+        return;
+      }
+      updates.address = address.trim() || null;
+    }
+    if (avatarUrl !== undefined && typeof avatarUrl === "string" && avatarUrl.length <= 2048) {
+      updates.avatarUrl = avatarUrl;
+    }
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));

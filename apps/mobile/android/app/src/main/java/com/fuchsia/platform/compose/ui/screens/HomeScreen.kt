@@ -19,11 +19,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
@@ -77,6 +77,7 @@ fun HomeScreen(
     onReservation: () -> Unit,
     onGiftOrder: () -> Unit,
     onOrders: () -> Unit,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
@@ -109,7 +110,7 @@ fun HomeScreen(
         loading = false
     }
 
-    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { SnackbarHost(snackbar) }) { contentPadding ->
+    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = bottomBar) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = contentPadding.calculateTopPadding() + 8.dp, bottom = contentPadding.calculateBottomPadding() + 22.dp),
@@ -182,7 +183,7 @@ fun HomeScreen(
                 }
             }
             item {
-                ServiceAction("تتبع طلباتي", "متابعة الحالة مباشرة", Icons.Rounded.ReceiptLong, onOrders, Modifier.fillMaxWidth())
+                ServiceAction("تتبع طلباتي", "متابعة الحالة مباشرة", Icons.AutoMirrored.Rounded.ReceiptLong, onOrders, Modifier.fillMaxWidth())
             }
             item {
                 SectionHeading("اختيارات مميزة", "الأكثر تميزًا")

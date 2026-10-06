@@ -76,6 +76,18 @@ data class TableReservation(
     val customerPhone: String,
 )
 
+data class DeliveryAddress(
+    val id: Int,
+    val label: String,
+    val recipientName: String,
+    val phone: String,
+    val address: String,
+    val notes: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val isDefault: Boolean,
+)
+
 data class CustomerOrder(
     val id: Int,
     val status: String,
@@ -130,6 +142,39 @@ object FuchsiaApi {
     )
 
     suspend fun guest(): AuthSession = parseSession(post("/api/auth/guest", JSONObject()))
+
+    suspend fun profile(bearerToken: String): JSONObject = getJson("/api/auth/profile", bearerToken)
+
+    suspend fun updateProfile(
+        bearerToken: String,
+        fullName: String,
+        phone: String,
+    ): JSONObject = sendJson(
+        "/api/auth/profile",
+        "PATCH",
+        JSONObject().put("fullName", fullName).put("phone", phone),
+        bearerToken = bearerToken,
+    )
+
+    suspend fun addresses(bearerToken: String): List<DeliveryAddress> = withContext(Dispatchers.IO) {
+        val array = JSONArray(getText("/api/addresses", bearerToken))
+        buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                add(item.toDeliveryAddress())
+            }
+        }
+    }
+
+    suspend fun createAddress(payload: JSONObject, bearerToken: String): DeliveryAddress =
+        sendJson("/api/addresses", "POST", payload, bearerToken = bearerToken).toDeliveryAddress()
+
+    suspend fun updateAddress(id: Int, payload: JSONObject, bearerToken: String): DeliveryAddress =
+        sendJson("/api/addresses/$id", "PATCH", payload, bearerToken = bearerToken).toDeliveryAddress()
+
+    suspend fun deleteAddress(id: Int, bearerToken: String) {
+        sendJson("/api/addresses/$id", "DELETE", bearerToken = bearerToken)
+    }
 
     suspend fun categories(): List<StoreCategory> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/categories"))
@@ -372,8 +417,23 @@ object FuchsiaApi {
         customerPhone = optString("customerPhone"),
     )
 
+    private fun JSONObject.toDeliveryAddress() = DeliveryAddress(
+        id = optInt("id"),
+        label = optString("label").ifBlank { "عنوان التوصيل" },
+        recipientName = optString("recipientName"),
+        phone = optString("phone"),
+        address = optString("address"),
+        notes = nullableString("notes"),
+        latitude = nullableDouble("latitude"),
+        longitude = nullableDouble("longitude"),
+        isDefault = optBoolean("isDefault"),
+    )
+
     private fun JSONObject.nullableString(name: String): String? =
         if (isNull(name)) null else optString(name).takeIf(String::isNotBlank)
+
+    private fun JSONObject.nullableDouble(name: String): Double? =
+        if (isNull(name)) null else optDouble(name).takeIf(Double::isFinite)
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
@@ -421,7 +481,7 @@ object FuchsiaApi {
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "FuchsiaBoutique-Android/1.2")
+            setRequestProperty("User-Agent", "FuchsiaBoutique-Android/1.3")
             if (!bearerToken.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $bearerToken")
         }
 

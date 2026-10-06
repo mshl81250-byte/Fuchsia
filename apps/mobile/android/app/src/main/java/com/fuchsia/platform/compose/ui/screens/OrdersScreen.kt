@@ -76,6 +76,7 @@ fun OrdersScreen(
     onBack: () -> Unit,
     onSignIn: () -> Unit,
     focusOrderId: Int = 0,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val userToken = remember(context) { SessionVault.read(context)?.optString("token")?.takeIf(String::isNotBlank) }
@@ -121,7 +122,7 @@ fun OrdersScreen(
         }
     }
 
-    Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
+    Scaffold(containerColor = FuchsiaColors.Cream, bottomBar = bottomBar) { insets ->
         Column(
             modifier = Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()),
         ) {
@@ -159,7 +160,7 @@ fun OrdersScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = 26.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 18.dp, end = 18.dp, bottom = insets.calculateBottomPadding() + 26.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
                 item {

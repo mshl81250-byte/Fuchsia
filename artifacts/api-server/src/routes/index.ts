@@ -10,6 +10,7 @@ import reviewsRouter from "./reviews";
 import promotionsRouter from "./promotions";
 import dashboardRouter from "./dashboard";
 import authRouter from "./auth";
+import addressesRouter from "./addresses";
 import favoritesRouter from "./favorites";
 import rewardsRouter from "./rewards";
 import adminRouter from "./admin";
@@ -22,6 +23,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
+router.use("/addresses", addressesRouter);
 router.use("/categories", categoriesRouter);
 router.use("/stores", storesRouter);
 router.use("/products", productsRouter);

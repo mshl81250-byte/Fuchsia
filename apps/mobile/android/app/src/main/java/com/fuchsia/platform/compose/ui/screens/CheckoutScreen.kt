@@ -22,11 +22,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -34,6 +37,7 @@ import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +47,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.fuchsia.platform.compose.data.FuchsiaApi
+import com.fuchsia.platform.compose.data.DeliveryAddress
 import com.fuchsia.platform.compose.data.PaymentWallet
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.ShoppingCart
@@ -73,14 +79,18 @@ fun CheckoutScreen(
     initialGift: Boolean,
     onBack: () -> Unit,
     onOrderPlaced: (Int) -> Unit,
+    onManageAddresses: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
+    val userToken = remember(context) { SessionVault.token(context) }
     val user = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
     var cart by remember { mutableStateOf<ShoppingCart?>(null) }
+    var savedAddresses by remember { mutableStateOf<List<DeliveryAddress>>(emptyList()) }
+    var showAddressPicker by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<PaymentWallet>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
@@ -102,7 +112,7 @@ fun CheckoutScreen(
     var giftMessage by remember { mutableStateOf("") }
     var hidePrice by remember { mutableStateOf(true) }
 
-    LaunchedEffect(sessionId) {
+    LaunchedEffect(sessionId, userToken) {
         if (sessionId == null) {
             error = "انتهت الجلسة. يرجى تسجيل الدخول أو بدء التصفح دون حساب من جديد."
             loading = false
@@ -111,6 +121,16 @@ fun CheckoutScreen(
         loading = true
         error = ""
         try {
+            if (!userToken.isNullOrBlank()) {
+                savedAddresses = runCatching { FuchsiaApi.addresses(userToken) }.getOrDefault(emptyList())
+                savedAddresses.firstOrNull { it.isDefault }?.let { saved ->
+                    fullName = saved.recipientName
+                    phone = saved.phone
+                    address = saved.address
+                    latitude = saved.latitude
+                    longitude = saved.longitude
+                }
+            }
             cart = FuchsiaApi.getCart(sessionId)
             wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList())
             if (cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
@@ -268,7 +288,7 @@ fun CheckoutScreen(
                 }
             }
         },
-    ) { contentPadding ->
+        ) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = contentPadding.calculateTopPadding() + 7.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
@@ -288,6 +308,18 @@ fun CheckoutScreen(
                     CommerceSectionTitle("بيانات المستلم", "تُستخدم للتواصل والتوصيل")
                     CommerceField(fullName, { fullName = it }, "الاسم الكامل")
                     CommerceField(phone, { phone = it }, "رقم الهاتف", keyboardType = KeyboardType.Phone)
+                    if (!userToken.isNullOrBlank()) {
+                        TextButton(onClick = {
+                            showAddressPicker = true
+                            scope.launch {
+                                runCatching { FuchsiaApi.addresses(userToken) }
+                                    .onSuccess { savedAddresses = it }
+                            }
+                        }) {
+                            val title = if (savedAddresses.isEmpty()) "اختيار أو إدارة عناوين التوصيل" else "اختيار عنوان محفوظ (${savedAddresses.size})"
+                            Text(title, color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     CommerceField(address, { address = it }, "عنوان التوصيل بالتفصيل", minLines = 2, maxLines = 3, placeholder = "الحي، الشارع، أقرب معلم")
                 }
                 item {
@@ -357,7 +389,7 @@ fun CheckoutScreen(
                 }
                 if (isGift) {
                     item {
-                        CommerceField(recipientName, { recipientName = it }, "اسم المُهدى إليها")
+                        CommerceField(recipientName, { recipientName = it }, "اسم مستلم الهدية")
                         CommerceField(giftMessage, { giftMessage = it }, "رسالة الهدية", minLines = 2, maxLines = 4, placeholder = "رسالة تهنئة أو أمنية جميلة")
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Switch(checked = hidePrice, onCheckedChange = { hidePrice = it })
@@ -430,6 +462,66 @@ fun CheckoutScreen(
             }
         }
     }
+
+    if (showAddressPicker) {
+        AddressPickerDialog(
+            addresses = savedAddresses,
+            onDismiss = { showAddressPicker = false },
+            onSelect = { selected ->
+                fullName = selected.recipientName
+                phone = selected.phone
+                address = selected.address
+                latitude = selected.latitude
+                longitude = selected.longitude
+                locationError = ""
+                locating = false
+                showAddressPicker = false
+            },
+            onManage = {
+                showAddressPicker = false
+                onManageAddresses()
+            },
+        )
+    }
+}
+
+@Composable
+private fun AddressPickerDialog(
+    addresses: List<DeliveryAddress>,
+    onDismiss: () -> Unit,
+    onSelect: (DeliveryAddress) -> Unit,
+    onManage: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("اختيار عنوان التوصيل", color = FuchsiaColors.Ink) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (addresses.isEmpty()) {
+                    Text("لا توجد عناوين محفوظة بعد. يمكنك إضافة عنوان من إدارة العناوين.", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                }
+                addresses.forEach { address ->
+                    Card(
+                        onClick = { onSelect(address) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (address.isDefault) FuchsiaColors.Rose else FuchsiaColors.White),
+                        border = BorderStroke(1.dp, if (address.isDefault) FuchsiaColors.Primary else FuchsiaColors.Line),
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(if (address.isDefault) "${address.label} · افتراضي" else address.label, color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(address.address, color = FuchsiaColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                            Text("${address.recipientName} · ${address.phone}", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                TextButton(onClick = onManage, modifier = Modifier.align(Alignment.End)) {
+                    Text("إدارة العناوين", color = FuchsiaColors.Primary)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } },
+    )
 }
 
 @Composable
