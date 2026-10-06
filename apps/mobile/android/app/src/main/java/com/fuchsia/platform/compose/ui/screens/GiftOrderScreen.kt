@@ -74,7 +74,7 @@ fun GiftOrderScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
             if (cartCount > 0) {
                 Card(

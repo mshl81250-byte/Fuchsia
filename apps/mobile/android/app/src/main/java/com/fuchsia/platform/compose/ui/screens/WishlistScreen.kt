@@ -73,7 +73,7 @@ fun WishlistScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = bottomBar,
     ) { insets ->
         LazyColumn(

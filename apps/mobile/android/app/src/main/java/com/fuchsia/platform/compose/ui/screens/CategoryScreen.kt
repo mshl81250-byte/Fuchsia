@@ -85,7 +85,7 @@ fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit, onPr
         }
     }
 
-    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { SnackbarHost(snackbar) }) { contentPadding ->
+    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { FuchsiaNoticeHost(snackbar) }) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = contentPadding.calculateTopPadding() + 4.dp, bottom = contentPadding.calculateBottomPadding() + 24.dp),

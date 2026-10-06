@@ -200,7 +200,7 @@ fun ReservationScreen(onBack: () -> Unit) {
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
     ) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

@@ -1,6 +1,8 @@
 package com.fuchsia.platform.compose.ui.navigation
 
+import android.app.Activity
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -14,9 +16,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -102,6 +111,7 @@ object AppRoutes {
     fun orders(focusOrderId: Int = 0): String = "orders?focusOrderId=$focusOrderId"
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FuchsiaAppNavHost(
     themeMode: String,
@@ -124,6 +134,7 @@ fun FuchsiaAppNavHost(
     val routeNow = currentEntry?.destination?.route
     var previousRoute by remember { mutableStateOf<String?>(null) }
     var showBrandTransition by remember { mutableStateOf(false) }
+    var showExitSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(routeNow) {
         if (routeNow != null) {
@@ -135,6 +146,8 @@ fun FuchsiaAppNavHost(
             previousRoute = routeNow
         }
     }
+
+    BackHandler(enabled = routeNow == AppRoutes.Home) { showExitSheet = true }
 
     fun selectTab(route: String) {
         navController.navigate(route) {
@@ -400,6 +413,19 @@ fun FuchsiaAppNavHost(
                     Text("لحظات ونفتح الصفحة", color = FuchsiaColors.Ink, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(15.dp))
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
+                }
+            }
+        }
+        if (showExitSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showExitSheet = false },
+                containerColor = FuchsiaColors.White,
+            ) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("هل تريد مغادرة التطبيق؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                    Text("شكراً لاستخدام فوشيا، نتطلع لخدمتك مجدداً.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
+                    Button(onClick = { (context as? Activity)?.finish() }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("خروج", fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { showExitSheet = false }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("البقاء", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) }
                 }
             }
         }

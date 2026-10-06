@@ -110,7 +110,7 @@ fun CartScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
             val current = cart
             if (!loading && !current?.items.isNullOrEmpty()) {

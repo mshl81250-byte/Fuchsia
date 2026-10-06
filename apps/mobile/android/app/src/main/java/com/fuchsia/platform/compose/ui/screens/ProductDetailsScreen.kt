@@ -90,7 +90,7 @@ fun ProductDetailsScreen(
     val current = product
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
             if (current != null) {
                 Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {

@@ -285,7 +285,7 @@ fun CheckoutScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
             val total = cart?.total
             if (total != null && !cart?.items.isNullOrEmpty()) {

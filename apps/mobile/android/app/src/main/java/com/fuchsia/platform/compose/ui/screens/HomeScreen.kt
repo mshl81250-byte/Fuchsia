@@ -174,7 +174,7 @@ fun HomeScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = bottomBar,
     ) { contentPadding ->
         LazyColumn(
