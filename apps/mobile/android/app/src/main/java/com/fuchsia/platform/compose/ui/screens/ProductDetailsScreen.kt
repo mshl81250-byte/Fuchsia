@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -92,9 +93,9 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
         snackbarHost = { FuchsiaNoticeHost(notice) },
         bottomBar = {
             if (current != null) {
-                Surface(color = FuchsiaColors.White, shadowElevation = 14.dp) {
+                Surface(modifier = Modifier.navigationBarsPadding(), color = FuchsiaColors.White, shadowElevation = 14.dp) {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -109,7 +110,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                 }
                             },
                             enabled = current.inStock,
-                            modifier = Modifier.weight(1f).height(52.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                         ) {
@@ -236,10 +237,10 @@ private fun CircleAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 @Composable
 private fun QuantityStepper(quantity: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
     Surface(shape = RoundedCornerShape(14.dp), color = FuchsiaColors.RoseLight) {
-        Row(Modifier.padding(horizontal = 5.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل", tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)) }
-            Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(22.dp), textAlign = TextAlign.Center)
-            IconButton(onClick = onIncrease, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Add, contentDescription = "زيادة", tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)) }
+        Row(Modifier.padding(horizontal = 5.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(42.dp)) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp)) }
+            Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(27.dp), textAlign = TextAlign.Center)
+            IconButton(onClick = onIncrease, modifier = Modifier.size(42.dp)) { Icon(Icons.Rounded.Add, contentDescription = "زيادة الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp)) }
         }
     }
 }
