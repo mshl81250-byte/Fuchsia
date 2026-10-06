@@ -76,6 +76,31 @@ data class TableReservation(
     val customerPhone: String,
 )
 
+data class CustomerOrder(
+    val id: Int,
+    val status: String,
+    val total: Double,
+    val createdAt: String,
+    val itemCount: Int,
+)
+
+data class OrderStatusUpdate(
+    val status: String,
+    val message: String,
+    val createdAt: String,
+)
+
+data class OrderTracking(
+    val orderId: Int,
+    val status: String,
+    val total: Double,
+    val createdAt: String,
+    val updatedAt: String,
+    val driverName: String?,
+    val driverPhone: String?,
+    val history: List<OrderStatusUpdate>,
+)
+
 class ApiException(message: String, val statusCode: Int = 0) : Exception(message)
 
 object FuchsiaApi {
@@ -200,6 +225,51 @@ object FuchsiaApi {
     }
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
+
+    suspend fun customerOrders(token: String): List<CustomerOrder> = withContext(Dispatchers.IO) {
+        val array = JSONArray(getText("/api/orders/mine", token))
+        buildList {
+            for (i in 0 until array.length()) {
+                val item = array.optJSONObject(i) ?: continue
+                add(
+                    CustomerOrder(
+                        id = item.optInt("id"),
+                        status = item.optString("status").ifBlank { "received" },
+                        total = item.optDouble("total", 0.0),
+                        createdAt = item.optString("createdAt"),
+                        itemCount = item.optJSONArray("items")?.length() ?: 0,
+                    ),
+                )
+            }
+        }
+    }
+
+    suspend fun orderTracking(orderId: Int, token: String): OrderTracking = withContext(Dispatchers.IO) {
+        val json = getJson("/api/orders/$orderId/tracking", token)
+        val rows = json.optJSONArray("history") ?: JSONArray()
+        val history = buildList {
+            for (i in 0 until rows.length()) {
+                val event = rows.optJSONObject(i) ?: continue
+                add(
+                    OrderStatusUpdate(
+                        status = event.optString("status").ifBlank { "received" },
+                        message = event.optString("message"),
+                        createdAt = event.optString("createdAt"),
+                    ),
+                )
+            }
+        }
+        OrderTracking(
+            orderId = json.optInt("orderId"),
+            status = json.optString("status").ifBlank { "received" },
+            total = json.optDouble("total", 0.0),
+            createdAt = json.optString("createdAt"),
+            updatedAt = json.optString("updatedAt"),
+            driverName = json.nullableString("driverName"),
+            driverPhone = json.nullableString("driverPhone"),
+            history = history,
+        )
+    }
 
     suspend fun reservations(sessionId: String): List<TableReservation> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/reservations?sessionId=${urlEncode(sessionId)}"))
@@ -333,23 +403,24 @@ object FuchsiaApi {
         }
     }
 
-    private suspend fun getJson(path: String): JSONObject = withContext(Dispatchers.IO) {
-        val connection = open(path, "GET")
+    private suspend fun getJson(path: String, bearerToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
+        val connection = open(path, "GET", bearerToken)
         try { readJson(connection) } finally { connection.disconnect() }
     }
 
-    private suspend fun getText(path: String): String = withContext(Dispatchers.IO) {
-        val connection = open(path, "GET")
+    private suspend fun getText(path: String, bearerToken: String? = null): String = withContext(Dispatchers.IO) {
+        val connection = open(path, "GET", bearerToken)
         try { readBody(connection) } finally { connection.disconnect() }
     }
 
-    private fun open(path: String, method: String): HttpURLConnection =
+    private fun open(path: String, method: String, bearerToken: String? = null): HttpURLConnection =
         (URL(BuildConfig.API_BASE_URL.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "FuchsiaBoutique-Android/1.1")
+            setRequestProperty("User-Agent", "FuchsiaBoutique-Android/1.2")
+            if (!bearerToken.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $bearerToken")
         }
 
     private fun readJson(connection: HttpURLConnection): JSONObject {

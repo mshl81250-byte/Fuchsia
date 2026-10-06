@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.CancellationSignal
+import android.os.Handler
+import android.os.Looper
 import android.location.Location
 import android.location.LocationManager
 import android.net.Uri
@@ -88,6 +91,7 @@ fun CheckoutScreen(
     var address by remember { mutableStateOf(user?.optString("address").orEmpty()) }
     var latitude by remember { mutableStateOf<Double?>(null) }
     var longitude by remember { mutableStateOf<Double?>(null) }
+    var locating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf("") }
     var paymentType by remember { mutableStateOf("cash_on_delivery") }
     var selectedWalletId by remember { mutableStateOf<Int?>(null) }
@@ -117,33 +121,38 @@ fun CheckoutScreen(
         }
     }
 
+    fun applyCoordinates(latitudeValue: Double, longitudeValue: Double) {
+        latitude = latitudeValue
+        longitude = longitudeValue
+        locating = false
+        locationError = if (isSanaaLocation(latitudeValue, longitudeValue)) "" else "الموقع خارج نطاق التوصيل الحالي في صنعاء."
+    }
+
     fun applyLocation(location: Location?) {
+        locating = false
         if (location == null) {
-            locationError = "تعذر تحديد الموقع. يرجى تشغيل GPS وإعادة المحاولة."
+            locationError = "تعذر تحديد الموقع الحالي. يرجى التحقق من خدمات الموقع، أو تحديد نقطة يدويًا على الخريطة."
             return
         }
-        latitude = location.latitude
-        longitude = location.longitude
-        locationError = if (isSanaaLocation(location.latitude, location.longitude)) {
-            ""
-        } else {
-            "الموقع خارج نطاق التوصيل الحالي في صنعاء."
-        }
+        applyCoordinates(location.latitude, location.longitude)
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { grants ->
         if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true || grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            locating = true
             requestCurrentLocation(context, ::applyLocation)
         } else {
-            locationError = "اسمحي بالوصول للموقع لتحديد نقطة التوصيل بدقة."
+            locating = false
+            locationError = "يلزم السماح بالوصول للموقع لاستخدام GPS. ويمكن اختيار النقطة يدويًا على الخريطة."
         }
     }
 
     fun locate() {
         val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        locating = true
         if (fine || coarse) requestCurrentLocation(context, ::applyLocation)
         else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
     }
@@ -304,15 +313,22 @@ fun CheckoutScreen(
                                     )
                                 }
                             }
+                            MapLocationPicker(
+                                selectedLatitude = latitude,
+                                selectedLongitude = longitude,
+                                onConfirmLocation = ::applyCoordinates,
+                            )
                             Button(
                                 onClick = ::locate,
                                 modifier = Modifier.fillMaxWidth().height(46.dp),
                                 shape = RoundedCornerShape(13.dp),
+                                enabled = !locating,
                                 colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose),
                             ) {
-                                Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+                                if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
+                                else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (latitude == null) "تحديد الموقع الحالي" else "تحديث الموقع", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
                             if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")
@@ -454,24 +470,55 @@ private fun isSanaaLocation(latitude: Double, longitude: Double): Boolean =
 private fun requestCurrentLocation(context: Context, onResult: (Location?) -> Unit) {
     try {
         val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val provider = when {
-            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-            manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-            else -> null
-        }
-        if (provider == null) {
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .filter { provider -> runCatching { manager.isProviderEnabled(provider) }.getOrDefault(false) }
+        if (providers.isEmpty()) {
             onResult(null)
             return
         }
+        fun lastKnown(): Location? = providers.mapNotNull { provider ->
+            runCatching { manager.getLastKnownLocation(provider) }.getOrNull()
+        }.maxByOrNull(Location::getTime)
+
+        val provider = providers.first()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val handler = Handler(Looper.getMainLooper())
+            val cancellation = CancellationSignal()
+            var completed = false
+            fun finish(location: Location?) {
+                if (completed) return
+                completed = true
+                handler.removeCallbacksAndMessages(null)
+                if (location == null) runCatching { cancellation.cancel() }
+                onResult(location ?: lastKnown())
+            }
+            handler.postDelayed({ finish(lastKnown()) }, 20_000L)
             manager.getCurrentLocation(
                 provider,
-                null,
+                cancellation,
                 ContextCompat.getMainExecutor(context),
-                Consumer<Location> { location -> onResult(location) },
+                Consumer<Location> { location -> finish(location) },
             )
         } else {
-            onResult(manager.getLastKnownLocation(provider))
+            val handler = Handler(Looper.getMainLooper())
+            var completed = false
+            lateinit var listener: android.location.LocationListener
+            fun finish(location: Location?) {
+                if (completed) return
+                completed = true
+                handler.removeCallbacksAndMessages(null)
+                runCatching { manager.removeUpdates(listener) }
+                onResult(location)
+            }
+            listener = object : android.location.LocationListener {
+                override fun onLocationChanged(location: Location) = finish(location)
+                override fun onProviderDisabled(provider: String) = Unit
+                override fun onProviderEnabled(provider: String) = Unit
+                @Deprecated("Deprecated by Android")
+                override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) = Unit
+            }
+            handler.postDelayed({ finish(lastKnown()) }, 20_000L)
+            manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
         }
     } catch (_: SecurityException) {
         onResult(null)

@@ -14,14 +14,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  LayoutDashboard, Users, ShoppingBag, Tag, LogOut,
+  LayoutDashboard, Users, ShoppingBag, Tag, LogOut, CalendarDays, ShoppingCart,
   Package, TrendingUp, Phone, MapPin, CreditCard, FileText,
   ChevronDown, ChevronUp, RefreshCw, Clock, CheckCircle2,
   Truck, Star, Bell, X, Filter, Settings,
 } from "lucide-react";
 import { formatCurrency, toArabicNumerals } from "@/lib/format";
+import { ActiveCartsSection, ReservationsSection } from "@/components/admin/AdminCommerceSections";
 
-type Section = "overview" | "orders" | "users" | "coupons" | "wallets" | "notification-settings";
+type Section = "overview" | "orders" | "users" | "reservations" | "carts" | "coupons" | "wallets" | "notification-settings";
 type StatusFilter = "all" | "received" | "preparing" | "delivering" | "delivered";
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: typeof Clock; next?: string; nextLabel?: string }> = {
@@ -231,6 +232,8 @@ export default function Admin() {
 
   const navItems: { id: Section; label: string; icon: typeof LayoutDashboard; badge?: number }[] = [
     { id: "orders",   label: "الطلبات",     icon: ShoppingBag, badge: pendingCount },
+    { id: "reservations", label: "حجوزات الطاولات", icon: CalendarDays },
+    { id: "carts", label: "السلال النشطة", icon: ShoppingCart },
     { id: "overview", label: "نظرة عامة",  icon: LayoutDashboard },
     { id: "users",    label: "العملاء",    icon: Users },
     { id: "coupons",  label: "الكوبونات",  icon: Tag },
@@ -605,6 +608,9 @@ export default function Admin() {
             </div>
           </div>
         )}
+
+        {section === "reservations" && <ReservationsSection />}
+        {section === "carts" && <ActiveCartsSection />}
 
         {/* ══════════ WALLETS SECTION ══════════ */}
         {section === "wallets" && (

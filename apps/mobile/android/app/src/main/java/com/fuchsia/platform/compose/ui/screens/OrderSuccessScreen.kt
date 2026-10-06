@@ -19,6 +19,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -29,7 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 
 @Composable
-fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit) {
+fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit, onTrackOrder: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().background(FuchsiaColors.Cream).padding(horizontal = 24.dp, vertical = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -64,6 +65,15 @@ fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit) {
             }
         }
         Spacer(Modifier.height(25.dp))
+        OutlinedButton(
+            onClick = onTrackOrder,
+            modifier = Modifier.fillMaxWidth().height(53.dp),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Primary),
+        ) {
+            Text("تتبع الطلب الآن", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(10.dp))
         Button(
             onClick = onContinueShopping,
             modifier = Modifier.fillMaxWidth().height(55.dp),

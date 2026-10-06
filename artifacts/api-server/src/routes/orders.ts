@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable } from "@workspace/db";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable } from "@workspace/db";
+import { eq, desc, asc, sql, and, or } from "drizzle-orm";
 import { createCustomerNotification } from "../lib/notifications";
+import { appendOrderStatusEvent } from "../lib/order-tracking";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -26,6 +28,65 @@ router.get("/", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to list orders");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/mine", async (req, res): Promise<void> => {
+  try {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
+      return;
+    }
+    const orders = await db.select().from(ordersTable)
+      .where(or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId))))
+      .orderBy(desc(ordersTable.createdAt)).limit(100);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await Promise.all(orders.map(buildOrder)));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list authenticated customer orders");
+    res.status(500).json({ error: "تعذر تحميل الطلبات" });
+  }
+});
+
+router.get("/:id/tracking", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const userId = await authenticatedUserId(req);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ error: "معرّف الطلب غير صحيح" });
+      return;
+    }
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
+      return;
+    }
+
+    const [order] = await db.select().from(ordersTable).where(
+      and(eq(ordersTable.id, id), or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId)))),
+    );
+    if (!order) {
+      res.status(404).json({ error: "الطلب غير موجود لهذا الحساب" });
+      return;
+    }
+
+    const history = await db.select().from(orderStatusEventsTable)
+      .where(eq(orderStatusEventsTable.orderId, id))
+      .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      orderId: order.id,
+      status: order.status,
+      total: order.total,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: (history.at(-1)?.createdAt ?? order.createdAt).toISOString(),
+      driverName: order.driverName,
+      driverPhone: order.driverPhone,
+      history: history.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to load order tracking");
+    res.status(500).json({ error: "تعذر تحميل تتبع الطلب" });
   }
 });
 
@@ -134,6 +195,7 @@ router.post("/", async (req, res): Promise<void> => {
     });
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
     if (!order) { res.status(500).json({ error: "تعذر إنشاء الطلب" }); return; }
+    await appendOrderStatusEvent(order.id, "received");
     const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
     await createCustomerNotification({
       sessionId,
@@ -223,6 +285,7 @@ router.post("/offer", async (req, res): Promise<void> => {
     const [created] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
     if (!created) { res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); return; }
     const orderId = created.id;
+    await appendOrderStatusEvent(orderId, "received");
     await db.insert(orderItemsTable).values({ orderId, productId: 0, productName: "عرض صندوق خطوبة وسط 60×40", price: OFFER_TOTAL, quantity: 1, imageUrl: "offer://facebook-khitbah-offer" });
     const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
     await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
@@ -233,10 +296,17 @@ router.post("/offer", async (req, res): Promise<void> => {
 
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
-    const { status, driverName, driverPhone } = req.body;
-    if (!status) {
-      res.status(400).json({ error: "status required" });
+    const id = Number.parseInt(req.params.id, 10);
+    const { status, driverName, driverPhone } = req.body ?? {};
+    const allowedStatuses = ["received", "preparing", "delivering", "delivered", "cancelled"];
+    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
+      res.status(400).json({ error: "حالة الطلب أو رقمه غير صحيح" });
+      return;
+    }
+
+    const [previous] = await db.select({ status: ordersTable.status }).from(ordersTable).where(eq(ordersTable.id, id));
+    if (!previous) {
+      res.status(404).json({ error: "الطلب غير موجود" });
       return;
     }
 
@@ -250,6 +320,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Order not found" });
       return;
     }
+    if (previous.status !== status) await appendOrderStatusEvent(id, status, "store");
     res.json(await buildOrder(order));
   } catch (err) {
     req.log.error({ err }, "Failed to update order status");

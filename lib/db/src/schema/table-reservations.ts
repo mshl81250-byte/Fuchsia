@@ -1,4 +1,4 @@
-import { mysqlTable, text, int, varchar, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, int, varchar, timestamp, index } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -16,7 +16,10 @@ export const tableReservationsTable = mysqlTable("table_reservations", {
   notes: text("notes"),
   status: varchar("status", { length: 32 }).notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("table_reservations_store_at_idx").on(table.storeId, table.reservationAt),
+  index("table_reservations_status_at_idx").on(table.status, table.reservationAt),
+]);
 
 export const insertTableReservationSchema = createInsertSchema(tableReservationsTable).omit({ id: true, createdAt: true });
 export type InsertTableReservation = z.infer<typeof insertTableReservationSchema>;

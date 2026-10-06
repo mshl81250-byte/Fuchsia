@@ -20,6 +20,7 @@ import com.fuchsia.platform.compose.ui.screens.CheckoutScreen
 import com.fuchsia.platform.compose.ui.screens.GiftOrderScreen
 import com.fuchsia.platform.compose.ui.screens.HomeScreen
 import com.fuchsia.platform.compose.ui.screens.OrderSuccessScreen
+import com.fuchsia.platform.compose.ui.screens.OrdersScreen
 import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
@@ -35,6 +36,7 @@ object AppRoutes {
     const val GiftOrder = "gift-order"
     const val Reservation = "reservation"
     const val OrderSuccess = "order-success/{orderId}"
+    const val Orders = "orders?focusOrderId={focusOrderId}"
 
     fun auth(register: Boolean): String = "auth?register=$register"
 
@@ -44,6 +46,7 @@ object AppRoutes {
     fun category(id: Int): String = "category/$id"
     fun checkout(gift: Boolean): String = "checkout?gift=$gift"
     fun orderSuccess(id: Int): String = "order-success/$id"
+    fun orders(focusOrderId: Int = 0): String = "orders?focusOrderId=$focusOrderId"
 }
 
 @Composable
@@ -122,6 +125,7 @@ fun FuchsiaAppNavHost() {
                 onCart = { navController.navigate(AppRoutes.Cart) },
                 onReservation = { navController.navigate(AppRoutes.Reservation) },
                 onGiftOrder = { navController.navigate(AppRoutes.GiftOrder) },
+                onOrders = { navController.navigate(AppRoutes.orders()) },
             )
         }
         composable(
@@ -172,11 +176,22 @@ fun FuchsiaAppNavHost() {
             ReservationScreen(onBack = { navController.popBackStack() })
         }
         composable(
+            route = AppRoutes.Orders,
+            arguments = listOf(navArgument("focusOrderId") { type = NavType.IntType; defaultValue = 0 }),
+        ) { entry ->
+            OrdersScreen(
+                onBack = { navController.popBackStack() },
+                onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
+                focusOrderId = entry.arguments?.getInt("focusOrderId") ?: 0,
+            )
+        }
+        composable(
             route = AppRoutes.OrderSuccess,
             arguments = listOf(navArgument("orderId") { type = NavType.IntType }),
         ) { entry ->
             OrderSuccessScreen(
                 orderId = entry.arguments?.getInt("orderId") ?: 0,
+                onTrackOrder = { navController.navigate(AppRoutes.orders(entry.arguments?.getInt("orderId") ?: 0)) },
                 onContinueShopping = {
                     navController.navigate(AppRoutes.Home) {
                         popUpTo(AppRoutes.Home) { inclusive = false }

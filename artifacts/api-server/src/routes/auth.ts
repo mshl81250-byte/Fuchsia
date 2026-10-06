@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, emailVerificationCodesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, emailVerificationCodesTable, userSessionsTable } from "@workspace/db";
+import { eq, and, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendVerificationCodeEmail } from "../lib/notifications";
 
@@ -11,8 +11,16 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
 }
 
-function generateToken(userId: number): string {
-  return crypto.createHash("sha256").update(`${userId}_${Date.now()}_fuchsia`).digest("hex");
+async function generateToken(userId: number): Promise<string> {
+  const token = crypto.randomBytes(32).toString("hex");
+  const now = new Date();
+  await db.delete(userSessionsTable).where(and(eq(userSessionsTable.userId, userId), lt(userSessionsTable.expiresAt, now)));
+  await db.insert(userSessionsTable).values({
+    userId,
+    tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
+    expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+  });
+  return token;
 }
 
 function generateReferralCode(name: string): string {
@@ -100,7 +108,7 @@ router.post("/register/verify-code", async (req, res): Promise<void> => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, pending.email));
     if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
     await db.delete(emailVerificationCodesTable).where(eq(emailVerificationCodesTable.id, pending.id));
-    res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
+    res.status(201).json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Registration verification failed");
     res.status(500).json({ error: "تعذر إكمال إنشاء الحساب" });
@@ -133,7 +141,7 @@ router.post("/register", async (req, res): Promise<void> => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
     if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
 
-    res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
+    res.status(201).json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Register failed");
     res.status(500).json({ error: "حدث خطأ" });
@@ -159,7 +167,7 @@ router.post("/login", async (req, res): Promise<void> => {
       return;
     }
 
-    res.json({ user: safeUser(user), token: generateToken(user.id) });
+    res.json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Login failed");
     res.status(500).json({ error: "حدث خطأ" });
@@ -182,7 +190,7 @@ router.post("/guest", async (req, res): Promise<void> => {
       return;
     }
 
-    res.json({ user: safeUser(user), token: generateToken(user.id) });
+    res.json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Guest login failed");
     res.status(500).json({ error: "حدث خطأ" });

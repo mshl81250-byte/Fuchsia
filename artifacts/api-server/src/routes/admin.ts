@@ -3,11 +3,13 @@ import { db } from "@workspace/db";
 import {
   usersTable, productsTable, storesTable, ordersTable,
   categoriesTable, bannersTable, couponsTable, insertCouponSchema,
-  orderItemsTable, notificationChannelSettingsTable
+  orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
+  tableReservationsTable
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
+import { appendOrderStatusEvent } from "../lib/order-tracking";
 
 const router = Router();
 
@@ -54,6 +56,125 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.use(requireAdmin);
+
+router.get("/reservations", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select({
+      id: tableReservationsTable.id,
+      sessionId: tableReservationsTable.sessionId,
+      userId: tableReservationsTable.userId,
+      storeId: tableReservationsTable.storeId,
+      storeName: storesTable.nameAr,
+      reservationAt: tableReservationsTable.reservationAt,
+      partySize: tableReservationsTable.partySize,
+      customerName: tableReservationsTable.customerName,
+      customerPhone: tableReservationsTable.customerPhone,
+      occasion: tableReservationsTable.occasion,
+      notes: tableReservationsTable.notes,
+      status: tableReservationsTable.status,
+      createdAt: tableReservationsTable.createdAt,
+    }).from(tableReservationsTable)
+      .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
+      .orderBy(desc(tableReservationsTable.reservationAt))
+      .limit(250);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rows.map((row) => ({
+      ...row,
+      reservationAt: row.reservationAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Admin list reservations failed");
+    res.status(500).json({ error: "تعذر تحميل الحجوزات" });
+  }
+});
+
+router.patch("/reservations/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const status = req.body?.status;
+    const allowedStatuses = ["pending", "confirmed", "rejected", "cancelled", "completed"];
+    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
+      res.status(400).json({ error: "حالة الحجز أو رقمه غير صحيح" });
+      return;
+    }
+    const [existing] = await db.select({ id: tableReservationsTable.id })
+      .from(tableReservationsTable).where(eq(tableReservationsTable.id, id));
+    if (!existing) {
+      res.status(404).json({ error: "الحجز غير موجود" });
+      return;
+    }
+    await db.update(tableReservationsTable).set({ status }).where(eq(tableReservationsTable.id, id));
+    const [row] = await db.select({
+      id: tableReservationsTable.id,
+      sessionId: tableReservationsTable.sessionId,
+      userId: tableReservationsTable.userId,
+      storeId: tableReservationsTable.storeId,
+      storeName: storesTable.nameAr,
+      reservationAt: tableReservationsTable.reservationAt,
+      partySize: tableReservationsTable.partySize,
+      customerName: tableReservationsTable.customerName,
+      customerPhone: tableReservationsTable.customerPhone,
+      occasion: tableReservationsTable.occasion,
+      notes: tableReservationsTable.notes,
+      status: tableReservationsTable.status,
+      createdAt: tableReservationsTable.createdAt,
+    }).from(tableReservationsTable)
+      .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
+      .where(eq(tableReservationsTable.id, id));
+    if (!row) { res.status(404).json({ error: "الحجز غير موجود" }); return; }
+    res.json({ ...row, reservationAt: row.reservationAt.toISOString(), createdAt: row.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin reservation update failed");
+    res.status(500).json({ error: "تعذر تحديث الحجز" });
+  }
+});
+
+router.get("/carts", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select().from(cartItemsTable)
+      .orderBy(desc(cartItemsTable.createdAt)).limit(2000);
+    const grouped = new Map<string, {
+      sessionId: string;
+      itemCount: number;
+      totalQuantity: number;
+      subtotal: number;
+      lastActivityAt: string;
+      items: Array<Record<string, unknown>>;
+    }>();
+    for (const row of rows) {
+      const item = {
+        id: row.id,
+        productId: row.productId,
+        productName: row.productName,
+        price: row.price,
+        quantity: row.quantity,
+        imageUrl: row.imageUrl,
+        giftWrapping: row.giftWrapping,
+        createdAt: row.createdAt.toISOString(),
+      };
+      const cart = grouped.get(row.sessionId) ?? {
+        sessionId: row.sessionId,
+        itemCount: 0,
+        totalQuantity: 0,
+        subtotal: 0,
+        lastActivityAt: row.createdAt.toISOString(),
+        items: [],
+      };
+      cart.itemCount += 1;
+      cart.totalQuantity += row.quantity;
+      cart.subtotal += row.price * row.quantity;
+      cart.items.push(item);
+      grouped.set(row.sessionId, cart);
+    }
+    const carts = [...grouped.values()].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ carts: carts.slice(0, 200), truncated: rows.length === 2000, generatedAt: new Date().toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin list carts failed");
+    res.status(500).json({ error: "تعذر تحميل السلال" });
+  }
+});
 
 router.get("/notification-settings", async (_req, res): Promise<void> => {
   try {
@@ -126,8 +247,15 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     const { status, driverName, driverPhone } = req.body ?? {};
-    if (!Number.isInteger(id) || !status) {
+    const allowedStatuses = ["received", "preparing", "delivering", "delivered", "cancelled"];
+    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
       res.status(400).json({ error: "بيانات تحديث الطلب غير صحيحة" });
+      return;
+    }
+
+    const [previous] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!previous) {
+      res.status(404).json({ error: "الطلب غير موجود" });
       return;
     }
 
@@ -143,6 +271,9 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
       return;
     }
 
+    const statusChanged = previous.status !== status;
+    if (statusChanged) await appendOrderStatusEvent(order.id, status, "admin");
+
     const statusMessages: Record<string, { title: string; message: string }> = {
       preparing: { title: "بدأ تجهيز طلبك", message: `بدأ فريق فوشيا تجهيز الطلب رقم ${order.id}.` },
       delivering: { title: "طلبك في الطريق", message: `خرج الطلب رقم ${order.id} مع مندوب التوصيل.` },
@@ -151,7 +282,7 @@ router.patch("/orders/:id", async (req, res): Promise<void> => {
     };
     const statusMessage = statusMessages[status];
     const [statusRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
-    if (statusMessage) await createCustomerNotification({ sessionId: order.sessionId, orderId: order.id, type: "order_status", ...statusMessage, customerName: order.customerName, phone: order.customerPhone, email: statusRecipient?.email });
+    if (statusChanged && statusMessage) await createCustomerNotification({ sessionId: order.sessionId, orderId: order.id, type: "order_status", ...statusMessage, customerName: order.customerName, phone: order.customerPhone, email: statusRecipient?.email });
 
     const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
     res.json({ ...order, items, createdAt: order.createdAt.toISOString() });

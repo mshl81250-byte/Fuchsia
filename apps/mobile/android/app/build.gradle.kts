@@ -21,8 +21,8 @@ android {
         applicationId = "com.fuchsia.platform"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.2.0"
         buildConfigField("String", "API_BASE_URL", "\"https://fuchsia-x7dwxpzd.manus.space\"")
         // The user explicitly requested on-screen OTP visibility as the sole test exception.
         buildConfigField("boolean", "OTP_DEBUG", "true")
@@ -84,6 +84,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("org.maplibre.gl:android-sdk:13.6.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")

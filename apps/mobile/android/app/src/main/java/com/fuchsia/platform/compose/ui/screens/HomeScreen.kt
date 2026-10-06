@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
@@ -75,6 +76,7 @@ fun HomeScreen(
     onCart: () -> Unit,
     onReservation: () -> Unit,
     onGiftOrder: () -> Unit,
+    onOrders: () -> Unit,
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
@@ -178,6 +180,9 @@ fun HomeScreen(
                     ServiceAction("حجز طاولة", "تحديد موعد المناسبة", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
                     ServiceAction("طلب هدية", "إضافة لمسة شخصية", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
                 }
+            }
+            item {
+                ServiceAction("تتبع طلباتي", "متابعة الحالة مباشرة", Icons.Rounded.ReceiptLong, onOrders, Modifier.fillMaxWidth())
             }
             item {
                 SectionHeading("اختيارات مميزة", "الأكثر تميزًا")
