@@ -48,7 +48,7 @@ fun FuchsiaNoticeHost(hostState: SnackbarHostState, modifier: Modifier = Modifie
         else -> Icons.Rounded.CheckCircle
     }
     val accent = if (isError) FuchsiaColors.Error else FuchsiaColors.Primary
-    val background = if (isError) Color(0xFFFFF1F2) else FuchsiaColors.White
+    val background = if (isError) Color(0xFFF8EFEC) else FuchsiaColors.White
 
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.TopCenter) {
         AnimatedVisibility(
