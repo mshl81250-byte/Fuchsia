@@ -28,6 +28,13 @@ data class StoreProduct(
     val price: Double = 0.0,
     val imageUrl: String? = null,
     val categoryId: Int = 0,
+    val images: List<String> = emptyList(),
+    val rating: Double = 0.0,
+    val reviewCount: Int = 0,
+    val originalPrice: Double? = null,
+    val inStock: Boolean = true,
+    val deliveryDays: Int? = null,
+    val tags: List<String> = emptyList(),
 )
 
 data class CartLine(
@@ -200,6 +207,14 @@ object FuchsiaApi {
     suspend fun productsByCategory(categoryId: Int): List<StoreProduct> =
         parseProducts(getText("/api/products?categoryId=$categoryId"))
 
+    suspend fun searchProducts(query: String): List<StoreProduct> = withContext(Dispatchers.IO) {
+        parseProducts(getText("/api/products?search=${urlEncode(query.trim())}&limit=30"))
+    }
+
+    suspend fun product(productId: Int): StoreProduct = withContext(Dispatchers.IO) {
+        getJson("/api/products/$productId").toStoreProduct()
+    }
+
     suspend fun getCart(sessionId: String): ShoppingCart = parseCart(
         getJson("/api/cart?sessionId=${urlEncode(sessionId)}"),
     )
@@ -360,21 +375,44 @@ object FuchsiaApi {
         buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val images = item.optJSONArray("images")
-                val image = images?.optString(0)?.takeIf { it.isNotBlank() }
-                    ?: item.nullableString("imageUrl")
-                add(
-                    StoreProduct(
-                        id = item.optInt("id"),
-                        name = item.optString("nameAr").ifBlank { item.optString("name") },
-                        description = item.optString("descriptionAr").ifBlank { item.optString("description") },
-                        price = item.optDouble("discountPrice").takeIf { it > 0 }
-                            ?: item.optDouble("price", 0.0),
-                        imageUrl = image,
-                        categoryId = item.optInt("categoryId"),
-                    ),
-                )
+                add(item.toStoreProduct())
             }
+        }
+    }
+
+    private fun JSONObject.toStoreProduct(): StoreProduct {
+        val imageRows = optJSONArray("images")
+        val images = buildList {
+            if (imageRows != null) {
+                for (i in 0 until imageRows.length()) {
+                    imageRows.optString(i).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }
+        val image = images.firstOrNull() ?: nullableString("imageUrl")
+        val discountedPrice = optDouble("discountPrice").takeIf { it > 0 }
+        val basePrice = optDouble("price", 0.0)
+        return StoreProduct(
+            id = optInt("id"),
+            name = optString("nameAr").ifBlank { optString("name") },
+            description = optString("descriptionAr").ifBlank { optString("description") },
+            price = discountedPrice ?: basePrice,
+            imageUrl = image,
+            categoryId = optInt("categoryId"),
+            images = images.ifEmpty { image?.let(::listOf).orEmpty() },
+            rating = optDouble("rating", 0.0),
+            reviewCount = optInt("reviewCount", 0),
+            originalPrice = discountedPrice?.let { basePrice.takeIf { value -> value > it } },
+            inStock = optBoolean("inStock", true),
+            deliveryDays = if (isNull("deliveryDays")) null else optInt("deliveryDays"),
+            tags = optStringArray("tags"),
+        )
+    }
+
+    private fun JSONObject.optStringArray(name: String): List<String> {
+        val rows = optJSONArray(name) ?: return emptyList()
+        return buildList {
+            for (i in 0 until rows.length()) rows.optString(i).takeIf(String::isNotBlank)?.let(::add)
         }
     }
 

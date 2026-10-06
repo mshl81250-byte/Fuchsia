@@ -3,6 +3,7 @@ package com.fuchsia.platform.compose.ui.screens
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +81,7 @@ import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
@@ -87,6 +89,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     onCategory: (Int) -> Unit,
+    onProduct: (Int) -> Unit,
     onCart: () -> Unit,
     onReservation: () -> Unit,
     onGiftOrder: () -> Unit,
@@ -106,6 +109,9 @@ fun HomeScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
     var refreshKey by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<StoreProduct>>(emptyList()) }
+    var searchLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshKey) {
         loading = true
@@ -122,6 +128,21 @@ fun HomeScreen(
             }
         }
         loading = false
+    }
+
+    LaunchedEffect(searchQuery) {
+        val query = searchQuery.trim()
+        if (query.isBlank()) {
+            searchResults = emptyList()
+            searchLoading = false
+            return@LaunchedEffect
+        }
+        delay(350)
+        searchLoading = true
+        runCatching { FuchsiaApi.searchProducts(query) }
+            .onSuccess { searchResults = it }
+            .onFailure { searchResults = emptyList() }
+        searchLoading = false
     }
 
     Scaffold(
@@ -147,9 +168,8 @@ fun HomeScreen(
             }
             item {
                 OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
-                    readOnly = true,
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     placeholder = { Text("ابحث عن منتج، باقة أو مناسبة...", color = FuchsiaColors.Muted, fontSize = 12.sp) },
@@ -162,6 +182,31 @@ fun HomeScreen(
                         focusedBorderColor = FuchsiaColors.Primary,
                     ),
                 )
+            }
+            if (searchQuery.isNotBlank()) {
+                item { SectionHeading("نتائج البحث", if (searchLoading) "جارٍ البحث..." else "${searchResults.size} نتيجة") }
+                if (searchLoading) {
+                    item { Box(Modifier.fillMaxWidth().height(110.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
+                } else if (searchResults.isEmpty()) {
+                    item { Text("لم نجد منتجات تطابق بحثك.", color = FuchsiaColors.Muted, modifier = Modifier.padding(vertical = 12.dp)) }
+                } else {
+                    items(searchResults.chunked(2), key = { row -> row.joinToString("-") }) { rowProducts ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            rowProducts.forEach { product ->
+                                ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }) {
+                                    val id = sessionId
+                                    if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                    else scope.launch {
+                                        runCatching { FuchsiaApi.addToCart(id, product.id) }
+                                            .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
+                                            .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                    }
+                                }
+                            }
+                            if (rowProducts.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
             }
             item { HeroOffer(onClick = onCategory.takeIf { categories.isNotEmpty() }?.let { { it(categories.first().id) } }) }
             item { SectionHeading("تسوق حسب المناسبة", "عرض الكل") }
@@ -193,7 +238,7 @@ fun HomeScreen(
                 items(products.chunked(2)) { rowProducts ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowProducts.forEach { product ->
-                            ProductCard(product, Modifier.weight(1f)) {
+                            ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }) {
                                 val id = sessionId
                                 if (id == null) {
                                     scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
@@ -319,10 +364,10 @@ private fun QuickService(title: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onAdd: () -> Unit) {
+internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onOpen: () -> Unit = {}, onAdd: () -> Unit) {
     Card(modifier = modifier, shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column {
-            Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight)) {
+            Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight).clickable(onClick = onOpen)) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(35.dp))
                 Icon(Icons.Rounded.FavoriteBorder, contentDescription = "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.TopEnd).padding(9.dp).size(21.dp))

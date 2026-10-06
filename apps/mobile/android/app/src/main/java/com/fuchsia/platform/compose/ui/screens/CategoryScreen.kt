@@ -60,7 +60,7 @@ import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit) {
+fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit, onProduct: (Int) -> Unit) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val scope = rememberCoroutineScope()
@@ -104,7 +104,7 @@ fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit) {
             if (loading && products.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(vertical = 45.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             else if (products.isNotEmpty()) {
                 items(products, key = { it.id }) { product ->
-                    CategoryProductRow(product) {
+                    CategoryProductRow(product, onOpen = { onProduct(product.id) }) {
                         val id = sessionId
                         if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل الإضافة.") }
                         else scope.launch { runCatching { FuchsiaApi.addToCart(id, product.id) }.onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }.onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") } }
@@ -188,8 +188,8 @@ private fun CategoryGridCard(category: StoreCategory, modifier: Modifier, onClic
 }
 
 @Composable
-private fun CategoryProductRow(product: StoreProduct, onAdd: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+private fun CategoryProductRow(product: StoreProduct, onOpen: () -> Unit, onAdd: () -> Unit) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(94.dp).clip(RoundedCornerShape(14.dp)).background(FuchsiaColors.RoseLight), contentAlignment = Alignment.Center) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)

@@ -56,6 +56,7 @@ import com.fuchsia.platform.compose.ui.screens.HomeScreen
 import com.fuchsia.platform.compose.ui.screens.OrdersScreen
 import com.fuchsia.platform.compose.ui.screens.OrderSuccessScreen
 import com.fuchsia.platform.compose.ui.screens.PolicyScreen
+import com.fuchsia.platform.compose.ui.screens.ProductDetailsScreen
 import com.fuchsia.platform.compose.ui.screens.ProfileEditorScreen
 import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.SettingsScreen
@@ -71,6 +72,7 @@ object AppRoutes {
     const val Home = "home"
     const val Categories = "categories"
     const val Category = "category/{id}"
+    const val Product = "product/{id}"
     const val Cart = "cart"
     const val Checkout = "checkout?gift={gift}"
     const val GiftOrder = "gift-order"
@@ -92,6 +94,7 @@ object AppRoutes {
     fun verify(email: String, debugCode: String?): String =
         "verify/${Uri.encode(email)}?debugCode=${Uri.encode(debugCode.orEmpty())}"
     fun category(id: Int): String = "category/$id"
+    fun product(id: Int): String = "product/$id"
     fun checkout(gift: Boolean): String = "checkout?gift=$gift"
     fun orderSuccess(id: Int): String = "order-success/$id"
     fun orders(focusOrderId: Int = 0): String = "orders?focusOrderId=$focusOrderId"
@@ -221,6 +224,7 @@ fun FuchsiaAppNavHost(
             composable(AppRoutes.Home) {
                 HomeScreen(
                     onCategory = { navController.navigate(AppRoutes.category(it)) },
+                    onProduct = { navController.navigate(AppRoutes.product(it)) },
                     onCart = { navController.navigate(AppRoutes.Cart) },
                     onReservation = { navController.navigate(AppRoutes.Reservation) },
                     onGiftOrder = { navController.navigate(AppRoutes.GiftOrder) },
@@ -241,6 +245,17 @@ fun FuchsiaAppNavHost(
             ) { entry ->
                 CategoryScreen(
                     categoryId = entry.arguments?.getInt("id") ?: 0,
+                    onBack = { navController.popBackStack() },
+                    onCart = { navController.navigate(AppRoutes.Cart) },
+                    onProduct = { navController.navigate(AppRoutes.product(it)) },
+                )
+            }
+            composable(
+                route = AppRoutes.Product,
+                arguments = listOf(navArgument("id") { type = NavType.IntType }),
+            ) { entry ->
+                ProductDetailsScreen(
+                    productId = entry.arguments?.getInt("id") ?: 0,
                     onBack = { navController.popBackStack() },
                     onCart = { navController.navigate(AppRoutes.Cart) },
                 )
