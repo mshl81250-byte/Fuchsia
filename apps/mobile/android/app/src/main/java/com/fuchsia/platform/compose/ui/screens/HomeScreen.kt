@@ -300,7 +300,13 @@ fun HomeScreen(
 @Composable
 private fun HomeHeader(name: String?, onCart: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا", modifier = Modifier.width(105.dp).height(42.dp), contentScale = ContentScale.Fit)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                Text("فوشيا بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text("أهلًا ${name ?: "بك"}", color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)

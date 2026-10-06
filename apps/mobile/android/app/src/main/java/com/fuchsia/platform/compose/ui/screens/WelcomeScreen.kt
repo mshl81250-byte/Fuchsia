@@ -73,7 +73,7 @@ fun WelcomeScreen(
     BackHandler(enabled = page > 0) { page -= 1 }
 
     if (page == 0) {
-        FirstWelcomePage(onNext = { page = 1 }, onSkip = onExplore)
+        FirstWelcomePage(onNext = { page = 1 }, onSkip = { page = 2 })
     } else if (page == 1) {
         SecondWelcomePage(
             onBack = { page = 0 },
@@ -133,7 +133,7 @@ private fun FirstWelcomePage(onNext: () -> Unit, onSkip: () -> Unit) {
                     Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
                 TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("تخطي", color = FuchsiaColors.Muted) }
-                Text("مقدمة قصيرة من ثلاث شاشات، تظهر عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text("شاشتان ترحيبيتان تظهران عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -190,11 +190,6 @@ private fun SecondWelcomePage(
                     Spacer(Modifier.width(9.dp))
                     Text("التالي", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
-                Row(Modifier.fillMaxWidth().height(43.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onLogin) { Text("تسجيل الدخول", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
-                    Box(Modifier.width(1.dp).height(19.dp).background(FuchsiaColors.Line))
-                    TextButton(onClick = onRegister) { Text("إنشاء حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
-                }
                 TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text("العودة إلى الصفحة الأولى", color = FuchsiaColors.Muted)
                 }
@@ -211,28 +206,22 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
         val pageModifier = if (compact) base.verticalScroll(rememberScrollState()) else base
         Column(pageModifier) {
             BrandHeader()
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth().height(if (compact) 250.dp else 330.dp).clip(RoundedCornerShape(30.dp))) {
-                Image(painterResource(R.drawable.welcome_hero), "بداية رحلة فوشيا", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD90D0710)))))
-                Column(Modifier.align(Alignment.BottomEnd).padding(20.dp), horizontalAlignment = Alignment.End) {
-                    Text("ابدأ رحلتك مع فوشيا", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
-                    Text("تجربة هدايا وورود صُممت لتبقى في الذاكرة", color = Color.White.copy(alpha = .9f), fontSize = 12.sp)
+            Spacer(if (compact) Modifier.height(22.dp) else Modifier.weight(1f))
+            Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("كيف تريد البدء؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("اختر الطريقة الأنسب لك واستمتع بتجربة فوشيا.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                        Text("تسجيل الدخول", fontWeight = FontWeight.Bold)
+                    }
+                    Button(onClick = onRegister, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+                        Text("إنشاء حساب جديد", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                    }
+                    TextButton(onClick = onExplore) { Text("تصفح دون حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
                 }
             }
-            Spacer(if (compact) Modifier.height(20.dp) else Modifier.weight(1f))
-            WelcomePageIndicator(page = 2)
-            Button(onClick = onExplore, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
-                Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("ابدأ الآن", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-            Row(Modifier.fillMaxWidth().height(43.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onLogin) { Text("تسجيل الدخول", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
-                Box(Modifier.width(1.dp).height(19.dp).background(FuchsiaColors.Line))
-                TextButton(onClick = onRegister) { Text("إنشاء حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
-            }
-            TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("رجوع", color = FuchsiaColors.Muted) }
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("العودة للشاشات الترحيبية", color = FuchsiaColors.Muted) }
         }
     }
 }
@@ -240,14 +229,14 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
 @Composable
 private fun WelcomePageIndicator(page: Int) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        repeat(3) { index ->
+        repeat(2) { index ->
             Box(
                 Modifier.padding(horizontal = 3.dp).size(width = if (index == page) 22.dp else 7.dp, height = 7.dp)
                     .background(if (index == page) FuchsiaColors.Primary else FuchsiaColors.Line, CircleShape),
             )
         }
         Spacer(Modifier.width(7.dp))
-        Text("${page + 1} من ٣", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+        Text("${page + 1} من ٢", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -277,12 +266,18 @@ private fun BrandHeader() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Image(
-            painter = painterResource(R.drawable.fuchsia_logo),
-            contentDescription = "شعار فوشيا بوتيك",
-            modifier = Modifier.width(92.dp).height(62.dp),
-            contentScale = ContentScale.Fit,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Image(
+                painter = painterResource(R.drawable.fuchsia_logo),
+                contentDescription = "شعار فوشيا بوتيك",
+                modifier = Modifier.width(68.dp).height(64.dp),
+                contentScale = ContentScale.Fit,
+            )
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                Text("فوشيا بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
+                Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+            }
+        }
         Surface(shape = RoundedCornerShape(50), color = FuchsiaColors.White, tonalElevation = 0.dp, shadowElevation = 1.dp) {
             Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 Icon(Icons.Rounded.Place, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(16.dp))
