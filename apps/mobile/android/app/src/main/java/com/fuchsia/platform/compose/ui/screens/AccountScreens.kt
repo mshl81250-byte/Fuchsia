@@ -27,8 +27,10 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
@@ -74,12 +76,14 @@ import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(
     onSignIn: () -> Unit,
     onEditProfile: () -> Unit,
     onAddresses: () -> Unit,
     onOrders: () -> Unit,
+    onWishlist: () -> Unit,
     onSettings: () -> Unit,
     onContact: () -> Unit,
     onSignedOut: () -> Unit,
@@ -87,149 +91,131 @@ fun AccountScreen(
 ) {
     val context = LocalContext.current
     val token = remember(context) { SessionVault.token(context) }
+    val userId = remember(context) { SessionVault.userId(context) }
     var profile by remember(context) { mutableStateOf(SessionVault.read(context)?.optJSONObject("user")) }
-    var orderCount by remember { mutableIntStateOf(0) }
+    var orders by remember { mutableStateOf<List<com.fuchsia.platform.compose.data.CustomerOrder>>(emptyList()) }
+    var favoritesCount by remember { mutableIntStateOf(0) }
+    var defaultAddress by remember { mutableStateOf<DeliveryAddress?>(null) }
     var loading by remember { mutableStateOf(token != null) }
     var error by remember { mutableStateOf("") }
     var confirmSignOut by remember { mutableStateOf(false) }
 
-    LaunchedEffect(token) {
-        if (token.isNullOrBlank()) {
-            loading = false
-            return@LaunchedEffect
-        }
+    LaunchedEffect(token, userId) {
+        if (token.isNullOrBlank()) { loading = false; return@LaunchedEffect }
         try {
             val latest = FuchsiaApi.profile(token)
             profile = latest
             SessionVault.save(context, latest, token)
-            orderCount = runCatching { FuchsiaApi.customerOrders(token).size }.getOrDefault(orderCount)
+            orders = FuchsiaApi.customerOrders(token)
+            defaultAddress = FuchsiaApi.addresses(token).firstOrNull { it.isDefault }
+            favoritesCount = userId?.let { FuchsiaApi.favorites(it).size } ?: 0
             error = ""
         } catch (failure: Exception) {
             error = failure.message ?: "تعذر تحديث بيانات الحساب من الخادم."
-        } finally {
-            loading = false
-        }
+        } finally { loading = false }
     }
+
+    val name = profile?.optString("fullName").orEmpty().trim()
+    val greeting = name.substringBefore(" ").ifBlank { "بك" }
+    val completed = orders.count { it.status.lowercase() in setOf("completed", "delivered", "مكتمل", "تم التسليم") }
+    val cancelled = orders.count { it.status.lowercase() in setOf("cancelled", "canceled", "ملغي") }
+    val current = orders.size - completed - cancelled
+    val gifts = orders.count { it.isGift }
 
     Scaffold(containerColor = FuchsiaColors.Cream, bottomBar = bottomBar) { insets ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp,
-                end = 20.dp,
-                top = insets.calculateTopPadding() + 14.dp,
-                bottom = insets.calculateBottomPadding() + 26.dp,
-            ),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = insets.calculateTopPadding() + 14.dp, bottom = insets.calculateBottomPadding() + 26.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Text("حسابي", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium)
-                Text("بياناتك وطلباتك وعناوينك في مكان واحد", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                Text(if (token.isNullOrBlank()) "مرحباً بك في فوشيا 🌹" else "أهلاً بك، $greeting", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                Text("حسابك وطلباتك وعناوينك في مكان واحد", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
             }
             if (token.isNullOrBlank()) {
                 item {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-                        border = BorderStroke(1.dp, FuchsiaColors.Line),
-                    ) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(58.dp).background(FuchsiaColors.Rose, CircleShape), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Person, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(28.dp))
-                            }
-                            Text("أهلًا بك في فوشيا بوتيك", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
-                            Text("سجّل الدخول لحفظ بيانات الحساب والعناوين ومتابعة الطلبات.", color = FuchsiaColors.Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
-                            Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
-                                Text("تسجيل الدخول أو إنشاء حساب", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
-                            }
+                    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                            Text("سجّل الدخول لتجربة أكمل", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("احفظ عناوينك ومفضلتك وتابع طلباتك بسهولة.", color = FuchsiaColors.Muted, modifier = Modifier.padding(top = 6.dp))
+                            Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تسجيل الدخول أو إنشاء حساب", fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
             } else {
                 item {
-                    Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-                        border = BorderStroke(1.dp, FuchsiaColors.Line),
-                    ) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(18.dp),
-                            horizontalArrangement = Arrangement.spacedBy(13.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(Modifier.size(58.dp).background(FuchsiaColors.Rose, CircleShape), contentAlignment = Alignment.Center) {
-                                Text(
-                                    profile?.optString("fullName")?.firstOrNull()?.toString().orEmpty().ifBlank { "ف" },
-                                    color = FuchsiaColors.Primary,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 23.sp,
-                                )
+                    Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                        Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("معلومات الحساب", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                IconButton(onClick = onEditProfile) { Icon(Icons.Rounded.Edit, contentDescription = "تعديل البيانات", tint = FuchsiaColors.Primary) }
                             }
-                            Column(Modifier.weight(1f)) {
-                                Text(profile?.optString("fullName").orEmpty().ifBlank { "حساب فوشيا" }, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(profile?.optString("email").orEmpty(), color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                profile?.optString("phone")?.takeIf { it.isNotBlank() && it != "null" }?.let {
-                                    Text(it, color = FuchsiaColors.Primary, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
-                                }
-                            }
-                            IconButton(onClick = onEditProfile) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "تعديل بيانات الحساب", tint = FuchsiaColors.Primary)
-                            }
+                            AccountInfoLine("الاسم الكامل", name.ifBlank { "غير مضاف" })
+                            AccountInfoLine("رقم الهاتف", profile?.optString("phone").orEmpty().takeIf { it.isNotBlank() && it != "null" } ?: "غير مضاف")
+                            AccountInfoLine("البريد الإلكتروني", profile?.optString("email").orEmpty().takeIf { it.isNotBlank() && it != "null" } ?: "غير مضاف")
+                            AccountInfoLine("العنوان الافتراضي", defaultAddress?.address ?: "لم تتم إضافة عنوان بعد")
                         }
                     }
                 }
                 item {
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
-                    ) {
-                        Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Icon(Icons.Rounded.Star, contentDescription = null, tint = FuchsiaColors.Gold)
-                            Column {
-                                Text("نقاط فوشيا", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-                                Text("${profile?.optInt("rewardPoints", 0) ?: 0} نقطة", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold)
-                            }
-                        }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AccountMetricCard("الطلبات", orders.size.toString(), Icons.AutoMirrored.Rounded.ReceiptLong, Modifier.weight(1f))
+                        AccountMetricCard("المفضلة", favoritesCount.toString(), Icons.Rounded.FavoriteBorder, Modifier.weight(1f))
+                        AccountMetricCard("الهدايا", gifts.toString(), Icons.Rounded.CardGiftcard, Modifier.weight(1f))
                     }
                 }
                 item {
-                    AccountStatsCard(
-                        orderCount = orderCount,
-                        rewardPoints = profile?.optInt("rewardPoints", 0) ?: 0,
-                        totalSpent = profile?.optDouble("totalSpent", 0.0) ?: 0.0,
-                    )
+                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("طلباتي", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                AccountStat("الحالية", current.toString())
+                                AccountStat("مكتملة", completed.toString())
+                                AccountStat("ملغاة", cancelled.toString())
+                            }
+                            Button(onClick = onOrders, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) { Text("عرض كل الطلبات", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) }
+                        }
+                    }
                 }
-                item { AccountAction(Icons.AutoMirrored.Rounded.ReceiptLong, "طلباتي السابقة", "سجل الطلبات والتتبع المباشر", onOrders) }
-                item { AccountAction(Icons.Rounded.LocationOn, "عناوين التوصيل", "إضافة عناوين متعددة واختيار الافتراضي", onAddresses) }
-                item { AccountAction(Icons.Rounded.Settings, "الإعدادات والخصوصية", "المظهر والأمان وتفضيلات الاستخدام", onSettings) }
-                item { AccountAction(Icons.Rounded.Person, "تواصل مع فوشيا", "اتصال أو واتساب لخدمة المتجر", onContact) }
+                item { AccountAction(Icons.Rounded.LocationOn, "عناوين التوصيل", "إضافة وتعديل العناوين مع الخريطة", onAddresses) }
+                item { AccountAction(Icons.Rounded.FavoriteBorder, "المنتجات المفضلة", "$favoritesCount منتجات محفوظة", onWishlist) }
+                item { AccountAction(Icons.Rounded.Settings, "الإعدادات والمظهر", "الإشعارات والوضع الفاتح أو الداكن واللغة", onSettings) }
+                item { AccountAction(Icons.Rounded.Person, "الدعم والتواصل", "تواصل معنا أو اطّلع على الأسئلة الشائعة", onContact) }
                 if (loading) item { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
                 if (error.isNotBlank()) item { Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall) }
-                item {
-                    OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)) {
-                        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = FuchsiaColors.Primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("تسجيل الخروج", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
-                    }
-                }
+                item { OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)) { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(8.dp)); Text("تسجيل الخروج", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) } }
             }
         }
     }
 
     if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text("تسجيل الخروج؟", color = FuchsiaColors.Ink) },
-            text = { Text("ستحتاج إلى تسجيل الدخول مجددًا لمتابعة طلبات هذا الحساب.", color = FuchsiaColors.Muted) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmSignOut = false
-                    SessionVault.clear(context)
-                    onSignedOut()
-                }) { Text("تسجيل الخروج", color = FuchsiaColors.Primary) }
-            },
-            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("إلغاء") } },
-        )
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { confirmSignOut = false }, containerColor = FuchsiaColors.White) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("هل تريد تسجيل الخروج؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                Text("ستحتاج إلى تسجيل الدخول مجدداً لمتابعة طلباتك.", color = FuchsiaColors.Muted, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
+                Button(onClick = { confirmSignOut = false; SessionVault.clear(context); onSignedOut() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { confirmSignOut = false }, modifier = Modifier.fillMaxWidth()) { Text("إلغاء", color = FuchsiaColors.Primary) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountInfoLine(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+        Text(value, color = FuchsiaColors.Ink, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun AccountMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
+            Text(value, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+            Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
+        }
     }
 }
 

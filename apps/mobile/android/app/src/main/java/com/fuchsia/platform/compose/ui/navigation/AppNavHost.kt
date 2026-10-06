@@ -334,6 +334,7 @@ fun FuchsiaAppNavHost(
                     onEditProfile = { navController.navigate(AppRoutes.ProfileEdit) },
                     onAddresses = { navController.navigate(AppRoutes.AddressBook) },
                     onOrders = { selectTab(AppRoutes.OrdersRoot) },
+                    onWishlist = { selectTab(AppRoutes.Wishlist) },
                     onSettings = { selectTab(AppRoutes.Settings) },
                     onContact = { navController.navigate(AppRoutes.Contact) },
                     onSignedOut = {

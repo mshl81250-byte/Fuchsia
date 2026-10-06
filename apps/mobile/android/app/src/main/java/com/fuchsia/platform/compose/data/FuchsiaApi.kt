@@ -101,6 +101,7 @@ data class CustomerOrder(
     val total: Double,
     val createdAt: String,
     val itemCount: Int,
+    val isGift: Boolean,
 )
 
 data class OrderStatusUpdate(
@@ -310,6 +311,7 @@ object FuchsiaApi {
                         total = item.optDouble("total", 0.0),
                         createdAt = item.optString("createdAt"),
                         itemCount = item.optJSONArray("items")?.length() ?: 0,
+                        isGift = item.optBoolean("isGift", false),
                     ),
                 )
             }
