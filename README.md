@@ -9,6 +9,7 @@
 - المستودع: <https://github.com/mshl81250-byte/Fuchsia-Platform>
 - المعاينة/الموقع المنشور: <https://fuchsia-x7dwxpzd.manus.space>
 - الفرع الرئيسي: `main`
+- أحدث مصدر لتطبيق Android الأصلي: الفرع [`feat/android-expo-app`](https://github.com/mshl81250-byte/Fuchsia-Platform/tree/feat/android-expo-app)؛ لم يُدمج إلى `main`.
 
 ## المزايا
 
@@ -57,6 +58,7 @@
 |---|---|---|
 | واجهة المتجر | React + Vite + TypeScript | `artifacts/lamsa/` |
 | لوحة إدارة إضافية | React + Vite + TypeScript | `artifacts/admin-dashboard/` |
+| تطبيق Android الأصلي | Kotlin + Jetpack Compose + Navigation Compose | `apps/mobile/android/` |
 | خادم API | Express 5 + TypeScript | `artifacts/api-server/` |
 | قاعدة البيانات | MySQL + Drizzle ORM | `lib/db/` |
 | مخطط API | OpenAPI + Orval + Zod | `lib/api-spec/`, `lib/api-zod/` |
@@ -400,9 +402,12 @@ pnpm audit --audit-level high
 
 المشروع يحمل ترخيص `MIT` وفق ملف `package.json`. راجع حقوق الصور والخدمات الخارجية قبل الاستخدام التجاري.
 
-## دليل تطبيق Android
+## تسليم تطبيق Android للمبرمج
 
-تطبيق Fuchsia Boutique Android موجود في `apps/mobile/`. دليل التسليم الشامل للمبرمج، بما في ذلك الصفحات والتقنيات والـAPI وOTP التجريبي والبصمة والثيم والعروض والدفع والبناء، موجود في:
+الـAPK الحالي مبني من تطبيق Android أصلي في `apps/mobile/android/`؛ توجد شيفرة Expo أقدم منفصلة في `apps/mobile/app/`. عند إرسال المشروع لمبرمج، اطلب منه استنساخ الفرع `feat/android-expo-app` واتباع الدليل الحالي:
 
-- [`apps/mobile/DEVELOPER_GUIDE_AR.md`](./apps/mobile/DEVELOPER_GUIDE_AR.md)
-- [`apps/mobile/README.md`](./apps/mobile/README.md)
+- [دليل المطور والتسليم بالعربية](./apps/mobile/DEVELOPER_GUIDE_AR.md)
+- [ملخص Android والبناء](./apps/mobile/android/README_AR.md)
+- [مرجع Expo القديم](./apps/mobile/LEGACY_EXPO_GUIDE_AR.md)
+
+لا يحتوي GitHub على APK Release أو مفتاح توقيعه الخاص؛ يُسلّم APK منفصلًا، ويُشارك المفتاح فقط عبر قناة آمنة عند الحاجة.

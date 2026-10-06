@@ -1,51 +1,27 @@
-# Fuchsia Boutique Android
+# تطبيق الجوال — Fuchsia Boutique
 
-تطبيق Android عربي RTL لمتجر **Fuchsia Boutique**، مبني بـ React Native وExpo Router وTypeScript، ومتصل بخادم Fuchsia API وقاعدة MySQL عبر Drizzle.
+## النسخة الحالية لتطبيق Android
 
-## دليل المبرمج
+الـAPK الحالي تطبيق **Android أصلي** مصدره `apps/mobile/android/`، مكتوب بـ **Kotlin** و**Jetpack Compose** و**Navigation Compose**. لا تستخدم Expo لبناء APK الإصدار الحالي.
 
-المرجع الكامل للتسليم والتطوير موجود هنا:
+- [دليل المطور والتسليم بالعربية](./DEVELOPER_GUIDE_AR.md): البنية، الإعداد، API، البناء، التوقيع، والاختبارات.
+- [ملخص ميزات Android](./android/README_AR.md): شاشات التطبيق والتدفقات التجارية.
+- [مرجع عميل Expo القديم](./LEGACY_EXPO_GUIDE_AR.md): للتوافق والصيانة فقط، وليس مصدر APK الحالي.
 
-- [`DEVELOPER_GUIDE_AR.md`](./DEVELOPER_GUIDE_AR.md)
+الإصدار الموثّق: `1.3.0` (`versionCode 5`، `applicationId com.fuchsia.platform`). الشيفرة الحالية موجودة على فرع GitHub `feat/android-expo-app`؛ استخدم هذا الفرع عند إرسال المشروع لمبرمج، لأن الفرع الافتراضي `main` لم تُدمج إليه النسخة بعد.
 
-يشرح الدليل بنية الصفحات، التقنيات واللغات، API، OTP التجريبي، البصمة، الثيم، العروض، طلب العرض، الدفع، GPS، الإيصالات، الاختبارات، والبناء.
+## بناء Android محليًا
 
-## الوضع الحالي
-
-- جميع الوظائف متصلة بالـ API وقاعدة البيانات ما عدا **OTP فقط**؛ OTP تجريبي مؤقت يظهر داخل الشاشة للاختبار.
-- المتجر المعروض للمستخدم هو **Fuchsia Boutique فقط**.
-- الدفع اليدوي، رفع الإيصال، GPS، طلب العرض، رسالة الهدية، الطلبات، الإشعارات، المفضلة والسلة مطبقة.
-- الرئيسية تحتوي تصنيفات الهدايا والزهور وصناديق الخطوبة والكوش والطاولات والهدية حسب الطلب.
-- العروض داخل الرئيسية وتتقلب تلقائيًا كل 4.5 ثوانٍ، وزر العروض في الأعلى ينقل داخل الصفحة ولا يفتح صفحة مستقلة.
-- البصمة والوضع الليلي/النهاري محفوظان عبر SecureStore.
-
-## التشغيل والفحص
-
-من جذر المستودع:
+المتطلبات: JDK 17+ وAndroid SDK Platform 37 وBuild Tools 36.0.0.
 
 ```bash
-pnpm install --ignore-scripts
-pnpm --filter @workspace/mobile start
-pnpm --filter @workspace/mobile run typecheck
-pnpm --filter @workspace/api-server run typecheck
-pnpm --filter @workspace/mobile exec expo export --platform android
-```
-
-## بناء APK
-
-```bash
-CI=1 pnpm --filter @workspace/mobile exec expo prebuild --platform android
-printf 'sdk.dir=%s\n' "$HOME/android-sdk" > apps/mobile/android/local.properties
 cd apps/mobile/android
-./gradlew :app:assembleRelease --no-daemon
+printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
+./gradlew :app:assembleDebug --no-daemon
 ```
 
-قبل الالتزام، احذف مجلد Android المولد إذا لم يكن مطلوبًا في Git:
+لـRelease موقّع استخدم `./scripts/build-release-apk.sh` من `apps/mobile/`. **لا ترفع keystore أو كلمة مروره إلى GitHub**؛ إعداد التوقيع محفوظ خارج المستودع.
 
-```bash
-rm -rf apps/mobile/android apps/mobile/dist
-```
+## بقية monorepo
 
-## OTP قبل الإنتاج
-
-احذف ترويسة `X-Fuchsia-OTP-Debug` من `app/auth.tsx`، وعطّل `MOBILE_OTP_DEBUG` في الخادم، ثم فعّل البريد الحقيقي عبر متغيرات Resend قبل نشر التطبيق للمستخدمين.
+يحتوي جذر المستودع على واجهة المتجر والخادم وقاعدة البيانات ولوحة الإدارة. راجع [`README.md`](../../README.md) لتثبيت pnpm وإعداد بيئة API/MySQL. بعض ملفات `apps/mobile/app/` و`apps/mobile/lib/` تخص عميل Expo السابق، وهي منفصلة عن مصدر Android الأصلي.
