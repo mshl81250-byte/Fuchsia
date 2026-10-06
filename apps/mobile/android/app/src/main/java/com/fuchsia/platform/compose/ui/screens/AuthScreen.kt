@@ -107,8 +107,7 @@ fun AuthScreen(
             Image(painter = painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.size(width = 68.dp, height = 66.dp), contentScale = ContentScale.Fit)
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("فوشيا بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
-                Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
             }
         }
         Spacer(Modifier.height(6.dp))

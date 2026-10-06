@@ -303,8 +303,7 @@ private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("فوشيا بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {

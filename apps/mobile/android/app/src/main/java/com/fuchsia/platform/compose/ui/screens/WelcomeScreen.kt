@@ -274,8 +274,7 @@ private fun BrandHeader() {
                 contentScale = ContentScale.Fit,
             )
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("فوشيا بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
-                Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
             }
         }
         Surface(shape = RoundedCornerShape(50), color = FuchsiaColors.White, tonalElevation = 0.dp, shadowElevation = 1.dp) {
