@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Policy
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.fuchsia.platform.compose.BuildConfig
 import com.fuchsia.platform.compose.data.BiometricAuthenticator
+import com.fuchsia.platform.compose.data.AppPreferences
 import com.fuchsia.platform.compose.data.ThemeMode
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 
@@ -85,6 +87,9 @@ fun SettingsScreen(
     val authenticator = remember(activity) { activity?.let(::BiometricAuthenticator) }
     val available = remember(authenticator) { authenticator?.isAvailable() == true }
     var securityMessage by remember { mutableStateOf("") }
+    var orderNotifications by remember { mutableStateOf(AppPreferences.orderNotificationsEnabled(context)) }
+    var promotionNotifications by remember { mutableStateOf(AppPreferences.promotionNotificationsEnabled(context)) }
+    var reminderNotifications by remember { mutableStateOf(AppPreferences.reminderNotificationsEnabled(context)) }
     val selectedMode = ThemeMode.fromStorage(themeMode)
 
     Scaffold(containerColor = FuchsiaColors.Cream, bottomBar = bottomBar) { insets ->
@@ -157,6 +162,38 @@ fun SettingsScreen(
                     if (securityMessage.isNotBlank()) Text(securityMessage, color = if (biometricEnabled) FuchsiaColors.Success else FuchsiaColors.Primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
             }
+            item {
+                SettingsSection("الإشعارات", Icons.Rounded.NotificationsActive) {
+                    Text("اختر التنبيهات التي تهمك", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                    NotificationPreferenceRow("تحديثات الطلبات", "حالة الطلب والتوصيل", orderNotifications) {
+                        orderNotifications = it
+                        AppPreferences.setOrderNotificationsEnabled(context, it)
+                    }
+                    NotificationPreferenceRow("العروض والمنتجات الجديدة", "خصومات ومجموعات موسمية", promotionNotifications) {
+                        promotionNotifications = it
+                        AppPreferences.setPromotionNotificationsEnabled(context, it)
+                    }
+                    NotificationPreferenceRow("التذكيرات", "تذكير بالسلة والمناسبات", reminderNotifications) {
+                        reminderNotifications = it
+                        AppPreferences.setReminderNotificationsEnabled(context, it)
+                    }
+                    Text("تُحفظ هذه التفضيلات على هذا الجهاز حاليًا. لا يدعم الخادم بعد مزامنة قنوات الإشعارات لكل حساب.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 5.dp))
+                    Button(
+                        onClick = {
+                            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            })
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                        shape = RoundedCornerShape(13.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose),
+                    ) {
+                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text("إدارة إشعارات Android", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
             item { SettingsRow(Icons.Rounded.Person, "الاسم ورقم الهاتف", "تعديل بيانات الحساب", onEditProfile) }
             item { SettingsRow(Icons.Rounded.LocationOn, "عناوين التوصيل", "إدارة العناوين المحفوظة", onAddresses) }
             item { SettingsRow(Icons.Rounded.PrivacyTip, "سياسة الخصوصية", "كيف نستخدم البيانات ونحميها", onPrivacy) }
@@ -176,6 +213,17 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationPreferenceRow(title: String, detail: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(detail, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedTrackColor = FuchsiaColors.Primary))
     }
 }
 

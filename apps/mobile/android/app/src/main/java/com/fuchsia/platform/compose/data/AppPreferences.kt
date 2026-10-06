@@ -9,6 +9,9 @@ object AppPreferences {
     private const val BIOMETRIC_LOCK = "biometric_lock_enabled"
     private const val ONBOARDING_COMPLETED = "onboarding_completed"
     private const val WELCOME_SHOWN = "welcome_shown"
+    private const val NOTIFY_ORDER_UPDATES = "notify_order_updates"
+    private const val NOTIFY_PROMOTIONS = "notify_promotions"
+    private const val NOTIFY_REMINDERS = "notify_reminders"
 
     fun themeMode(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -25,6 +28,27 @@ object AppPreferences {
     fun setBiometricEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(BIOMETRIC_LOCK, enabled).apply()
+    }
+
+    fun orderNotificationsEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFY_ORDER_UPDATES, true)
+
+    fun setOrderNotificationsEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFY_ORDER_UPDATES, enabled).apply()
+    }
+
+    fun promotionNotificationsEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFY_PROMOTIONS, true)
+
+    fun setPromotionNotificationsEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFY_PROMOTIONS, enabled).apply()
+    }
+
+    fun reminderNotificationsEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(NOTIFY_REMINDERS, true)
+
+    fun setReminderNotificationsEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(NOTIFY_REMINDERS, enabled).apply()
     }
 
     fun onboardingCompleted(context: Context): Boolean =
