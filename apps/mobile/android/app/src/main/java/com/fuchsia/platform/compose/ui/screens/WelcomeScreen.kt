@@ -63,6 +63,8 @@ fun WelcomeScreen(
     onLogin: () -> Unit,
     onRegister: () -> Unit,
     onCategory: (Int) -> Unit,
+    onReservation: () -> Unit,
+    onGiftOrder: () -> Unit,
 ) {
     BoxWithConstraints(
         modifier = Modifier
@@ -97,12 +99,12 @@ fun WelcomeScreen(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        CategoryAction("هدايا فاخرة", Icons.Rounded.CardGiftcard, 4, onCategory, Modifier.weight(1f))
-                        CategoryAction("طاولات مناسبات", Icons.Rounded.Restaurant, 3, onCategory, Modifier.weight(1f))
+                        CategoryAction("هدايا فاخرة", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
+                        CategoryAction("طاولات مناسبات", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        CategoryAction("ورود وزهور", Icons.Rounded.LocalFlorist, 6, onCategory, Modifier.weight(1f))
-                        CategoryAction("تجهيز الخطوبة", Icons.Rounded.EventAvailable, 2, onCategory, Modifier.weight(1f))
+                        CategoryAction("ورود وزهور", Icons.Rounded.LocalFlorist, { onCategory(6) }, Modifier.weight(1f))
+                        CategoryAction("تجهيز الخطوبة", Icons.Rounded.EventAvailable, { onCategory(2) }, Modifier.weight(1f))
                     }
                 }
             }
@@ -119,7 +121,7 @@ fun WelcomeScreen(
                 ) {
                     Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(21.dp))
                     Spacer(Modifier.width(11.dp))
-                    Text("تصفّحي المجموعة", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("استكشاف المتجر", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().height(46.dp),
@@ -212,7 +214,7 @@ private fun HeroCard(height: Dp) {
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("مختارة بعناية، لكِ", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+            Text("اختيارات بعناية لكل مناسبة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
             Text("هدايا · زهور · مناسبات", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
         }
     }
@@ -222,12 +224,11 @@ private fun HeroCard(height: Dp) {
 private fun CategoryAction(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    id: Int,
-    onCategory: (Int) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier.height(62.dp).clickable(onClick = { onCategory(id) }),
+        modifier = modifier.height(62.dp).clickable(onClick = onClick),
         shape = RoundedCornerShape(17.dp),
         colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
         border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),

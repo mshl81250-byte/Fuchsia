@@ -15,7 +15,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.fuchsia.platform.compose.ui.screens.AuthScreen
 import com.fuchsia.platform.compose.ui.screens.CategoryScreen
+import com.fuchsia.platform.compose.ui.screens.CartScreen
+import com.fuchsia.platform.compose.ui.screens.CheckoutScreen
+import com.fuchsia.platform.compose.ui.screens.GiftOrderScreen
 import com.fuchsia.platform.compose.ui.screens.HomeScreen
+import com.fuchsia.platform.compose.ui.screens.OrderSuccessScreen
+import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 
@@ -25,6 +30,11 @@ object AppRoutes {
     const val Verify = "verify/{email}?debugCode={debugCode}"
     const val Home = "home"
     const val Category = "category/{id}"
+    const val Cart = "cart"
+    const val Checkout = "checkout?gift={gift}"
+    const val GiftOrder = "gift-order"
+    const val Reservation = "reservation"
+    const val OrderSuccess = "order-success/{orderId}"
 
     fun auth(register: Boolean): String = "auth?register=$register"
 
@@ -32,6 +42,8 @@ object AppRoutes {
         "verify/${Uri.encode(email)}?debugCode=${Uri.encode(debugCode.orEmpty())}"
 
     fun category(id: Int): String = "category/$id"
+    fun checkout(gift: Boolean): String = "checkout?gift=$gift"
+    fun orderSuccess(id: Int): String = "order-success/$id"
 }
 
 @Composable
@@ -65,6 +77,8 @@ fun FuchsiaAppNavHost() {
                 onLogin = { navController.navigate(AppRoutes.auth(register = false)) },
                 onRegister = { navController.navigate(AppRoutes.auth(register = true)) },
                 onCategory = { navController.navigate(AppRoutes.category(it)) },
+                onReservation = { navController.navigate(AppRoutes.Reservation) },
+                onGiftOrder = { navController.navigate(AppRoutes.GiftOrder) },
             )
         }
         composable(
@@ -103,7 +117,12 @@ fun FuchsiaAppNavHost() {
             )
         }
         composable(AppRoutes.Home) {
-            HomeScreen(onCategory = { navController.navigate(AppRoutes.category(it)) })
+            HomeScreen(
+                onCategory = { navController.navigate(AppRoutes.category(it)) },
+                onCart = { navController.navigate(AppRoutes.Cart) },
+                onReservation = { navController.navigate(AppRoutes.Reservation) },
+                onGiftOrder = { navController.navigate(AppRoutes.GiftOrder) },
+            )
         }
         composable(
             route = AppRoutes.Category,
@@ -112,6 +131,58 @@ fun FuchsiaAppNavHost() {
             CategoryScreen(
                 categoryId = entry.arguments?.getInt("id") ?: 0,
                 onBack = { navController.popBackStack() },
+                onCart = { navController.navigate(AppRoutes.Cart) },
+            )
+        }
+        composable(AppRoutes.Cart) {
+            CartScreen(
+                onBack = { navController.popBackStack() },
+                onCheckout = { navController.navigate(AppRoutes.checkout(gift = false)) },
+                onShop = {
+                    navController.navigate(AppRoutes.Home) {
+                        popUpTo(AppRoutes.Home) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        composable(
+            route = AppRoutes.Checkout,
+            arguments = listOf(navArgument("gift") { type = NavType.BoolType; defaultValue = false }),
+        ) { entry ->
+            CheckoutScreen(
+                initialGift = entry.arguments?.getBoolean("gift") ?: false,
+                onBack = { navController.popBackStack() },
+                onOrderPlaced = { orderId ->
+                    navController.navigate(AppRoutes.orderSuccess(orderId)) {
+                        popUpTo(AppRoutes.Home) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        composable(AppRoutes.GiftOrder) {
+            GiftOrderScreen(
+                onBack = { navController.popBackStack() },
+                onCart = { navController.navigate(AppRoutes.Cart) },
+                onGiftCheckout = { navController.navigate(AppRoutes.checkout(gift = true)) },
+            )
+        }
+        composable(AppRoutes.Reservation) {
+            ReservationScreen(onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = AppRoutes.OrderSuccess,
+            arguments = listOf(navArgument("orderId") { type = NavType.IntType }),
+        ) { entry ->
+            OrderSuccessScreen(
+                orderId = entry.arguments?.getInt("orderId") ?: 0,
+                onContinueShopping = {
+                    navController.navigate(AppRoutes.Home) {
+                        popUpTo(AppRoutes.Home) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
             )
         }
     }

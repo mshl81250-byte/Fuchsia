@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -31,8 +32,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,12 +65,21 @@ import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
-fun HomeScreen(onCategory: (Int) -> Unit) {
+fun HomeScreen(
+    onCategory: (Int) -> Unit,
+    onCart: () -> Unit,
+    onReservation: () -> Unit,
+    onGiftOrder: () -> Unit,
+) {
     val context = LocalContext.current
+    val sessionId = remember(context) { SessionVault.sessionId(context) }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     val greetingName = remember {
         SessionVault.read(context)?.optJSONObject("user")?.optString("fullName")
             ?.takeIf { !it.isNullOrBlank() && it != "null" }
@@ -94,7 +107,7 @@ fun HomeScreen(onCategory: (Int) -> Unit) {
         loading = false
     }
 
-    Scaffold(containerColor = FuchsiaColors.Cream) { contentPadding ->
+    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { SnackbarHost(snackbar) }) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = contentPadding.calculateTopPadding() + 8.dp, bottom = contentPadding.calculateBottomPadding() + 22.dp),
@@ -108,13 +121,14 @@ fun HomeScreen(onCategory: (Int) -> Unit) {
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = if (greetingName == null) "أهلًا بكِ في فوشيا" else "أهلًا، $greetingName",
+                            text = if (greetingName == null) "مرحبًا بك في فوشيا" else "مرحبًا، $greetingName",
                             style = MaterialTheme.typography.titleLarge,
                             color = FuchsiaColors.Ink,
                         )
-                        Text("اختيارات أنيقة للحظاتكِ الجميلة", style = MaterialTheme.typography.bodyMedium, color = FuchsiaColors.Muted)
+                        Text("اختيارات أنيقة للمناسبات الجميلة", style = MaterialTheme.typography.bodyMedium, color = FuchsiaColors.Muted)
                     }
                     Card(
+                        onClick = onCart,
                         modifier = Modifier.size(46.dp),
                         shape = RoundedCornerShape(15.dp),
                         colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
@@ -142,13 +156,13 @@ fun HomeScreen(onCategory: (Int) -> Unit) {
                         modifier = Modifier.align(Alignment.CenterEnd).padding(horizontal = 17.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text("لحظتكِ تستحق", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                        Text("لكل لحظة جميلة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
                         Text("هدية تُختار بعناية وتصل بمحبة", color = Color.White.copy(alpha = 0.94f), fontSize = 12.sp)
                     }
                 }
             }
             item {
-                SectionHeading("تصفّحي حسب المناسبة", "كل ما يلائم ذوقكِ")
+                SectionHeading("التسوق حسب المناسبة", "اختيارات تناسب مختلف الأذواق")
             }
             if (categories.isNotEmpty()) {
                 item {
@@ -160,7 +174,13 @@ fun HomeScreen(onCategory: (Int) -> Unit) {
                 }
             }
             item {
-                SectionHeading("مختارة لكِ", "الأكثر تميزًا")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ServiceAction("حجز طاولة", "تحديد موعد المناسبة", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
+                    ServiceAction("طلب هدية", "إضافة لمسة شخصية", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
+                }
+            }
+            item {
+                SectionHeading("اختيارات مميزة", "الأكثر تميزًا")
             }
             if (loading && products.isEmpty()) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
@@ -168,7 +188,25 @@ fun HomeScreen(onCategory: (Int) -> Unit) {
                 items(products.chunked(2)) { rowProducts ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowProducts.forEach { product ->
-                            ProductCard(product, Modifier.weight(1f))
+                            ProductCard(
+                                product,
+                                Modifier.weight(1f),
+                                onAdd = {
+                                    val id = sessionId
+                                    if (id == null) {
+                                        scope.launch { snackbar.showSnackbar("يرجى تسجيل الدخول أو بدء التصفح دون حساب قبل إضافة المنتجات.") }
+                                    } else {
+                                        scope.launch {
+                                            try {
+                                                FuchsiaApi.addToCart(id, product.id)
+                                                snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة")
+                                            } catch (failure: Throwable) {
+                                                snackbar.showSnackbar(failure.message ?: "تعذر إضافة المنتج.")
+                                            }
+                                        }
+                                    }
+                                },
+                            )
                         }
                         if (rowProducts.size == 1) Spacer(Modifier.weight(1f))
                     }
@@ -222,7 +260,38 @@ private fun CategoryChip(category: StoreCategory, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier) {
+private fun ServiceAction(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(82.dp),
+        shape = RoundedCornerShape(17.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(39.dp).background(FuchsiaColors.RoseLight, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(20.dp))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
+                Text(subtitle, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 10.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onAdd: () -> Unit = {}) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(19.dp),
@@ -251,6 +320,17 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, minLines = 2)
                 Text(formatRiyal(product.price), color = FuchsiaColors.Primary, style = MaterialTheme.typography.labelLarge)
+                Button(
+                    onClick = onAdd,
+                    modifier = Modifier.fillMaxWidth().height(39.dp).padding(top = 2.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                ) {
+                    Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("إضافة إلى السلة", style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp))
+                }
             }
         }
     }

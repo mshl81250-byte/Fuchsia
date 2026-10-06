@@ -101,7 +101,7 @@ fun VerifyScreen(
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            "تحققي من بريدكِ",
+            "التحقق من البريد الإلكتروني",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.headlineMedium,
             color = FuchsiaColors.Ink,
@@ -182,7 +182,7 @@ fun VerifyScreen(
         }
         Spacer(Modifier.height(15.dp))
         Text(
-            text = if (secondsLeft > 0) "تنتهي صلاحية الرمز خلال ${secondsLeft / 60}:${(secondsLeft % 60).toString().padStart(2, '0')}" else "انتهت صلاحية الرمز؛ عودي إلى التسجيل لطلب رمز جديد.",
+            text = if (secondsLeft > 0) "تنتهي صلاحية الرمز خلال ${secondsLeft / 60}:${(secondsLeft % 60).toString().padStart(2, '0')}" else "انتهت صلاحية الرمز؛ يرجى العودة إلى شاشة التسجيل لطلب رمز جديد.",
             modifier = Modifier.fillMaxWidth(),
             color = FuchsiaColors.Muted,
             style = MaterialTheme.typography.bodyMedium,

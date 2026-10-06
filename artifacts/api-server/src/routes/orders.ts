@@ -198,7 +198,7 @@ router.post("/offer", async (req, res): Promise<void> => {
     } = req.body;
     const OFFER_TOTAL = 45000;
     if (!sessionId || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
-      res.status(400).json({ error: "أكملي بيانات العميل والعنوان ورسالة الهدية" }); return;
+      res.status(400).json({ error: "يرجى إدخال بيانات العميل والعنوان ورسالة الهدية" }); return;
     }
     if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
       res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" }); return;
@@ -206,7 +206,7 @@ router.post("/offer", async (req, res): Promise<void> => {
     const normalizedPaymentType = paymentType;
     const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
     if (!["full", "partial"].includes(normalizedPaymentType)) { res.status(400).json({ error: "عرض الهدية يقبل الدفع الجزئي أو الكامل فقط" }); return; }
-    if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) { res.status(400).json({ error: "اختاري المحفظة وأدخلي رقم العملية وأرفقي الإيصال" }); return; }
+    if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) { res.status(400).json({ error: "يرجى اختيار المحفظة وإدخال رقم العملية وإرفاق الإيصال" }); return; }
     const expectedAmount = normalizedPaymentType === "full" ? OFFER_TOTAL : Math.ceil(OFFER_TOTAL / 2);
     if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount !== expectedAmount) { res.status(400).json({ error: "مبلغ الدفع لا يطابق نوع الدفع المختار" }); return; }
     const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable).where(and(eq(paymentWalletsTable.id, Number(paymentWalletId)), eq(paymentWalletsTable.isActive, true)));

@@ -51,6 +51,17 @@ object SessionVault {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(BLOB).apply()
     }
 
+    fun sessionId(context: Context): String? = read(context)
+        ?.optJSONObject("user")
+        ?.opt("id")
+        ?.toString()
+        ?.takeIf { it.isNotBlank() && it != "null" }
+
+    fun userId(context: Context): Int? = read(context)
+        ?.optJSONObject("user")
+        ?.optInt("id")
+        ?.takeIf { it > 0 }
+
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }

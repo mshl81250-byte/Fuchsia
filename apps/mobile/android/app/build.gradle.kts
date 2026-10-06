@@ -18,11 +18,11 @@ android {
     buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = "com.fuchsia.platform.compose"
+        applicationId = "com.fuchsia.platform"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0-native"
+        versionCode = 3
+        versionName = "1.1.0"
         buildConfigField("String", "API_BASE_URL", "\"https://fuchsia-x7dwxpzd.manus.space\"")
         // The user explicitly requested on-screen OTP visibility as the sole test exception.
         buildConfigField("boolean", "OTP_DEBUG", "true")
@@ -77,6 +77,7 @@ dependencies {
     androidTestImplementation(composeBom)
 
     implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")

@@ -1,6 +1,7 @@
 export * from "./categories";
 export * from "./stores";
 export * from "./products";
+export * from "./table-reservations";
 export * from "./cart";
 export * from "./orders";
 export * from "./reviews";

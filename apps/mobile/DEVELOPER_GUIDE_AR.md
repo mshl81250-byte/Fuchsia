@@ -374,7 +374,7 @@ cd apps/mobile
 
 الناتج: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`.
 
-حتى اكتمال نقل بقية تدفقات المنتجات والسلة والطلبات والحجوزات، يستخدم تطبيق Compose معرّفًا منفصلًا `com.fuchsia.platform.compose` ليُثبّت بجانب إصدار React Native الحالي ولا يستبدله. ملف APK السابق محفوظ في `artifacts/mobile-build/Fuchsia-Platform-boutique-final-release.apk`.
+إصدار Compose الحالي يحافظ على معرّف التطبيق `com.fuchsia.platform` ومفتاح Release نفسه للنسخة السابقة، ويستخدم `versionCode = 3` كي يُثبّت كتحديث فوق التطبيق السابق. يشمل الآن السلة والدفع والهدية وحجز الطاولة؛ حجز الطاولات على الإنتاج يتطلب نشر مسار API وتطبيق مخطط قاعدة البيانات أولًا. ملف APK السابق محفوظ في `artifacts/mobile-build/Fuchsia-Platform-boutique-final-release.apk`.
 
 > لا ترفع APK ثنائيًا إلى Git عادةً. استخدم GitHub Releases أو تخزين ملفات منفصل إذا أردت توزيع النسخة على الفريق.
 

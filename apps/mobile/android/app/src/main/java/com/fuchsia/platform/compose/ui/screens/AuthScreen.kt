@@ -102,7 +102,7 @@ fun AuthScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Ink)
             }
             Spacer(Modifier.weight(1f))
-            Text("حسابكِ", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelLarge)
+            Text("الحساب", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelLarge)
         }
         Spacer(Modifier.height(4.dp))
         Image(
@@ -113,14 +113,14 @@ fun AuthScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = if (isRegister) "أهلًا بكِ في فوشيا" else "مرحبًا بعودتكِ",
+            text = if (isRegister) "مرحبًا بك في فوشيا" else "مرحبًا من جديد",
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.headlineMedium,
             color = FuchsiaColors.Ink,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = if (isRegister) "أنشئي حسابك لتصلكِ اختيارات تليق بلحظاتكِ." else "سجّلي الدخول لنكمل اختيار هديتكِ معًا.",
+            text = if (isRegister) "إنشاء الحساب يفتح لك خيارات تناسب كل مناسبة." else "تسجيل الدخول لمتابعة اختيار الهدية.",
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 17.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = FuchsiaColors.Muted,
@@ -195,11 +195,11 @@ fun AuthScreen(
                         error = ""
                         val normalizedEmail = email.trim().lowercase()
                         if (!Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
-                            error = "أدخلي بريدًا إلكترونيًا صحيحًا."
+                            error = "يرجى إدخال بريد إلكتروني صحيح."
                         } else if (password.length < 8) {
                             error = "كلمة المرور يجب أن تحتوي على 8 أحرف على الأقل."
                         } else if (isRegister && fullName.trim().length < 2) {
-                            error = "أدخلي الاسم الكامل."
+                            error = "يرجى إدخال الاسم الكامل."
                         } else {
                             busy = true
                             scope.launch {
@@ -216,7 +216,7 @@ fun AuthScreen(
                                         onAuthComplete()
                                     }
                                 } catch (failure: Throwable) {
-                                    error = failure.message ?: "تعذر الاتصال بالخادم. حاولي مرة أخرى."
+                                    error = failure.message ?: "تعذر الاتصال بالخادم. يرجى المحاولة مجددًا."
                                 } finally {
                                     busy = false
                                 }
@@ -247,7 +247,7 @@ fun AuthScreen(
                                     SessionVault.save(context, session.user, session.token)
                                     onAuthComplete()
                                 } catch (failure: Throwable) {
-                                    error = failure.message ?: "تعذر بدء التصفح كزائرة."
+                                    error = failure.message ?: "تعذر بدء التصفح دون حساب."
                                 } finally {
                                     busy = false
                                 }
@@ -258,7 +258,7 @@ fun AuthScreen(
                         shape = RoundedCornerShape(15.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = FuchsiaColors.PrimaryDark),
                     ) {
-                        Text("التصفح كزائرة", fontWeight = FontWeight.SemiBold)
+                        Text("التصفح دون حساب", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -271,7 +271,7 @@ fun AuthScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (isRegister) "لديكِ حساب بالفعل؟" else "ليس لديكِ حساب؟",
+                if (isRegister) "هل يوجد حساب بالفعل؟" else "لا يوجد حساب؟",
                 color = FuchsiaColors.Muted,
                 style = MaterialTheme.typography.bodyMedium,
             )
