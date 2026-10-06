@@ -3,6 +3,7 @@ package com.fuchsia.platform.compose.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,8 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddShoppingCart
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Remove
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,6 +55,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -64,15 +67,11 @@ import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun ProductDetailsScreen(
-    productId: Int,
-    onBack: () -> Unit,
-    onCart: () -> Unit,
-) {
+fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
+    val notice = remember { SnackbarHostState() }
     var product by remember(productId) { mutableStateOf<StoreProduct?>(null) }
     var loading by remember(productId) { mutableStateOf(true) }
     var error by remember(productId) { mutableStateOf("") }
@@ -90,30 +89,35 @@ fun ProductDetailsScreen(
     val current = product
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { FuchsiaNoticeHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(notice) },
         bottomBar = {
             if (current != null) {
-                Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        QuantityStepper(quantity = quantity, onDecrease = { if (quantity > 1) quantity-- }, onIncrease = { quantity++ })
+                Surface(color = FuchsiaColors.White, shadowElevation = 14.dp) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Button(
                             onClick = {
                                 val id = sessionId
-                                if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                if (id == null) scope.launch { notice.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
                                 else scope.launch {
                                     runCatching { FuchsiaApi.addToCart(id, current.id, quantity) }
-                                        .onSuccess { snackbar.showSnackbar("تمت إضافة المنتج إلى السلة") }
-                                        .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                        .onSuccess { notice.showSnackbar("تمت إضافة المنتج إلى السلة بنجاح") }
+                                        .onFailure { notice.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
                                 }
                             },
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            enabled = current.inStock,
+                            modifier = Modifier.weight(1f).height(52.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                         ) {
                             Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(19.dp))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(7.dp))
                             Text("إضافة للسلة", fontWeight = FontWeight.Bold)
                         }
+                        QuantityStepper(quantity = quantity, onDecrease = { if (quantity > 1) quantity-- }, onIncrease = { quantity++ })
                     }
                 }
             }
@@ -123,46 +127,47 @@ fun ProductDetailsScreen(
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) }
             current == null -> Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text(error.ifBlank { "المنتج غير متاح حاليًا." }, color = FuchsiaColors.Muted, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null); Text("العودة للمتجر") }
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = onBack, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("العودة للمتجر") }
             }
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = insets.calculateBottomPadding() + 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    item {
-                        Box(Modifier.fillMaxWidth().height(365.dp).background(FuchsiaColors.RoseLight)) {
-                            ProductGallery(current)
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                CircleAction(Icons.AutoMirrored.Rounded.ArrowBack, "رجوع", onBack)
-                                CircleAction(Icons.Rounded.ShoppingBag, "السلة", onCart)
-                            }
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = insets.calculateBottomPadding() + 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                item {
+                    BoxWithConstraints(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
+                        ProductGallery(current)
+                        Row(
+                            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircleAction(Icons.AutoMirrored.Rounded.ArrowBack, "رجوع", onBack)
+                            CircleAction(Icons.Rounded.ShoppingBag, "السلة", onCart)
                         }
                     }
-                    item {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text(current.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("★", color = FuchsiaColors.Gold, fontSize = 20.sp)
-                                Text(if (current.rating > 0) String.format("%.1f", current.rating) else "جديد", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-                                Text("(${current.reviewCount} تقييم)", color = FuchsiaColors.Muted, fontSize = 12.sp)
-                            }
-                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                                Text(formatRiyal(current.price), color = FuchsiaColors.Primary, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
-                                current.originalPrice?.let { Text(formatRiyal(it), color = FuchsiaColors.Muted, fontSize = 13.sp) }
-                            }
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(current.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("★", color = FuchsiaColors.Gold, fontSize = 18.sp)
+                            Text(if (current.rating > 0) String.format("%.1f", current.rating) else "جديد", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            Text("(${current.reviewCount} تقييم)", color = FuchsiaColors.Muted, fontSize = 12.sp)
                         }
+                        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Text(formatRiyal(current.price), color = FuchsiaColors.Primary, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            current.originalPrice?.let { Text(formatRiyal(it), color = FuchsiaColors.Muted, fontSize = 12.sp, textDecoration = TextDecoration.LineThrough) }
+                        }
+                        if (!current.inStock) Text("غير متوفر حاليًا", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
                     }
+                }
+                item { ProductInfoCard(current) }
+                if (current.tags.isNotEmpty()) {
                     item {
-                        ProductInfoCard(current)
-                    }
-                    if (current.tags.isNotEmpty()) {
-                        item {
-                            LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                itemsIndexed(current.tags) { _, tag -> TagChip(tag) }
-                            }
+                        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            itemsIndexed(current.tags) { _, tag -> TagChip(tag) }
                         }
                     }
                 }
@@ -174,16 +179,17 @@ fun ProductDetailsScreen(
 @Composable
 private fun ProductGallery(product: StoreProduct) {
     val images = product.images.ifEmpty { listOfNotNull(product.imageUrl) }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(FuchsiaColors.RoseLight)) {
         if (images.isEmpty()) {
             Icon(Icons.Rounded.ShoppingBag, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(64.dp))
         } else {
             LazyRow(Modifier.fillMaxSize()) {
                 itemsIndexed(images) { _, image -> AsyncImage(image, contentDescription = product.name, modifier = Modifier.fillParentMaxWidth().fillMaxSize(), contentScale = ContentScale.Crop) }
             }
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .08f)))
             if (images.size > 1) {
-                Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    repeat(images.size.coerceAtMost(6)) { Box(Modifier.size(7.dp).background(Color.White.copy(alpha = if (it == 0) 1f else .55f), CircleShape)) }
+                Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    repeat(images.size.coerceAtMost(6)) { Box(Modifier.size(if (it == 0) 18.dp else 6.dp, 6.dp).background(Color.White.copy(alpha = if (it == 0) 1f else .6f), CircleShape)) }
                 }
             }
         }
@@ -192,43 +198,48 @@ private fun ProductGallery(product: StoreProduct) {
 
 @Composable
 private fun ProductInfoCard(product: StoreProduct) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White)) {
-        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("عن المنتج", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge)
-            Text(product.description.ifBlank { "باقة فاخرة مختارة بعناية لتناسب مناسباتك الجميلة وتصل إليك بتغليف أنيق." }, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                DetailFeature("تغليف فاخر", "هدية جاهزة")
-                DetailFeature("جودة مضمونة", "اختيار بعناية")
-                DetailFeature("توصيل سريع", product.deliveryDays?.let { "$it أيام" } ?: "حسب المنطقة")
+    Card(Modifier.fillMaxWidth().padding(horizontal = 20.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("عن المنتج", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+            Text(product.description.ifBlank { "باقة فاخرة مختارة بعناية لتناسب مناسباتك الجميلة وتصل إليك بتغليف أنيق." }, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text("المميزات", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                CompactFeature("تغليف فاخر", "هدية جاهزة")
+                CompactFeature("جودة مضمونة", "اختيار بعناية")
+                CompactFeature("توصيل سريع", product.deliveryDays?.let { "$it أيام" } ?: "حسب المنطقة")
             }
-            if (!product.inStock) Text("غير متوفر حاليًا", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-private fun DetailFeature(title: String, detail: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, color = FuchsiaColors.Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        Text(detail, color = FuchsiaColors.Muted, fontSize = 10.sp)
+private fun CompactFeature(title: String, detail: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Rounded.Check, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+        Text(title, color = FuchsiaColors.Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Text("· $detail", color = FuchsiaColors.Muted, fontSize = 11.sp)
     }
 }
 
 @Composable
 private fun TagChip(tag: String) {
-    Surface(shape = RoundedCornerShape(20.dp), color = FuchsiaColors.Rose, contentColor = FuchsiaColors.Primary) { Text(tag, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), fontSize = 11.sp) }
+    Surface(shape = RoundedCornerShape(12.dp), color = FuchsiaColors.White, contentColor = FuchsiaColors.Primary, border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line)) {
+        Text(tag, modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
 }
 
 @Composable
 private fun CircleAction(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(42.dp).background(FuchsiaColors.White.copy(alpha = .92f), CircleShape)) { Icon(icon, contentDescription = description, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp)) }
+    IconButton(onClick = onClick, modifier = Modifier.size(44.dp).background(FuchsiaColors.White.copy(alpha = .94f), CircleShape)) { Icon(icon, contentDescription = description, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp)) }
 }
 
 @Composable
 private fun QuantityStepper(quantity: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        Surface(onClick = onDecrease, shape = CircleShape, color = FuchsiaColors.RoseLight, modifier = Modifier.size(34.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل", tint = FuchsiaColors.Primary, modifier = Modifier.size(16.dp)) } }
-        Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-        Surface(onClick = onIncrease, shape = CircleShape, color = FuchsiaColors.RoseLight, modifier = Modifier.size(34.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, contentDescription = "زيادة", tint = FuchsiaColors.Primary, modifier = Modifier.size(16.dp)) } }
+    Surface(shape = RoundedCornerShape(14.dp), color = FuchsiaColors.RoseLight) {
+        Row(Modifier.padding(horizontal = 5.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل", tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)) }
+            Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(22.dp), textAlign = TextAlign.Center)
+            IconButton(onClick = onIncrease, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Add, contentDescription = "زيادة", tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)) }
+        }
     }
 }
