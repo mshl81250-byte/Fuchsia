@@ -63,6 +63,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.DeliveryAddress
 import com.fuchsia.platform.compose.data.PaymentWallet
@@ -90,6 +91,7 @@ fun CheckoutScreen(
 
     var cart by remember { mutableStateOf<ShoppingCart?>(null) }
     var savedAddresses by remember { mutableStateOf<List<DeliveryAddress>>(emptyList()) }
+    var addressServiceError by remember { mutableStateOf("") }
     var showAddressPicker by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<PaymentWallet>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -122,7 +124,19 @@ fun CheckoutScreen(
         error = ""
         try {
             if (!userToken.isNullOrBlank()) {
-                savedAddresses = runCatching { FuchsiaApi.addresses(userToken) }.getOrDefault(emptyList())
+                runCatching { FuchsiaApi.addresses(userToken) }
+                    .onSuccess {
+                        savedAddresses = it
+                        addressServiceError = ""
+                    }
+                    .onFailure { failure ->
+                        savedAddresses = emptyList()
+                        addressServiceError = if (failure is ApiException && failure.statusCode == 404) {
+                            "دفتر العناوين غير متاح حاليًا على الخادم. يمكنك إدخال العنوان يدويًا، وسيحتاج فريق التشغيل إلى نشر تحديث API قبل حفظ العناوين."
+                        } else {
+                            "تعذر تحميل العناوين المحفوظة؛ يمكنك متابعة الطلب بإدخال العنوان يدويًا."
+                        }
+                    }
                 savedAddresses.firstOrNull { it.isDefault }?.let { saved ->
                     fullName = saved.recipientName
                     phone = saved.phone
@@ -313,13 +327,24 @@ fun CheckoutScreen(
                             showAddressPicker = true
                             scope.launch {
                                 runCatching { FuchsiaApi.addresses(userToken) }
-                                    .onSuccess { savedAddresses = it }
+                                    .onSuccess {
+                                        savedAddresses = it
+                                        addressServiceError = ""
+                                    }
+                                    .onFailure { failure ->
+                                        addressServiceError = if (failure is ApiException && failure.statusCode == 404) {
+                                            "دفتر العناوين غير متاح حاليًا على الخادم؛ استخدم الإدخال اليدوي مؤقتًا."
+                                        } else {
+                                            "تعذر تحميل العناوين المحفوظة."
+                                        }
+                                    }
                             }
                         }) {
                             val title = if (savedAddresses.isEmpty()) "اختيار أو إدارة عناوين التوصيل" else "اختيار عنوان محفوظ (${savedAddresses.size})"
                             Text(title, color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
                         }
                     }
+                    if (addressServiceError.isNotBlank()) CommerceNotice(addressServiceError, isError = true)
                     CommerceField(address, { address = it }, "عنوان التوصيل بالتفصيل", minLines = 2, maxLines = 3, placeholder = "الحي، الشارع، أقرب معلم")
                 }
                 item {

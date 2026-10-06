@@ -176,10 +176,20 @@ fun CartScreen(
                     CartItemCard(
                         item = line,
                         busy = busyItem == line.id,
-                        onDecrease = { changeQuantity(line, line.quantity - 1) },
+                        onDecrease = {
+                            if (line.quantity > 1) changeQuantity(line, line.quantity - 1) else {
+                                scope.launch {
+                                    busyItem = line.id
+                                    runCatching { FuchsiaApi.removeCartItem(line.id) }
+                                        .onSuccess { cart = it }
+                                        .onFailure { snackbar.showSnackbar(it.message ?: "تعذر حذف المنتج.") }
+                                    busyItem = 0
+                                }
+                            }
+                        },
                         onIncrease = { changeQuantity(line, line.quantity + 1) },
                         onRemove = {
-                            val currentSession = sessionId ?: return@CartItemCard
+                            if (sessionId == null) return@CartItemCard
                             scope.launch {
                                 busyItem = line.id
                                 try {
