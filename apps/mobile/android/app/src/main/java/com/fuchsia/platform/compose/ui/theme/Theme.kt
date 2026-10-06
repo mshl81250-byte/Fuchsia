@@ -32,30 +32,31 @@ private data class FuchsiaPalette(
 )
 
 private val LightPalette = FuchsiaPalette(
-    primary = Color(0xFFA40D50),
-    primaryDark = Color(0xFF760A3A),
-    rose = Color(0xFFF5E6ED),
-    roseLight = Color(0xFFFFF2F7),
+    // Brand red extracted from the Fuchsia logo (#760132), not bright pink.
+    primary = Color(0xFF760132),
+    primaryDark = Color(0xFF560024),
+    rose = Color(0xFFF3E2E4),
+    roseLight = Color(0xFFFFF4F3),
     cream = Color(0xFFFBF7F2),
-    ink = Color(0xFF2D1721),
-    muted = Color(0xFF85727B),
-    line = Color(0xFFE9DDE2),
-    gold = Color(0xFFB48B52),
+    ink = Color(0xFF2D1519),
+    muted = Color(0xFF806B6E),
+    line = Color(0xFFE8D8D9),
+    gold = Color(0xFFA6404F),
     surface = Color(0xFFFFFFFF),
     success = Color(0xFF377456),
     error = Color(0xFFB3261E),
 )
 
 private val DarkPalette = FuchsiaPalette(
-    primary = Color(0xFFF075A6),
-    primaryDark = Color(0xFFFFAAC8),
-    rose = Color(0xFF382630),
-    roseLight = Color(0xFF30202A),
-    cream = Color(0xFF17131A),
-    ink = Color(0xFFF5EDF1),
-    muted = Color(0xFFB6A6AF),
-    line = Color(0xFF44323C),
-    gold = Color(0xFFD2AA72),
+    primary = Color(0xFFD84E62),
+    primaryDark = Color(0xFFFF9A9F),
+    rose = Color(0xFF3B2428),
+    roseLight = Color(0xFF302024),
+    cream = Color(0xFF171314),
+    ink = Color(0xFFF8EBEB),
+    muted = Color(0xFFB9A5A7),
+    line = Color(0xFF4B3437),
+    gold = Color(0xFFE07A83),
     surface = Color(0xFF241E26),
     success = Color(0xFF71C297),
     error = Color(0xFFF28B82),
@@ -112,7 +113,7 @@ fun FuchsiaTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
     val colorScheme = if (darkTheme) {
         darkColorScheme(
             primary = palette.primary,
-            onPrimary = Color(0xFF35111F),
+            onPrimary = Color.White,
             secondary = palette.gold,
             onSecondary = Color(0xFF2B1D0D),
             background = palette.cream,

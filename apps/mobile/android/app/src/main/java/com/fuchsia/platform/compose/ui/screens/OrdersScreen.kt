@@ -216,7 +216,7 @@ fun OrdersScreen(
                         Card(
                             shape = RoundedCornerShape(17.dp),
                             colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-                            border = BorderStroke(1.dp, if (error.startsWith("لا توجد")) FuchsiaColors.Line else Color(0xFFE9C9D7)),
+                            border = BorderStroke(1.dp, if (error.startsWith("لا توجد")) FuchsiaColors.Line else Color(0xFFE8C9CC)),
                         ) {
                             Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 Text(error, color = FuchsiaColors.Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
