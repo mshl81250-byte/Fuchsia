@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fuchsia Boutique",
     "slug": "fuchsia-platform",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fuchsia",
@@ -10,6 +10,7 @@
     "plugins": ["expo-router", "expo-secure-store", "expo-location", "expo-image-picker", "./plugins/with-release-signing"],
     "android": {
       "package": "com.fuchsia.platform",
+      "versionCode": 2,
       "adaptiveIcon": { "backgroundColor": "#FFF0F6", "foregroundImage": "./assets/branding/fuchsia-app-icon.png" }
     },
     "extra": { "apiBaseUrl": "https://fuchsia-x7dwxpzd.manus.space" }
