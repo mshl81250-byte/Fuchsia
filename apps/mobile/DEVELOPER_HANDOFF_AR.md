@@ -1,0 +1,331 @@
+# دليل تسليم وتثبيت Fuchsia Boutique
+
+**آخر تحديث:** 6 أكتوبر 2026  
+**المستودع:** `mshl81250-byte/Fuchsia-Platform`  
+**فرع الأساس المطلوب:** `feat/android-expo-app`  
+**فرع التطوير:** `feat/android-ui-redesign`  
+**Pull Request:** [PR #3](https://github.com/mshl81250-byte/Fuchsia-Platform/pull/3)
+
+> هذا الملف يوضح للمبرمج أين وصل العمل، وكيفية بناء التطبيق وتثبيته، وما الذي يحتاج إلى متابعة قبل إصدار الإنتاج.
+
+## 1. مصدر تطبيق Android
+
+التطبيق الحالي مصدره الأصلي هو:
+
+```text
+apps/mobile/android/
+```
+
+وهو تطبيق Native مكتوب بـ:
+
+- Kotlin.
+- Jetpack Compose.
+- Material 3.
+- Navigation Compose.
+- Coil للصور.
+- Gradle Kotlin DSL.
+
+لا تستخدم الملفات القديمة في:
+
+```text
+apps/mobile/app/
+```
+
+كمصدر لـ APK Android الحالي؛ فهي ملفات Expo أقدم وليست مسار البناء الحالي.
+
+## 2. حالة GitHub الحالية
+
+التحديثات مرفوعة إلى:
+
+```text
+origin/feat/android-ui-redesign
+```
+
+ويجب مراجعة PR التالي قبل الدمج:
+
+[https://github.com/mshl81250-byte/Fuchsia-Platform/pull/3](https://github.com/mshl81250-byte/Fuchsia-Platform/pull/3)
+
+الـ PR يستهدف:
+
+```text
+feat/android-expo-app
+```
+
+وليس `main`.
+
+للحصول على آخر نسخة:
+
+```bash
+git clone https://github.com/mshl81250-byte/Fuchsia-Platform.git
+cd Fuchsia-Platform
+git fetch origin feat/android-ui-redesign
+git switch --track origin/feat/android-ui-redesign
+```
+
+إذا كان المستودع مستنسخًا مسبقًا:
+
+```bash
+git fetch origin
+git switch feat/android-ui-redesign
+git pull --ff-only origin feat/android-ui-redesign
+```
+
+## 3. ما تم تطويره
+
+### تجربة التسوق
+
+- إعادة تصميم الصفحة الرئيسية والتصنيفات.
+- بحث فعلي عبر API.
+- شاشة تفاصيل المنتج.
+- Carousel للصور.
+- عنوان المنتج بسطرين وEllipsis.
+- سعر حالي وسعر قديم منسق.
+- بطاقة وصف ومميزات مختصرة.
+- Chips حديثة للوسوم.
+- شريط شراء سفلي متوازن.
+- حماية شريط الشراء من شريط إيماءات Android باستخدام `navigationBarsPadding()`.
+- مناطق لمس أزرار `+` و`−` بحجم 42dp.
+- زر «إضافة للسلة» بارتفاع 56dp.
+- انتقالات فتح ورجوع عبر Navigation Compose.
+
+### الحساب والإعدادات
+
+- رأس حساب فاخر دون صورة شخصية أو توثيق أو شارات اجتماعية.
+- تحية الزائر: «أهلاً بك».
+- تحية المستخدم: «أهلاً بك، الاسم».
+- عدم عرض البريد المؤقت للزائر.
+- بطاقة معلومات للاسم والهاتف والبريد والعنوان الافتراضي.
+- مؤشرات الطلبات والمفضلة والهدايا، وتُخفى عند كونها صفرية.
+- قسم الطلبات الحالية والمكتملة والملغاة.
+- روابط العناوين والمفضلة والدعم.
+- صفحة إعدادات ببطاقة رأس فوشية.
+- تنظيم الإعدادات إلى المظهر والأمان والإشعارات والحساب والمساعدة.
+- الوضع الفاتح والداكن والتلقائي.
+- إعدادات إشعارات الطلبات والعروض والتذكيرات.
+- دعم قفل التطبيق بالبصمة عند توفرها.
+- Bottom Sheet مخصص لتأكيد تسجيل الخروج.
+
+### الهوية البصرية
+
+- إضافة خط Cairo محلي داخل Android بثلاثة أوزان:
+  - `cairo_regular.ttf`
+  - `cairo_semibold.ttf`
+  - `cairo_bold.ttf`
+- تطبيق Cairo على Material 3 Typography في التطبيق.
+- شريط تنقل سفلي بتصميم جديد:
+  - حواف علوية ناعمة.
+  - ظل خفيف.
+  - أيقونات كبيرة.
+  - مؤشر فوشي للتبويب المحدد.
+  - ظهور تسمية التبويب المحدد بحركة Fade وScale.
+
+### المراحل السابقة الموجودة على نفس الفرع
+
+- Onboarding من ثلاث صفحات.
+- Wishlist والمفضلة.
+- Live Search وتفاصيل المنتج.
+- تحسين سلة التسوق وCheckout.
+- سجل الطلبات والملف الشخصي.
+- إشعارات Fuchsia المخصصة.
+- تحسينات دفتر العناوين وقواعد العنوان الافتراضي.
+
+## 4. المتطلبات المحلية
+
+يحتاج البناء إلى:
+
+- JDK 17.
+- Android SDK Platform 37.
+- Android Build Tools 36.0.0.
+- Android SDK API 24 أو جهاز Android يدعم API 24 فأحدث.
+- Node.js وpnpm لفحوصات المشروع.
+
+لا يحتاج المطور إلى رفع أي مفتاح توقيع أو كلمة مرور إلى GitHub.
+
+## 5. البناء والتثبيت عبر APK
+
+من جذر المستودع:
+
+```bash
+cd apps/mobile/android
+./gradlew :app:assembleDebug --no-daemon
+```
+
+ينتج الملف هنا:
+
+```text
+apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### التثبيت على جهاز Android عبر ADB
+
+فعّل **Developer options** و **USB debugging** على الجهاز، ثم:
+
+```bash
+adb devices
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+أو من جذر المستودع:
+
+```bash
+adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+معرّف نسخة Debug هو:
+
+```text
+com.fuchsia.platform.debug
+```
+
+لإزالة النسخة السابقة:
+
+```bash
+adb uninstall com.fuchsia.platform.debug
+```
+
+للتشغيل من ADB:
+
+```bash
+adb shell monkey -p com.fuchsia.platform.debug 1
+```
+
+### التثبيت اليدوي
+
+انسخ `app-debug.apk` إلى الهاتف، افتحه، واسمح بتثبيت التطبيقات من هذا المصدر عند طلب Android ذلك.
+
+## 6. التشغيل عبر Android Studio
+
+1. افتح Android Studio.
+2. اختر **Open**.
+3. افتح المجلد:
+   ```text
+   apps/mobile/android/
+   ```
+4. انتظر Gradle Sync.
+5. اختر جهازًا فعليًا أو Emulator بإصدار API 24 أو أحدث.
+6. شغّل configuration باسم `app`.
+7. اختر Variant:
+   ```text
+   debug
+   ```
+8. اضغط Run.
+
+## 7. فحوصات التسليم
+
+فحص TypeScript وAPI:
+
+```bash
+cd /path/to/Fuchsia-Platform
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run typecheck
+git diff --check
+```
+
+بناء Android:
+
+```bash
+cd apps/mobile/android
+./gradlew :app:assembleDebug --no-daemon
+```
+
+فحص هوية APK:
+
+```bash
+$ANDROID_HOME/build-tools/36.0.0/aapt dump badging \
+  app/build/outputs/apk/debug/app-debug.apk | head -5
+```
+
+النتيجة المتوقعة لنسخة Debug:
+
+```text
+package: name='com.fuchsia.platform.debug'
+```
+
+أما هوية إصدار Release الأساسية فهي:
+
+```text
+com.fuchsia.platform
+```
+
+## 8. إعداد Release والتوقيع
+
+ملف التوقيع غير موجود في المستودع، وهذا مقصود.
+
+يقرأ Gradle إعدادات Release من خصائص Gradle أو متغيرات البيئة التالية:
+
+```text
+FUCHSIA_RELEASE_STORE_FILE
+FUCHSIA_RELEASE_STORE_PASSWORD
+FUCHSIA_RELEASE_KEY_ALIAS
+FUCHSIA_RELEASE_KEY_PASSWORD
+```
+
+مثال البناء بعد إعدادها محليًا بشكل آمن:
+
+```bash
+cd apps/mobile/android
+./gradlew :app:assembleRelease --no-daemon
+```
+
+لا تضع القيم الحقيقية في مستندات GitHub أو رسائل Pull Request، ولا ترفع ملفات `.jks` أو `.keystore`.
+
+## 9. ملاحظات مهمة قبل الإنتاج
+
+### Google Maps
+
+دمج Google Maps SDK وPlaces وGeocoding لم يكتمل بعد في هذه النقطة. يوجد حاليًا اعتماد MapLibre في `app/build.gradle.kts`، لذلك لا ينبغي اعتبار نظام Google Maps جاهزًا للإنتاج أو الإعلان عن اكتماله.
+
+عند بدء هذه المرحلة يجب:
+
+- إزالة الاعتماد البديل بعد اكتمال دمج Google Maps.
+- استخدام Google Maps SDK for Android.
+- استخدام Places وGeocoding وفق مفاتيح مقيدة باسم الحزمة وSHA-1.
+- حفظ المفتاح بطريقة آمنة وعدم رفعه إلى GitHub.
+- اختبار صنعاء وعدن وتعز وإب والحديدة.
+
+### API الإنتاجي والعناوين
+
+ميزة العناوين تعتمد على API وتحتاج التحقق من نشر نسخة الخادم وترحيل قاعدة البيانات قبل اعتمادها على الإنتاج. يجب فحص:
+
+```text
+/api/healthz
+/api/addresses
+```
+
+مع جلسة موثقة عند اختبار المسارات المحمية. لا تعتبر ميزة العناوين مكتملة إنتاجيًا إذا أعاد الخادم `404` أو لم تكن نسخة API وقاعدة البيانات متوافقتين.
+
+### OTP_DEBUG
+
+الإعداد الحالي في `app/build.gradle.kts` يحتوي على استثناء اختبار لإظهار OTP على الشاشة. قبل إصدار Production يجب مراجعة هذا الإعداد وإيقافه أو تغييره وفق سياسة المصادقة المعتمدة.
+
+## 10. ترتيب المراجعة المقترح للمبرمج
+
+1. مراجعة PR #3 والـ commits الأخيرة.
+2. بناء `assembleDebug` وتثبيت APK.
+3. اختبار تسجيل الدخول والضيف.
+4. اختبار البحث وفتح تفاصيل المنتج.
+5. اختبار `+` و`−` و«إضافة للسلة» على جهاز بإيماءات Android.
+6. اختبار Bottom Navigation والتنقل بين جميع التبويبات.
+7. اختبار الحساب والإعدادات والمظهر والإشعارات.
+8. اختبار العناوين وملاحظة حالة API الإنتاجي.
+9. اختبار سجل الطلبات والمفضلة وCheckout.
+10. مراجعة Google Maps والتوقيع قبل Production.
+
+## 11. نقطة التسليم الحالية
+
+آخر Commit خاص بإعادة تصميم الحساب والإعدادات:
+
+```text
+142cf8c feat: polish account and settings experience
+```
+
+ويليه ضمن نفس الفرع إصلاحات مهمة:
+
+```text
+a3ebacd fix: keep product actions above system navigation
+f2f37ca feat: redesign bottom navigation bar
+bb5599e feat: elevate Arabic account visual identity
+11625b7 feat: refine product details shopping experience
+```
+
+الفرع نظيف، والتحديثات مرفوعة إلى GitHub، وPR #3 مفتوح للمراجعة.
