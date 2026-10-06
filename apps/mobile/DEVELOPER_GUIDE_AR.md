@@ -353,45 +353,28 @@ https://fuchsia-x7dwxpzd.manus.space
 
 ---
 
-## 7. بناء APK محليًا
+## 7. بناء تطبيق Android الأصلي
 
-المتطلبات:
+تطبيق Android صار يُبنى من مصدر Kotlin في `apps/mobile/android` باستخدام Jetpack Compose وNavigation Compose. لا تشغّل Expo Prebuild على هذا المجلد؛ فهو مصدر Android أصلي وليس مجلدًا مولّدًا.
 
-- Node.js 22+
-- pnpm 11+
-- Android SDK
-- Android Build Tools
-- JDK متوافق مع Gradle/Expo
-
-الأوامر:
+المتطلبات: JDK 17+ وAndroid SDK Platform 37 وBuild Tools 36.0.0.
 
 ```bash
-cd Fuchsia-Platform
-CI=1 pnpm --filter @workspace/mobile exec expo prebuild --platform android
-printf 'sdk.dir=%s\n' "$HOME/android-sdk" > apps/mobile/android/local.properties
 cd apps/mobile/android
-./gradlew :app:assembleRelease --no-daemon
+printf 'sdk.dir=%s\n' "$HOME/android-sdk" > local.properties
+./gradlew :app:assembleDebug
 ```
 
-الناتج:
-
-```text
-apps/mobile/android/app/build/outputs/apk/release/app-release.apk
-```
-
-يجب تنظيف مجلد Android المولد قبل الالتزام إذا كان المشروع يعتمد على Expo Prebuild:
+لبناء APK Release بمفتاح Fuchsia المحلي:
 
 ```bash
-rm -rf apps/mobile/android apps/mobile/dist
+cd apps/mobile
+./scripts/build-release-apk.sh
 ```
 
-النسخة التي تم بناؤها في هذه المرحلة موجودة محليًا في:
+الناتج: `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`.
 
-```text
-artifacts/mobile-build/Fuchsia-Platform-boutique-final-release.apk
-```
-
-تم التحقق من توقيع APK بنجاح باستخدام APK Signature Scheme v2.
+حتى اكتمال نقل بقية تدفقات المنتجات والسلة والطلبات والحجوزات، يستخدم تطبيق Compose معرّفًا منفصلًا `com.fuchsia.platform.compose` ليُثبّت بجانب إصدار React Native الحالي ولا يستبدله. ملف APK السابق محفوظ في `artifacts/mobile-build/Fuchsia-Platform-boutique-final-release.apk`.
 
 > لا ترفع APK ثنائيًا إلى Git عادةً. استخدم GitHub Releases أو تخزين ملفات منفصل إذا أردت توزيع النسخة على الفريق.
 

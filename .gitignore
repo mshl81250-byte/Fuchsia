@@ -50,5 +50,8 @@ Thumbs.db
 # local Android build artifacts and design previews
 /artifacts/mobile-build/
 /design-preview/
-/apps/mobile/android/
+/apps/mobile/android/.gradle/
+/apps/mobile/android/**/build/
+/apps/mobile/android/local.properties
+/apps/mobile/android/.idea/
 /apps/mobile/dist/
