@@ -215,6 +215,18 @@ object FuchsiaApi {
         getJson("/api/products/$productId").toStoreProduct()
     }
 
+    suspend fun favorites(userId: Int): List<StoreProduct> = withContext(Dispatchers.IO) {
+        parseProducts(getText("/api/favorites?userId=$userId"))
+    }
+
+    suspend fun toggleFavorite(userId: Int, productId: Int): Boolean = withContext(Dispatchers.IO) {
+        sendJson(
+            "/api/favorites",
+            "POST",
+            JSONObject().put("userId", userId).put("productId", productId),
+        ).optBoolean("isFavorite", false)
+    }
+
     suspend fun getCart(sessionId: String): ShoppingCart = parseCart(
         getJson("/api/cart?sessionId=${urlEncode(sessionId)}"),
     )

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsNone
@@ -98,6 +99,7 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
+    val userId = remember(context) { SessionVault.userId(context) }
     val greetingName = remember {
         SessionVault.read(context)?.optJSONObject("user")?.optString("fullName")
             ?.takeIf { !it.isNullOrBlank() && it != "null" }
@@ -112,6 +114,7 @@ fun HomeScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<StoreProduct>>(emptyList()) }
     var searchLoading by remember { mutableStateOf(false) }
+    var favoriteIds by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     LaunchedEffect(refreshKey) {
         loading = true
@@ -143,6 +146,30 @@ fun HomeScreen(
             .onSuccess { searchResults = it }
             .onFailure { searchResults = emptyList() }
         searchLoading = false
+    }
+
+    LaunchedEffect(userId) {
+        if (userId == null) {
+            favoriteIds = emptySet()
+            return@LaunchedEffect
+        }
+        runCatching { FuchsiaApi.favorites(userId) }.onSuccess { favoriteIds = it.mapTo(mutableSetOf()) { product -> product.id } }
+    }
+
+    fun toggleFavorite(productId: Int) {
+        val id = userId
+        if (id == null) {
+            scope.launch { snackbar.showSnackbar("سجّل الدخول لحفظ المنتجات في المفضلة.") }
+            return
+        }
+        scope.launch {
+            runCatching { FuchsiaApi.toggleFavorite(id, productId) }
+                .onSuccess { isFavorite ->
+                    favoriteIds = if (isFavorite) favoriteIds + productId else favoriteIds - productId
+                    snackbar.showSnackbar(if (isFavorite) "تم حفظ المنتج في المفضلة" else "تمت إزالة المنتج من المفضلة")
+                }
+                .onFailure { snackbar.showSnackbar(it.message ?: "تعذر تحديث المفضلة.") }
+        }
     }
 
     Scaffold(
@@ -193,7 +220,7 @@ fun HomeScreen(
                     items(searchResults.chunked(2), key = { row -> row.joinToString("-") }) { rowProducts ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             rowProducts.forEach { product ->
-                                ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }) {
+                                ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }, isFavorite = product.id in favoriteIds, onFavorite = { toggleFavorite(product.id) }) {
                                     val id = sessionId
                                     if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
                                     else scope.launch {
@@ -238,7 +265,7 @@ fun HomeScreen(
                 items(products.chunked(2)) { rowProducts ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowProducts.forEach { product ->
-                            ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }) {
+                            ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }, isFavorite = product.id in favoriteIds, onFavorite = { toggleFavorite(product.id) }) {
                                 val id = sessionId
                                 if (id == null) {
                                     scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
@@ -364,13 +391,15 @@ private fun QuickService(title: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onOpen: () -> Unit = {}, onAdd: () -> Unit) {
+internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onOpen: () -> Unit = {}, isFavorite: Boolean = false, onFavorite: () -> Unit = {}, onAdd: () -> Unit) {
     Card(modifier = modifier, shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column {
             Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight).clickable(onClick = onOpen)) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(35.dp))
-                Icon(Icons.Rounded.FavoriteBorder, contentDescription = "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.TopEnd).padding(9.dp).size(21.dp))
+                IconButton(onClick = onFavorite, modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(35.dp)) {
+                    Icon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = if (isFavorite) "إزالة من المفضلة" else "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
+                }
             }
             Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)

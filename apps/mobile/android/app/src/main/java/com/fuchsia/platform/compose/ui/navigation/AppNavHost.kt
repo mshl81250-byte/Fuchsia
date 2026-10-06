@@ -62,6 +62,7 @@ import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.SettingsScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
+import com.fuchsia.platform.compose.ui.screens.WishlistScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
 
@@ -71,6 +72,7 @@ object AppRoutes {
     const val Verify = "verify/{email}?debugCode={debugCode}"
     const val Home = "home"
     const val Categories = "categories"
+    const val Wishlist = "wishlist"
     const val Category = "category/{id}"
     const val Product = "product/{id}"
     const val Cart = "cart"
@@ -237,6 +239,14 @@ fun FuchsiaAppNavHost(
                     onCategory = { navController.navigate(AppRoutes.category(it)) },
                     onBack = { selectTab(AppRoutes.Home) },
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Categories, ::selectTab) },
+                )
+            }
+            composable(AppRoutes.Wishlist) {
+                WishlistScreen(
+                    onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
+                    onProduct = { navController.navigate(AppRoutes.product(it)) },
+                    onCart = { navController.navigate(AppRoutes.Cart) },
+                    bottomBar = { FuchsiaBottomBar(AppRoutes.Wishlist, ::selectTab) },
                 )
             }
             composable(
