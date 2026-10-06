@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.fuchsia.platform.compose.R
 import com.fuchsia.platform.compose.data.AppPreferences
+import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.ui.screens.AboutScreen
 import com.fuchsia.platform.compose.ui.screens.AccountScreen
@@ -74,6 +76,7 @@ import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 import com.fuchsia.platform.compose.ui.screens.WishlistScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 object AppRoutes {
     const val Welcome = "welcome"
@@ -130,11 +133,14 @@ fun FuchsiaAppNavHost(
         }
     }
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     val currentEntry by navController.currentBackStackEntryAsState()
     val routeNow = currentEntry?.destination?.route
     var previousRoute by remember { mutableStateOf<String?>(null) }
     var showBrandTransition by remember { mutableStateOf(false) }
     var showExitSheet by remember { mutableStateOf(false) }
+    var guestStarting by remember { mutableStateOf(false) }
+    var guestError by remember { mutableStateOf("") }
 
     LaunchedEffect(routeNow) {
         if (routeNow != null) {
@@ -158,13 +164,29 @@ fun FuchsiaAppNavHost(
     }
 
     fun fromWelcome(targetRoute: String) {
-        AppPreferences.setOnboardingCompleted(context)
-        navController.navigate(AppRoutes.Home) {
-            popUpTo(AppRoutes.Welcome) { inclusive = true }
-            launchSingleTop = true
+        if (targetRoute.startsWith("auth")) {
+            AppPreferences.setOnboardingCompleted(context)
+            navController.navigate(targetRoute) {
+                popUpTo(AppRoutes.Welcome) { inclusive = true }
+                launchSingleTop = true
+            }
+            return
         }
-        if (targetRoute != AppRoutes.Home) {
-            navController.navigate(targetRoute) { launchSingleTop = true }
+        guestStarting = true
+        guestError = ""
+        scope.launch {
+            runCatching { FuchsiaApi.guest() }
+                .onSuccess { session ->
+                    SessionVault.save(context, session.user, session.token)
+                    AppPreferences.setOnboardingCompleted(context)
+                    navController.navigate(AppRoutes.Home) {
+                        popUpTo(AppRoutes.Welcome) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    if (targetRoute != AppRoutes.Home) navController.navigate(targetRoute) { launchSingleTop = true }
+                }
+                .onFailure { failure -> guestError = failure.message ?: "تعذر بدء التصفح دون حساب." }
+            guestStarting = false
         }
     }
 
@@ -390,6 +412,38 @@ fun FuchsiaAppNavHost(
                     onTrackOrder = { navController.navigate(AppRoutes.orders(entry.arguments?.getInt("orderId") ?: 0)) },
                     onContinueShopping = { selectTab(AppRoutes.Home) },
                 )
+            }
+        }
+
+        if (guestStarting || guestError.isNotBlank()) {
+            Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.97f)).zIndex(3f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.fuchsia_logo),
+                        contentDescription = "فوشيا",
+                        modifier = Modifier.size(width = 118.dp, height = 96.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                    if (guestStarting) {
+                        Text("نجهّز لك التصفح دون حساب", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
+                    } else {
+                        Text("تعذر بدء التصفح دون حساب", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(guestError, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                        Button(
+                            onClick = { guestError = ""; fromWelcome(AppRoutes.Home) },
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                        ) { Text("إعادة المحاولة", fontWeight = FontWeight.Bold) }
+                    }
+                }
             }
         }
 
