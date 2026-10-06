@@ -99,8 +99,17 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             item {
-                Text("الإعدادات", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium)
-                Text("خصّص تجربتك وتحكم في أمان حسابك.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+                        Box(Modifier.size(48.dp).background(FuchsiaColors.White.copy(alpha = .16f), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Tune, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(28.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("إعدادات فوشيا", color = FuchsiaColors.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("خصّص تجربتك بالطريقة التي تناسبك", color = FuchsiaColors.White.copy(alpha = .82f), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
             }
             item {
                 SettingsSection("المظهر", Icons.Rounded.Tune) {
@@ -194,8 +203,10 @@ fun SettingsScreen(
                     }
                 }
             }
+            item { SettingsGroupLabel("الحساب والتوصيل") }
             item { SettingsRow(Icons.Rounded.Person, "الاسم ورقم الهاتف", "تعديل بيانات الحساب", onEditProfile) }
             item { SettingsRow(Icons.Rounded.LocationOn, "عناوين التوصيل", "إدارة العناوين المحفوظة", onAddresses) }
+            item { SettingsGroupLabel("المساعدة والمعلومات") }
             item { SettingsRow(Icons.Rounded.PrivacyTip, "سياسة الخصوصية", "كيف نستخدم البيانات ونحميها", onPrivacy) }
             item { SettingsRow(Icons.Rounded.Policy, "شروط الاستخدام", "قواعد استخدام خدمات فوشيا", onTerms) }
             item { SettingsRow(Icons.AutoMirrored.Rounded.HelpOutline, "كيفية استخدام التطبيق", "الطلبات والهدايا والحجوزات والتتبع", onHelp) }
@@ -231,8 +242,10 @@ private fun NotificationPreferenceRow(title: String, detail: String, checked: Bo
 private fun SettingsSection(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, content: @Composable () -> Unit) {
     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.size(42.dp).background(FuchsiaColors.Rose, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(24.dp))
+                }
                 Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
             }
             Spacer(Modifier.height(9.dp))
@@ -245,8 +258,8 @@ private fun SettingsSection(title: String, icon: androidx.compose.ui.graphics.ve
 private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, detail: String, onClick: () -> Unit) {
     Card(onClick = onClick, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(40.dp).background(FuchsiaColors.Rose, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary)
+            Box(Modifier.size(46.dp).background(FuchsiaColors.Rose, RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(25.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
@@ -255,6 +268,11 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, tint = FuchsiaColors.Muted, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+@Composable
+private fun SettingsGroupLabel(title: String) {
+    Text(title, color = FuchsiaColors.Primary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, top = 3.dp))
 }
 
 @Composable
