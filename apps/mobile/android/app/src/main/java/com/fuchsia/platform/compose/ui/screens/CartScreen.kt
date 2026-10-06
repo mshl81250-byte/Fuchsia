@@ -65,6 +65,7 @@ fun CartScreen(
     onBack: () -> Unit,
     onCheckout: () -> Unit,
     onShop: () -> Unit,
+    bottomBar: @Composable () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
@@ -127,6 +128,7 @@ fun CartScreen(
                     }
                 }
             }
+            bottomBar()
         },
     ) { contentPadding ->
         LazyColumn(

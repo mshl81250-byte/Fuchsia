@@ -1,5 +1,6 @@
 package com.fuchsia.platform.compose.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,14 +18,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.AddShoppingCart
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LocalFlorist
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -32,18 +42,21 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +67,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,12 +95,12 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
-    val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
     val greetingName = remember {
         SessionVault.read(context)?.optJSONObject("user")?.optString("fullName")
             ?.takeIf { !it.isNullOrBlank() && it != "null" }
     }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     var categories by remember { mutableStateOf<List<StoreCategory>>(emptyList()) }
     var products by remember { mutableStateOf<List<StoreProduct>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -110,117 +124,95 @@ fun HomeScreen(
         loading = false
     }
 
-    Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { SnackbarHost(snackbar) }, bottomBar = bottomBar) { contentPadding ->
+    Scaffold(
+        containerColor = FuchsiaColors.Cream,
+        snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = bottomBar,
+    ) { contentPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = contentPadding.calculateTopPadding() + 8.dp, bottom = contentPadding.calculateBottomPadding() + 22.dp),
+            contentPadding = PaddingValues(
+                start = 18.dp,
+                end = 18.dp,
+                top = contentPadding.calculateTopPadding() + 8.dp,
+                bottom = contentPadding.calculateBottomPadding() + 22.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = if (greetingName == null) "مرحبًا بك في فوشيا" else "مرحبًا، $greetingName",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = FuchsiaColors.Ink,
-                        )
-                        Text("اختيارات أنيقة للمناسبات الجميلة", style = MaterialTheme.typography.bodyMedium, color = FuchsiaColors.Muted)
-                    }
-                    Card(
-                        onClick = onCart,
-                        modifier = Modifier.size(46.dp),
-                        shape = RoundedCornerShape(15.dp),
-                        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
-                    ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.ShoppingBag, contentDescription = "المتجر", tint = FuchsiaColors.Primary)
-                        }
-                    }
-                }
+                HomeHeader(
+                    name = greetingName,
+                    onCart = onCart,
+                )
             }
             item {
-                Box(modifier = Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(23.dp))) {
-                    Image(
-                        painter = painterResource(R.drawable.welcome_hero),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(
-                            Brush.horizontalGradient(listOf(Color(0xAA2D1020), Color.Transparent)),
-                        ),
-                    )
-                    Column(
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(horizontal = 17.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text("لكل لحظة جميلة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
-                        Text("هدية تُختار بعناية وتصل بمحبة", color = Color.White.copy(alpha = 0.94f), fontSize = 12.sp)
-                    }
-                }
+                OutlinedTextField(
+                    value = "",
+                    onValueChange = {},
+                    readOnly = true,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    placeholder = { Text("ابحث عن منتج، باقة أو مناسبة...", color = FuchsiaColors.Muted, fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = "بحث", tint = FuchsiaColors.Primary) },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = FuchsiaColors.White,
+                        focusedContainerColor = FuchsiaColors.White,
+                        unfocusedBorderColor = FuchsiaColors.Line,
+                        focusedBorderColor = FuchsiaColors.Primary,
+                    ),
+                )
             }
-            item {
-                SectionHeading("التسوق حسب المناسبة", "اختيارات تناسب مختلف الأذواق")
-            }
+            item { HeroOffer(onClick = onCategory.takeIf { categories.isNotEmpty() }?.let { { it(categories.first().id) } }) }
+            item { SectionHeading("تسوق حسب المناسبة", "عرض الكل") }
             if (categories.isNotEmpty()) {
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                        items(categories, key = { it.id }) { category ->
-                            CategoryChip(category = category, onClick = { onCategory(category.id) })
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(end = 2.dp)) {
+                        items(categories.take(6), key = { it.id }) { category ->
+                            CategoryTile(category = category, onClick = { onCategory(category.id) })
                         }
                     }
                 }
+            } else if (loading) {
+                item { Box(Modifier.fillMaxWidth().height(104.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             }
+            item { SectionHeading("خدمات سريعة", "") }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ServiceAction("حجز طاولة", "تحديد موعد المناسبة", Icons.Rounded.Restaurant, onReservation, Modifier.weight(1f))
-                    ServiceAction("طلب هدية", "إضافة لمسة شخصية", Icons.Rounded.CardGiftcard, onGiftOrder, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    QuickService("تواصل معنا", Icons.Rounded.Call, Modifier.weight(1f)) {}
+                    QuickService("حجز مناسبة", Icons.Rounded.CalendarMonth, Modifier.weight(1f), onReservation)
+                    QuickService("طلب هدية", Icons.Rounded.CardGiftcard, Modifier.weight(1f), onGiftOrder)
+                    QuickService("تتبع الطلب", Icons.AutoMirrored.Rounded.ReceiptLong, Modifier.weight(1f), onOrders)
                 }
             }
-            item {
-                ServiceAction("تتبع طلباتي", "متابعة الحالة مباشرة", Icons.AutoMirrored.Rounded.ReceiptLong, onOrders, Modifier.fillMaxWidth())
-            }
-            item {
-                SectionHeading("اختيارات مميزة", "الأكثر تميزًا")
-            }
+            item { OfferStrip(onClick = onCategory.takeIf { categories.isNotEmpty() }?.let { { it(categories.first().id) } }) }
+            item { SectionHeading("المنتجات المميزة", "الأكثر طلبًا") }
             if (loading && products.isEmpty()) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             } else if (products.isNotEmpty()) {
                 items(products.chunked(2)) { rowProducts ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowProducts.forEach { product ->
-                            ProductCard(
-                                product,
-                                Modifier.weight(1f),
-                                onAdd = {
-                                    val id = sessionId
-                                    if (id == null) {
-                                        scope.launch { snackbar.showSnackbar("يرجى تسجيل الدخول أو بدء التصفح دون حساب قبل إضافة المنتجات.") }
-                                    } else {
-                                        scope.launch {
-                                            try {
-                                                FuchsiaApi.addToCart(id, product.id)
-                                                snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة")
-                                            } catch (failure: Throwable) {
-                                                snackbar.showSnackbar(failure.message ?: "تعذر إضافة المنتج.")
-                                            }
-                                        }
+                            ProductCard(product, Modifier.weight(1f)) {
+                                val id = sessionId
+                                if (id == null) {
+                                    scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                } else {
+                                    scope.launch {
+                                        runCatching { FuchsiaApi.addToCart(id, product.id) }
+                                            .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
+                                            .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
                                     }
-                                },
-                            )
+                                }
+                            }
                         }
                         if (rowProducts.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             } else if (error.isNotBlank()) {
                 item {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                        Text(error, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(error, color = FuchsiaColors.Muted, textAlign = TextAlign.Center)
                         Button(onClick = { refreshKey++ }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                             Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
                             Spacer(Modifier.width(6.dp))
@@ -228,8 +220,68 @@ fun HomeScreen(
                         }
                     }
                 }
-            } else {
-                item { Text("لا توجد منتجات مميزة حاليًا.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHeader(name: String?, onCart: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا", modifier = Modifier.width(105.dp).height(42.dp), contentScale = ContentScale.Fit)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("أهلًا ${name ?: "بك"}", color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(14.dp))
+                    Text("صنعاء، اليمن", color = FuchsiaColors.Muted, fontSize = 10.sp)
+                }
+            }
+            HeaderIcon(Icons.Rounded.NotificationsNone, "الإشعارات") {}
+            HeaderIcon(Icons.Rounded.ShoppingBag, "السلة", onCart)
+        }
+    }
+}
+
+@Composable
+private fun HeaderIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(42.dp)) {
+        Box(Modifier.size(36.dp).background(FuchsiaColors.White, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = description, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
+        }
+    }
+}
+
+@Composable
+private fun HeroOffer(onClick: (() -> Unit)?) {
+    Box(Modifier.fillMaxWidth().height(188.dp).clip(RoundedCornerShape(24.dp))) {
+        Image(painterResource(R.drawable.welcome_hero), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color(0xE8001520), Color(0x551B1020), Color.Transparent))))
+        Column(Modifier.align(Alignment.CenterEnd).padding(horizontal = 20.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("عروض خاصة", color = Color.White, style = MaterialTheme.typography.labelLarge, modifier = Modifier.background(FuchsiaColors.Primary, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 5.dp))
+            Text("باقات الورد الفاخرة", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+            Text("لجميع مناسباتك السعيدة", color = Color.White.copy(alpha = .9f), fontSize = 12.sp)
+            Button(onClick = { onClick?.invoke() }, enabled = onClick != null, shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 2.dp)) {
+                Text("تسوق الآن", fontWeight = FontWeight.Bold)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfferStrip(onClick: (() -> Unit)?) {
+    Card(onClick = { onClick?.invoke() }, enabled = onClick != null, modifier = Modifier.fillMaxWidth().height(92.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
+        Box(Modifier.fillMaxSize()) {
+            Image(painterResource(R.drawable.welcome_hero), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = .28f)
+            Row(Modifier.fillMaxSize().padding(horizontal = 17.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("خصم يصل إلى 20%", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Text("على جميع باقات الورد", color = Color.White.copy(alpha = .9f), fontSize = 11.sp)
+                }
+                Button(onClick = { onClick?.invoke() }, enabled = onClick != null, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = FuchsiaColors.Primary), shape = RoundedCornerShape(17.dp), contentPadding = PaddingValues(horizontal = 13.dp, vertical = 1.dp)) {
+                    Text("تسوق الآن", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -237,110 +289,59 @@ fun HomeScreen(
 
 @Composable
 private fun SectionHeading(title: String, detail: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink)
-        Text(detail, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), color = FuchsiaColors.Primary)
+        if (detail.isNotBlank()) Text(detail, color = FuchsiaColors.Primary, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
     }
 }
 
 @Composable
-private fun CategoryChip(category: StoreCategory, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.width(132.dp).height(73.dp),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-        border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(36.dp).background(FuchsiaColors.RoseLight, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Category, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp))
+private fun CategoryTile(category: StoreCategory, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.width(112.dp), shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.fillMaxWidth().height(72.dp).background(FuchsiaColors.RoseLight)) {
+                if (!category.imageUrl.isNullOrBlank()) AsyncImage(category.imageUrl, contentDescription = category.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Icon(Icons.Rounded.LocalFlorist, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(28.dp))
             }
-            Text(category.name, color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(category.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(vertical = 9.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-private fun ServiceAction(
-    title: String,
-    subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.height(82.dp),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-        border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(39.dp).background(FuchsiaColors.RoseLight, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(20.dp))
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
-                Text(subtitle, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 10.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+private fun QuickService(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = modifier.height(88.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+        Column(Modifier.fillMaxSize().padding(7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+            Box(Modifier.size(37.dp).background(FuchsiaColors.RoseLight, CircleShape), contentAlignment = Alignment.Center) { Icon(icon, contentDescription = title, tint = FuchsiaColors.Primary, modifier = Modifier.size(20.dp)) }
+            Text(title, color = FuchsiaColors.Ink, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 @Composable
-internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onAdd: () -> Unit = {}) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(19.dp),
-        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-        border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-    ) {
+internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onAdd: () -> Unit) {
+    Card(modifier = modifier, shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().height(133.dp).background(FuchsiaColors.RoseLight)) {
-                if (!product.imageUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = product.imageUrl,
-                        contentDescription = product.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                    )
-                } else {
-                    Icon(
-                        Icons.Rounded.CardGiftcard,
-                        contentDescription = null,
-                        tint = FuchsiaColors.Primary.copy(alpha = 0.72f),
-                        modifier = Modifier.align(Alignment.Center).size(36.dp),
-                    )
-                }
+            Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight)) {
+                if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(35.dp))
+                Icon(Icons.Rounded.FavoriteBorder, contentDescription = "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.TopEnd).padding(9.dp).size(21.dp))
             }
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, minLines = 2)
-                Text(formatRiyal(product.price), color = FuchsiaColors.Primary, style = MaterialTheme.typography.labelLarge)
-                Button(
-                    onClick = onAdd,
-                    modifier = Modifier.fillMaxWidth().height(39.dp).padding(top = 2.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
-                ) {
-                    Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(5.dp))
-                    Text("إضافة إلى السلة", style = MaterialTheme.typography.labelLarge.copy(fontSize = 11.sp))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("★", color = FuchsiaColors.Gold, fontSize = 13.sp)
+                    Text("4.8", color = FuchsiaColors.Muted, fontSize = 10.sp)
+                }
+                Text(formatRiyal(product.price), color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                    Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("إضافة للسلة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
 
-internal fun formatRiyal(value: Double): String =
-    NumberFormat.getNumberInstance(Locale.forLanguageTag("ar-YE")).format(value) + " ر.ي"
+internal fun formatRiyal(value: Double): String = NumberFormat.getNumberInstance(Locale.forLanguageTag("ar-YE")).format(value) + " ر.ي"

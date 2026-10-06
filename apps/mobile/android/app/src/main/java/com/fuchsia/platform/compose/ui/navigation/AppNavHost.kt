@@ -46,6 +46,7 @@ import com.fuchsia.platform.compose.ui.screens.AccountScreen
 import com.fuchsia.platform.compose.ui.screens.AddressBookScreen
 import com.fuchsia.platform.compose.ui.screens.AuthScreen
 import com.fuchsia.platform.compose.ui.screens.CategoryScreen
+import com.fuchsia.platform.compose.ui.screens.CategoriesScreen
 import com.fuchsia.platform.compose.ui.screens.CartScreen
 import com.fuchsia.platform.compose.ui.screens.CheckoutScreen
 import com.fuchsia.platform.compose.ui.screens.ContactScreen
@@ -68,6 +69,7 @@ object AppRoutes {
     const val Auth = "auth?register={register}"
     const val Verify = "verify/{email}?debugCode={debugCode}"
     const val Home = "home"
+    const val Categories = "categories"
     const val Category = "category/{id}"
     const val Cart = "cart"
     const val Checkout = "checkout?gift={gift}"
@@ -226,6 +228,13 @@ fun FuchsiaAppNavHost(
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Home, ::selectTab) },
                 )
             }
+            composable(AppRoutes.Categories) {
+                CategoriesScreen(
+                    onCategory = { navController.navigate(AppRoutes.category(it)) },
+                    onBack = { selectTab(AppRoutes.Home) },
+                    bottomBar = { FuchsiaBottomBar(AppRoutes.Categories, ::selectTab) },
+                )
+            }
             composable(
                 route = AppRoutes.Category,
                 arguments = listOf(navArgument("id") { type = NavType.IntType }),
@@ -241,6 +250,7 @@ fun FuchsiaAppNavHost(
                     onBack = { navController.popBackStack() },
                     onCheckout = { navController.navigate(AppRoutes.checkout(gift = false)) },
                     onShop = { selectTab(AppRoutes.Home) },
+                    bottomBar = { FuchsiaBottomBar(AppRoutes.Cart, ::selectTab) },
                 )
             }
             composable(
