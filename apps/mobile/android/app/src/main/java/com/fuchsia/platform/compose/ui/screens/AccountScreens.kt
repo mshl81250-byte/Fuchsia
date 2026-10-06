@@ -117,6 +117,7 @@ fun AccountScreen(
 
     val name = profile?.optString("fullName").orEmpty().trim()
     val greeting = name.substringBefore(" ").ifBlank { "بك" }
+    val isGuest = token.isNullOrBlank() || profile?.optBoolean("isGuest", false) == true || profile?.optString("email").orEmpty().endsWith("@guest.fuchsia")
     val completed = orders.count { it.status.lowercase() in setOf("completed", "delivered", "مكتمل", "تم التسليم") }
     val cancelled = orders.count { it.status.lowercase() in setOf("cancelled", "canceled", "ملغي") }
     val current = orders.size - completed - cancelled
@@ -129,10 +130,10 @@ fun AccountScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                Text(if (token.isNullOrBlank()) "مرحباً بك في فوشيا 🌹" else "أهلاً بك، $greeting", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
-                Text("حسابك وطلباتك وعناوينك في مكان واحد", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
+                Text(if (isGuest) "أهلاً بك" else "أهلاً بك، $greeting", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                Text(if (isGuest) "تصفح أجمل الهدايا والمناسبات" else "حسابك وطلباتك وعناوينك في مكان واحد", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
             }
-            if (token.isNullOrBlank()) {
+            if (isGuest) {
                 item {
                     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp)) {
@@ -157,11 +158,11 @@ fun AccountScreen(
                         }
                     }
                 }
-                item {
+                if (orders.isNotEmpty() || favoritesCount > 0 || gifts > 0) item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AccountMetricCard("الطلبات", orders.size.toString(), Icons.AutoMirrored.Rounded.ReceiptLong, Modifier.weight(1f))
-                        AccountMetricCard("المفضلة", favoritesCount.toString(), Icons.Rounded.FavoriteBorder, Modifier.weight(1f))
-                        AccountMetricCard("الهدايا", gifts.toString(), Icons.Rounded.CardGiftcard, Modifier.weight(1f))
+                        if (orders.isNotEmpty()) AccountMetricCard("الطلبات", orders.size.toString(), Icons.AutoMirrored.Rounded.ReceiptLong, Modifier.weight(1f))
+                        if (favoritesCount > 0) AccountMetricCard("المفضلة", favoritesCount.toString(), Icons.Rounded.FavoriteBorder, Modifier.weight(1f))
+                        if (gifts > 0) AccountMetricCard("الهدايا", gifts.toString(), Icons.Rounded.CardGiftcard, Modifier.weight(1f))
                     }
                 }
                 item {
@@ -212,7 +213,7 @@ private fun AccountInfoLine(label: String, value: String) {
 private fun AccountMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
+            Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(29.dp))
             Text(value, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
             Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
         }
