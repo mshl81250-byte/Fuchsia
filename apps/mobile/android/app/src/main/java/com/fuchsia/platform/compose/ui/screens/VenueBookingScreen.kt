@@ -303,10 +303,41 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
     val offset = (first.get(Calendar.DAY_OF_WEEK) + 5) % 7
     val days = month.getActualMaximum(Calendar.DAY_OF_MONTH)
     val keyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("س", "ح", "ن", "ث", "ر", "خ", "ج").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, color = FuchsiaColors.Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold) } }
+    val todayKey = keyFormat.format(Calendar.getInstance().time)
+    val availableCount = (1..days).count { day ->
+        val date = (month.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
+        val key = keyFormat.format(date.time)
+        key !in booked && !date.before(Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) })
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Text("اختر يوم مناسبتك", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                Text("الأيام المتاحة للحجز تظهر بإطار واضح", color = FuchsiaColors.Muted, fontSize = 11.sp)
+            }
+            Surface(shape = RoundedCornerShape(12.dp), color = FuchsiaColors.RoseLight) { Text("$availableCount يوم متاح", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = FuchsiaColors.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        }
+        Row(Modifier.fillMaxWidth().background(FuchsiaColors.Cream, RoundedCornerShape(12.dp)).padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة").forEach { Text(it.take(2), Modifier.weight(1f), textAlign = TextAlign.Center, color = FuchsiaColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
         val cells = List(offset) { null } + (1..days).map { it }
-        cells.chunked(7).forEach { week -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { week.forEach { day -> Box(Modifier.weight(1f).height(38.dp), contentAlignment = Alignment.Center) { if (day == null) Unit else { val date = (month.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }; val key = keyFormat.format(date.time); val isBooked = key in booked; Surface(onClick = { if (!isBooked) onDate(key) }, modifier = Modifier.size(34.dp), shape = CircleShape, color = when { selected == key -> FuchsiaColors.Primary; isBooked -> FuchsiaColors.Muted.copy(alpha = .18f); else -> FuchsiaColors.RoseLight }, enabled = !isBooked) { Box(contentAlignment = Alignment.Center) { Text(day.toString(), color = if (selected == key) FuchsiaColors.White else if (isBooked) FuchsiaColors.Muted else FuchsiaColors.Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold) } } } } } } }
+        cells.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                week.forEach { day ->
+                    Box(Modifier.weight(1f).height(46.dp), contentAlignment = Alignment.Center) {
+                        if (day != null) {
+                            val date = (month.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
+                            val key = keyFormat.format(date.time)
+                            val isBooked = key in booked
+                            val isPast = date.before(Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) })
+                            val isSelected = selected == key
+                            Surface(onClick = { if (!isBooked && !isPast) onDate(key) }, modifier = Modifier.size(40.dp), shape = RoundedCornerShape(13.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked -> FuchsiaColors.Muted.copy(alpha = .16f); isPast -> FuchsiaColors.Cream; else -> FuchsiaColors.White }, border = when { isSelected -> null; isBooked -> BorderStroke(1.dp, FuchsiaColors.Muted.copy(alpha = .22f)); key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); else -> BorderStroke(1.dp, FuchsiaColors.Line) }, enabled = !isBooked && !isPast) {
+                                Box(contentAlignment = Alignment.Center) { Text(day.toString(), color = when { isSelected -> Color.White; isBooked || isPast -> FuchsiaColors.Muted.copy(alpha = .55f); else -> FuchsiaColors.Ink }, fontSize = 13.sp, fontWeight = if (isSelected || key == todayKey) FontWeight.ExtraBold else FontWeight.SemiBold) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "محدد"); LegendDot(FuchsiaColors.White, "متاح"); LegendDot(FuchsiaColors.Muted.copy(alpha = .25f), "محجوز") }
     }
 }
 
