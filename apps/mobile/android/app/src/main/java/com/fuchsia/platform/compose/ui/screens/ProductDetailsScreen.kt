@@ -72,7 +72,7 @@ import java.util.Calendar
 import java.util.Locale
 
 @Composable
-fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit) {
+fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit, onRentalCheckout: () -> Unit = {}) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val scope = rememberCoroutineScope()
@@ -130,7 +130,10 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                             rentalTimeSlot = rentalTimeSlot.takeIf { current.fulfillmentType == "rental" },
                                         )
                                     }
-                                        .onSuccess { notice.showSnackbar("تم تجهيز حجز الإيجار في السلة — أكمل العربون والضمان") }
+                                        .onSuccess {
+                                            if (current.fulfillmentType == "rental") onRentalCheckout()
+                                            else notice.showSnackbar("تمت إضافة المنتج إلى السلة بنجاح")
+                                        }
                                         .onFailure { notice.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
                                 }
                             },

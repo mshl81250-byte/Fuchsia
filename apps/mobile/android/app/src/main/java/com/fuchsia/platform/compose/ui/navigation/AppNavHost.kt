@@ -306,6 +306,7 @@ fun FuchsiaAppNavHost(
                     productId = entry.arguments?.getInt("id") ?: 0,
                     onBack = { navController.popBackStack() },
                     onCart = { navController.navigate(AppRoutes.Cart) },
+                    onRentalCheckout = { navController.navigate(AppRoutes.checkout(gift = false)) },
                 )
             }
             composable(AppRoutes.Cart) {

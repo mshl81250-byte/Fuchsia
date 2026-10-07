@@ -290,6 +290,9 @@ fun CheckoutScreen(
     }
 
     val outsideSanaa = latitude != null && longitude != null && !isSanaaLocation(latitude!!, longitude!!)
+    val isRentalCheckout = cart?.items?.any { it.fulfillmentType == "rental" } == true
+    val rentalNeedsDelivery = cart?.items?.any { it.fulfillmentType == "rental" && it.rentalFulfillment == "delivery" } == true
+    val needsDelivery = !isRentalCheckout || rentalNeedsDelivery
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
@@ -318,8 +321,8 @@ fun CheckoutScreen(
         ) {
             item {
                 CommerceHeader(
-                    title = if (isGift) "إتمام الإهداء" else "إتمام الطلب",
-                    subtitle = "خطوة آمنة لتأكيد الطلب مع فوشيا",
+                    title = when { isGift -> "إتمام الإهداء"; isRentalCheckout -> "متابعة حجز الإيجار"; else -> "إتمام الطلب" },
+                    subtitle = if (isRentalCheckout) "راجع الموعد والتوصيل والعربون والضمان قبل الإرسال" else "خطوة آمنة لتأكيد الطلب مع فوشيا",
                     onBack = onBack,
                 )
             }
@@ -330,7 +333,7 @@ fun CheckoutScreen(
                     CommerceSectionTitle("بيانات المستلم", "تُستخدم للتواصل والتوصيل")
                     CommerceField(fullName, { fullName = it }, "الاسم الكامل")
                     CommerceField(phone, { phone = it }, "رقم الهاتف", keyboardType = KeyboardType.Phone)
-                    if (!userToken.isNullOrBlank()) {
+                    if (needsDelivery && !userToken.isNullOrBlank()) {
                         TextButton(onClick = {
                             showAddressPicker = true
                             scope.launch {
@@ -352,10 +355,10 @@ fun CheckoutScreen(
                             Text(title, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                         }
                     }
-                    if (addressServiceError.isNotBlank()) CommerceNotice(addressServiceError, isError = true)
-                    CommerceField(address, { address = it }, "عنوان التوصيل بالتفصيل", minLines = 2, maxLines = 3, placeholder = "الحي، الشارع، أقرب معلم")
+                    if (needsDelivery && addressServiceError.isNotBlank()) CommerceNotice(addressServiceError, isError = true)
+                    if (needsDelivery) CommerceField(address, { address = it }, "عنوان التوصيل بالتفصيل", minLines = 2, maxLines = 3, placeholder = "الحي، الشارع، أقرب معلم")
                 }
-                item {
+                if (needsDelivery) item {
                     CommerceSectionTitle("موقع التوصيل", "داخل صنعاء")
                     Card(
                         shape = RoundedCornerShape(18.dp),
@@ -433,7 +436,7 @@ fun CheckoutScreen(
                 item {
                     CommerceSectionTitle("طريقة الدفع", "اختيار الطريقة المناسبة")
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
+                        if (!isRentalCheckout) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
                         PaymentChoice("نصف المبلغ", paymentType == "partial", Modifier.weight(1f)) { paymentType = "partial" }
                         PaymentChoice("كامل المبلغ", paymentType == "full", Modifier.weight(1f)) { paymentType = "full" }
                     }
