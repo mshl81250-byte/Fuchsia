@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.PaymentWallet
 import com.fuchsia.platform.compose.data.SessionVault
@@ -90,6 +92,13 @@ fun VenueBookingScreen(onBack: () -> Unit) {
     else VenueDetailScreen(venue = selectedVenue!!, onBack = { selectedVenue = null })
 }
 
+private fun venueErrorMessage(failure: Throwable, fallback: String): String =
+    if ((failure as? ApiException)?.statusCode == 404) {
+        "خدمة حجز القاعات غير متاحة حاليًا. يرجى المحاولة لاحقًا."
+    } else {
+        failure.message?.takeIf(String::isNotBlank) ?: fallback
+    }
+
 @Composable
 private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit) {
     var query by remember { mutableStateOf("") }
@@ -97,12 +106,13 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
     var venues by remember { mutableStateOf<List<VenueSummary>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
-    LaunchedEffect(query, audienceFilter) {
+    var refreshKey by remember { mutableIntStateOf(0) }
+    LaunchedEffect(query, audienceFilter, refreshKey) {
         delay(250)
         loading = true
         runCatching { FuchsiaApi.venues(query, audienceFilter) }
             .onSuccess { venues = it; error = "" }
-            .onFailure { error = it.message ?: "تعذر تحميل القاعات." }
+            .onFailure { error = venueErrorMessage(it, "تعذر تحميل القاعات.") }
         loading = false
     }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
@@ -146,9 +156,23 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
                     }
                 }
             }
-            item { CommerceSectionTitle("القاعات المتاحة", if (loading) "جارٍ البحث..." else "${venues.size} قاعة") }
+            item {
+                val resultLabel = when {
+                    loading -> "جارٍ البحث..."
+                    error.isNotBlank() && venues.isEmpty() -> "تعذر التحميل"
+                    else -> "${venues.size} قاعة"
+                }
+                CommerceSectionTitle("القاعات المتاحة", resultLabel)
+            }
             if (loading && venues.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(38.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
-            else if (error.isNotBlank() && venues.isEmpty()) item { CommerceNotice(error, isError = true) }
+            else if (error.isNotBlank() && venues.isEmpty()) item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CommerceNotice(error, isError = true)
+                    Button(onClick = { refreshKey++ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                        Text("إعادة المحاولة")
+                    }
+                }
+            }
             else if (venues.isEmpty()) item { CommerceEmptyState("لا توجد نتائج", "جرّب اسمًا أو منطقة أخرى.", "مسح البحث", { query = "" }) }
             else items(venues, key = { it.id }) { venue -> VenueCard(venue, onClick = { onVenue(venue) }) }
         }
@@ -227,7 +251,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
         loading = true
         runCatching { FuchsiaApi.venueAvailability(venue.id, monthKey, selectedAudience) }
             .onSuccess { availability = it; availabilityError = "" }
-            .onFailure { availability = null; availabilityError = it.message ?: "تعذر تحميل التوفر الفعلي." }
+            .onFailure { availability = null; availabilityError = venueErrorMessage(it, "تعذر تحميل التوفر الفعلي.") }
         loading = false
     }
     LaunchedEffect(selectedDate, selectedAudience, bookingDays, paymentType, selectedWalletId, transactionReference, receiptUrl, customerName, customerPhone) {
@@ -366,7 +390,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                         val bookingTotal = venue.priceFrom * bookingDays
                                         val venueAmount = if (paymentType == "full") bookingTotal else bookingTotal * 0.30
                                         FuchsiaApi.createVenueBooking(JSONObject().put("venueId", venue.id).put("audience", selectedAudience).put("idempotencyKey", idempotencyKey).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("bookingDays", bookingDays).put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
-                                    }.onSuccess { submitted = it }.onFailure { submitError = it.message ?: "تعذر إرسال طلب الحجز." }
+                                    }.onSuccess { submitted = it }.onFailure { submitError = venueErrorMessage(it, "تعذر إرسال طلب الحجز.") }
                                     submitting = false
                                 }
                             }, modifier = Modifier.fillMaxWidth().height(52.dp), enabled = !submitting, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
@@ -401,7 +425,7 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
                 Text("اختر يوم مناسبتك", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
                 Text("يعرض التقويم أيام الأسبوع والتوفر حسب مدة الحجز", color = FuchsiaColors.Muted, fontSize = 11.sp)
             }
-            Surface(shape = RoundedCornerShape(12.dp), color = FuchsiaColors.RoseLight) { Text("$availableCount يوم متاح", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = FuchsiaColors.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+            Surface(shape = RoundedCornerShape(12.dp), color = FuchsiaColors.RoseLight) { Text("$availableCount يوم متاح", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = FuchsiaColors.Ink, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         }
         Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(vertical = 9.dp), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("سبت", "أحد", "اثن", "ثلا", "أرب", "خمي", "جمع").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false) } }
         val rawCells = List(offset) { null } + (1..days).map { it }
@@ -419,12 +443,12 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
                             val rangeAvailable = isRangeAvailable(key, bookingDays, booked)
                             val isRangeDay = selected != null && key > selected && key <= addDaysToDateKey(selected, bookingDays - 1)
                             val statusLabel = when { isSelected -> "البداية"; isBooked -> "محجوز"; isPast -> "مكتمل"; !rangeAvailable -> "تعارض"; isRangeDay -> "ضمن الحجز"; else -> "متاح" }
-                            val statusColor = when { isSelected -> Color.White; isBooked || !rangeAvailable -> FuchsiaColors.Error; isPast -> FuchsiaColors.Muted; isRangeDay -> FuchsiaColors.Primary; else -> FuchsiaColors.Success }
+                            val statusColor = Color.White
                             Surface(onClick = { if (rangeAvailable) onDate(key) }, modifier = Modifier.fillMaxWidth().height(70.dp), shape = RoundedCornerShape(13.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked || !rangeAvailable -> MaterialTheme.colorScheme.error.copy(alpha = .10f); isRangeDay -> FuchsiaColors.Primary.copy(alpha = .12f); isPast -> MaterialTheme.colorScheme.surface; else -> MaterialTheme.colorScheme.surfaceVariant }, border = when { isSelected -> null; key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); isBooked || !rangeAvailable -> BorderStroke(1.dp, FuchsiaColors.Error.copy(alpha = .55f)); isRangeDay -> BorderStroke(1.dp, FuchsiaColors.Primary.copy(alpha = .55f)); isPast -> BorderStroke(1.dp, FuchsiaColors.Line); else -> BorderStroke(1.dp, FuchsiaColors.Success.copy(alpha = .65f)) }, enabled = rangeAvailable) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                     Text(day.toString(), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                                     if (isPast) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = statusColor, modifier = Modifier.size(13.dp))
-                                    if (key == todayKey) Text("اليوم", color = if (isSelected) Color.White else FuchsiaColors.Gold, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                                    if (key == todayKey) Text("اليوم", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                                     Text(statusLabel, color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                 }
                             }

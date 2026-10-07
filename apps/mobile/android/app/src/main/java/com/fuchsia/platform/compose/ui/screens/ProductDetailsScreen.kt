@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
+import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.RentalBookingDraft
 import com.fuchsia.platform.compose.data.SessionVault
@@ -126,7 +127,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
             }
             .onFailure {
                 checkedAvailabilityKey = null
-                availabilityError = it.message ?: "تعذر التحقق من توفر الكمية لهذه المدة."
+                availabilityError = rentalAvailabilityError(it)
             }
         availabilityLoading = false
     }
@@ -291,6 +292,13 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
         }
     }
 }
+
+private fun rentalAvailabilityError(failure: Throwable): String =
+    if ((failure as? ApiException)?.statusCode == 404) {
+        "خدمة التحقق من توفر الإيجار غير متاحة حاليًا. لم يُضف المنتج إلى السلة؛ يرجى المحاولة لاحقًا."
+    } else {
+        failure.message ?: "تعذر التحقق من توفر الكمية لهذه المدة."
+    }
 
 @Composable
 private fun RentalSelection(

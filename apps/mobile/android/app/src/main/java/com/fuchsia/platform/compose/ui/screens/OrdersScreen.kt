@@ -315,7 +315,7 @@ private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriv
                     Text("تحديث الطلب #${tracking.orderId}", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                     Text("آخر تحديث ${formatTime(updatedAt)}", color = FuchsiaColors.Muted, fontSize = 11.sp)
                 }
-                Text(orderStatusLabels[tracking.status] ?: tracking.status, color = if (tracking.status == "cancelled") Color(0xFFB4234A) else FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text(orderStatusLabels[tracking.status] ?: tracking.status, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
             Row(Modifier.fillMaxWidth().background(FuchsiaColors.Cream, RoundedCornerShape(14.dp)).padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -347,12 +347,12 @@ private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriv
                         Text("المدة: ${rental.days} ${if (rental.days == 1) "يوم" else "أيام"} · من ${formatShortDate(rental.startDate)} إلى ${formatShortDate(rental.returnDate)}", color = FuchsiaColors.Ink, fontSize = 12.sp)
                         Text("التأمين المسترد: ${formatMoney(rental.deposit)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         if (rental.depositStatus != "pending") {
-                            Text("المبلغ المعاد: ${formatMoney(rental.refundedAmount)}", color = Color(0xFF20835B), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            if (rental.damageDeduction > 0) Text("خصم تلف: ${formatMoney(rental.damageDeduction)}", color = Color(0xFF9E2D45), fontSize = 11.sp)
-                            if (rental.lateFee > 0) Text("خصم تأخير: ${formatMoney(rental.lateFee)}", color = Color(0xFF9E2D45), fontSize = 11.sp)
+                            Text("المبلغ المعاد: ${formatMoney(rental.refundedAmount)}", color = FuchsiaColors.Success, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            if (rental.damageDeduction > 0) Text("خصم تلف: ${formatMoney(rental.damageDeduction)}", color = FuchsiaColors.Error, fontSize = 11.sp)
+                            if (rental.lateFee > 0) Text("خصم تأخير: ${formatMoney(rental.lateFee)}", color = FuchsiaColors.Error, fontSize = 11.sp)
                             rental.depositReason?.takeIf { it.isNotBlank() }?.let { Text("سبب التسوية: $it", color = FuchsiaColors.Muted, fontSize = 11.sp) }
                         }
-                        Text(reminderText, color = if (rental.reminder == "overdue") Color(0xFF9E2D45) else FuchsiaColors.Muted, fontSize = 11.sp)
+                        Text(reminderText, color = if (rental.reminder == "overdue") FuchsiaColors.Error else FuchsiaColors.Muted, fontSize = 11.sp)
                     }
                 }
             }
@@ -373,7 +373,7 @@ private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriv
                             Column(Modifier.weight(1f).padding(bottom = 12.dp)) {
                                 Text(orderStatusLabels[event.status] ?: event.message, color = FuchsiaColors.Ink, fontWeight = if (index == history.lastIndex) FontWeight.Bold else FontWeight.Medium, fontSize = 12.sp)
                                 Text(event.message, color = FuchsiaColors.Muted, fontSize = 11.sp)
-                                Text(formatDate(event.createdAt), color = Color(0xFF9A8791), fontSize = 10.sp)
+                                Text(formatDate(event.createdAt), color = FuchsiaColors.Muted, fontSize = 10.sp)
                             }
                         }
                     }

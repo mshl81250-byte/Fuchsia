@@ -85,6 +85,8 @@ fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit, onPr
             loading = false
         }
     }
+    val isRentalCollection = isRentalCategoryName(category?.name.orEmpty()) ||
+        (products.isNotEmpty() && products.all { it.fulfillmentType == "rental" })
 
     Scaffold(containerColor = FuchsiaColors.Cream, snackbarHost = { FuchsiaNoticeHost(snackbar) }) { contentPadding ->
         LazyColumn(
@@ -99,7 +101,9 @@ fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit, onPr
                         Text(category?.name ?: "المجموعة", style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink)
                         Text("اختيارات منتقاة بعناية", style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), color = FuchsiaColors.Muted)
                     }
-                    IconButton(onClick = onCart, modifier = Modifier.size(44.dp)) { Icon(Icons.Rounded.ShoppingBag, contentDescription = "سلة المشتريات", tint = FuchsiaColors.Primary) }
+                    if (!isRentalCollection) {
+                        IconButton(onClick = onCart, modifier = Modifier.size(44.dp)) { Icon(Icons.Rounded.ShoppingBag, contentDescription = "سلة المشتريات", tint = FuchsiaColors.Primary) }
+                    }
                 }
             }
             if (loading && products.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(vertical = 45.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
@@ -210,4 +214,10 @@ private fun CategoryProductRow(product: StoreProduct, onOpen: () -> Unit, onAdd:
             }
         }
     }
+}
+
+private fun isRentalCategoryName(name: String): Boolean {
+    val normalized = name.lowercase()
+    return listOf("كوش", "طاول", "إيجار", "استئجار", "kosh", "koush", "table", "rental")
+        .any { normalized.contains(it) }
 }

@@ -10,6 +10,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.UUID
 
 data class AuthSession(val user: JSONObject, val token: String)
@@ -637,11 +638,37 @@ object FuchsiaApi {
         val discountedPrice = optDouble("discountPrice").takeIf { it > 0 }
         val basePrice = optDouble("price", 0.0)
         val productName = optString("nameAr").ifBlank { optString("name") }
-        val fulfillmentType = optString("fulfillmentType").ifBlank { "sale" }
+        val productDescription = optString("descriptionAr").ifBlank { optString("description") }
+        val productTags = optStringArray("tags")
+        val nestedCategoryName = optJSONObject("category")?.optString("nameAr").orEmpty()
+        val classificationText = (
+            listOf(
+                productName,
+                productDescription,
+                optString("categoryName"),
+                optString("categoryNameAr"),
+                optString("categoryAr"),
+                optString("category"),
+                nestedCategoryName,
+            ) + productTags
+        ).joinToString(" ").lowercase(Locale.ROOT)
+        val declaredRentalCategory = optString("rentalCategory").trim().lowercase(Locale.ROOT)
+        val rentalCategory = when {
+            declaredRentalCategory == "kosh" -> "kosh"
+            declaredRentalCategory == "table" -> "table"
+            classificationText.contains("كوش") ||
+                classificationText.contains("kosh") ||
+                classificationText.contains("koush") -> "kosh"
+            classificationText.contains("طاول") || classificationText.contains("table") -> "table"
+            else -> "other"
+        }
+        val fulfillmentType = if (
+            optString("fulfillmentType").equals("rental", ignoreCase = true) || rentalCategory != "other"
+        ) "rental" else "sale"
         return StoreProduct(
             id = optInt("id"),
             name = productName,
-            description = optString("descriptionAr").ifBlank { optString("description") },
+            description = productDescription,
             price = discountedPrice ?: basePrice,
             imageUrl = image,
             categoryId = optInt("categoryId"),
@@ -651,13 +678,13 @@ object FuchsiaApi {
             originalPrice = discountedPrice?.let { basePrice.takeIf { value -> value > it } },
             inStock = optBoolean("inStock", true),
             deliveryDays = if (isNull("deliveryDays")) null else optInt("deliveryDays"),
-            tags = optStringArray("tags"),
+            tags = productTags,
             fulfillmentType = fulfillmentType,
-            rentalDailyPrice = nullableDouble("rentalDailyPrice"),
+            rentalDailyPrice = nullableDouble("rentalDailyPrice") ?: basePrice.takeIf { fulfillmentType == "rental" },
             rentalDeposit = optDouble("rentalDeposit", 0.0),
             rentalMinDays = optInt("rentalMinDays", 1),
             rentalMaxDays = optInt("rentalMaxDays", 3),
-            rentalCategory = optString("rentalCategory").ifBlank { "other" },
+            rentalCategory = rentalCategory,
             eventAudience = optString("eventAudience").ifBlank { "both" },
             tableHeightCm = if (isNull("tableHeightCm")) null else optDouble("tableHeightCm"),
             availableColors = optStringArray("availableColors"),

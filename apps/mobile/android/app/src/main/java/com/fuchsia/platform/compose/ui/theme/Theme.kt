@@ -58,14 +58,14 @@ private val DarkPalette = FuchsiaPalette(
     roseLight = Color(0xFF2A2220),
     cream = Color(0xFF171314),
     ink = Color(0xFFFFFFFF),
-    muted = Color(0xFFD0C8CE),
+    muted = Color(0xFFFFFFFF),
     line = Color(0xFF4B3437),
-    gold = Color(0xFFC45A6C),
+    gold = Color(0xFFFFFFFF),
     surface = Color(0xFF1E1E1E),
     textAccent = Color(0xFFFFFFFF),
     iconAccent = Color(0xFFFFFFFF),
-    success = Color(0xFF71C297),
-    error = Color(0xFFF28B82),
+    success = Color(0xFFFFFFFF),
+    error = Color(0xFFFFFFFF),
 )
 
 private val LocalFuchsiaPalette = staticCompositionLocalOf { LightPalette }
@@ -125,7 +125,7 @@ fun FuchsiaTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
             primary = palette.primary,
             onPrimary = Color.White,
             secondary = palette.gold,
-            onSecondary = Color(0xFF2B1D0D),
+            onSecondary = Color.White,
             background = palette.cream,
             onBackground = palette.ink,
             surface = palette.surface,
