@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -91,13 +93,14 @@ fun VenueBookingScreen(onBack: () -> Unit) {
 @Composable
 private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit) {
     var query by remember { mutableStateOf("") }
+    var audienceFilter by remember { mutableStateOf<String?>(null) }
     var venues by remember { mutableStateOf<List<VenueSummary>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
-    LaunchedEffect(query) {
+    LaunchedEffect(query, audienceFilter) {
         delay(250)
         loading = true
-        runCatching { FuchsiaApi.venues(query) }
+        runCatching { FuchsiaApi.venues(query, audienceFilter) }
             .onSuccess { venues = it; error = "" }
             .onFailure { error = it.message ?: "تعذر تحميل القاعات." }
         loading = false
@@ -120,6 +123,17 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
                     shape = RoundedCornerShape(17.dp),
                     colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = FuchsiaColors.White, focusedContainerColor = FuchsiaColors.White, unfocusedBorderColor = FuchsiaColors.Line, focusedBorderColor = FuchsiaColors.Primary),
                 )
+            }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(null to "الكل", "women" to "نسائية", "men" to "رجالية").forEach { (value, label) ->
+                        FilterChip(
+                            selected = audienceFilter == value,
+                            onClick = { audienceFilter = value },
+                            label = { Text(label) },
+                        )
+                    }
+                }
             }
             item {
                 Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
@@ -148,7 +162,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
             Box(Modifier.fillMaxWidth().height(170.dp).background(FuchsiaColors.RoseLight)) {
                 if (!venue.imageUrl.isNullOrBlank()) AsyncImage(venue.imageUrl, contentDescription = venue.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.EventAvailable, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(52.dp))
-                Surface(Modifier.align(Alignment.TopEnd).padding(12.dp), shape = RoundedCornerShape(10.dp), color = FuchsiaColors.White.copy(alpha = .94f)) { Text("متاحة للحجز", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = FuchsiaColors.TextAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                Surface(Modifier.align(Alignment.TopEnd).padding(12.dp), shape = RoundedCornerShape(10.dp), color = FuchsiaColors.White.copy(alpha = .94f)) { Text(audienceLabel(venue.audience), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = FuchsiaColors.TextAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             }
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(venue.name, color = FuchsiaColors.Ink, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -157,7 +171,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
                     Text(venue.address, color = FuchsiaColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) { Text("★ ${venue.rating}", color = FuchsiaColors.Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("· ${venue.capacity} شخص", color = FuchsiaColors.Muted, fontSize = 12.sp) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (venue.rating > 0) "★ ${venue.rating}" else "جديدة", color = FuchsiaColors.Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("· ${venue.capacity} شخص", color = FuchsiaColors.Muted, fontSize = 12.sp) }
                     Text("من ${formatYemeniRiyal(venue.priceFrom)}", color = FuchsiaColors.TextAccent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
@@ -172,13 +186,15 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     val bearerToken = remember(context) { SessionVault.token(context) }
     val user = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
     val month = remember { mutableStateOf(Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1) }) }
+    var selectedAudience by remember(venue.id) { mutableStateOf(if (venue.audience == "both") "" else venue.audience) }
     var availability by remember { mutableStateOf<VenueAvailability?>(null) }
+    var availabilityError by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf<String?>(null) }
     var showRules by remember { mutableStateOf(false) }
     var customerName by remember { mutableStateOf(user?.optString("fullName").orEmpty()) }
     var customerPhone by remember { mutableStateOf(user?.optString("phone").orEmpty()) }
-    var partySize by remember { mutableStateOf("100") }
+    var partySize by remember { mutableStateOf("1") }
     var bookingDays by remember { mutableStateOf(1) }
     var submitting by remember { mutableStateOf(false) }
     var submitted by remember { mutableStateOf<TableReservation?>(null) }
@@ -188,6 +204,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     var selectedWalletId by remember { mutableStateOf<Int?>(null) }
     var transactionReference by remember { mutableStateOf("") }
     var receiptUrl by remember { mutableStateOf("") }
+    var idempotencyKey by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
     var uploading by remember { mutableStateOf(false) }
     val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
@@ -199,15 +216,27 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
         }
     }
     val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(month.value.time)
-    LaunchedEffect(venue.id, monthKey) {
+    LaunchedEffect(venue.id, monthKey, selectedAudience) {
+        selectedDate = null
+        if (selectedAudience.isBlank()) {
+            availability = null
+            availabilityError = ""
+            loading = false
+            return@LaunchedEffect
+        }
         loading = true
-        availability = runCatching { FuchsiaApi.venueAvailability(venue.id, monthKey) }.getOrNull()
+        runCatching { FuchsiaApi.venueAvailability(venue.id, monthKey, selectedAudience) }
+            .onSuccess { availability = it; availabilityError = "" }
+            .onFailure { availability = null; availabilityError = it.message ?: "تعذر تحميل التوفر الفعلي." }
         loading = false
     }
+    LaunchedEffect(selectedDate, selectedAudience, bookingDays, paymentType, selectedWalletId, transactionReference, receiptUrl, customerName, customerPhone) {
+        idempotencyKey = java.util.UUID.randomUUID().toString()
+    }
     LaunchedEffect(Unit) { wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList()) }
-    LaunchedEffect(bookingDays, selectedDate, availability?.booked, monthKey) {
+    LaunchedEffect(bookingDays, selectedDate, availability?.booked, availability?.closed, monthKey) {
         val date = selectedDate ?: return@LaunchedEffect
-        val booked = availability?.booked ?: return@LaunchedEffect
+        val booked = availability?.let { it.booked + it.closed } ?: return@LaunchedEffect
         if (!isRangeAvailable(date, bookingDays, booked)) selectedDate = null
     }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
@@ -222,13 +251,34 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                     Column {
                         Box(Modifier.fillMaxWidth().height(205.dp).background(FuchsiaColors.RoseLight)) { if (!venue.imageUrl.isNullOrBlank()) AsyncImage(venue.imageUrl, contentDescription = venue.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) else Icon(Icons.Rounded.EventAvailable, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(60.dp)) }
+                        val gallery = (listOfNotNull(venue.imageUrl) + venue.images).distinct()
+                        if (gallery.size > 1) LazyRow(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 14.dp)) {
+                            items(gallery) { image -> AsyncImage(image, contentDescription = "صورة ${venue.name}", modifier = Modifier.size(width = 112.dp, height = 76.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop) }
+                        }
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Text(venue.name, color = FuchsiaColors.Ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                             Text(venue.description, color = FuchsiaColors.Muted, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             Text("سعر حجز اليوم: ${formatYemeniRiyal(venue.priceFrom)}", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)); Text(venue.address, color = FuchsiaColors.Ink, fontSize = 12.sp) }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { InfoPill("${venue.capacity} شخص", Icons.Rounded.PeopleAlt); InfoPill("★ ${venue.rating}", Icons.Rounded.EventAvailable) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { InfoPill("${venue.capacity} شخص", Icons.Rounded.PeopleAlt); InfoPill(if (venue.rating > 0) "★ ${venue.rating}" else "جديدة", Icons.Rounded.EventAvailable) }
                         }
+                    }
+                }
+            }
+            item {
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("القسم المطلوب", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                        if (venue.audience == "both") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("women" to "قسم النساء", "men" to "قسم الرجال").forEach { (value, label) ->
+                                    FilterChip(selected = selectedAudience == value, onClick = { selectedAudience = value }, label = { Text(label) })
+                                }
+                            }
+                        } else {
+                            Text("هذه القاعة مخصصة لـ ${audienceLabel(venue.audience)} حسب إعدادات المالك.", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                        }
+                        Text("يُفحص التقويم والحجز لهذا القسم وحده.", color = FuchsiaColors.Muted, fontSize = 11.sp)
                     }
                 }
             }
@@ -240,9 +290,13 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                             Text(SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("ar-YE")).format(month.value.time), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold)
                             IconButton(onClick = { month.value = (month.value.clone() as Calendar).apply { add(Calendar.MONTH, 1) }; selectedDate = null }) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "الشهر التالي", tint = FuchsiaColors.Primary) }
                         }
-                        if (loading) Box(Modifier.fillMaxWidth().height(190.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) }
-                        else AvailabilityCalendar(month.value, availability?.booked.orEmpty(), selectedDate, bookingDays, onDate = { selectedDate = it })
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "متاح"); LegendDot(FuchsiaColors.Muted.copy(alpha = .35f), "محجوز") }
+                        if (selectedAudience.isBlank()) {
+                            Text("اختر قسم النساء أو الرجال لعرض تقويم التوفر الخاص به.", color = FuchsiaColors.Muted, modifier = Modifier.padding(vertical = 18.dp))
+                        } else if (loading) Box(Modifier.fillMaxWidth().height(190.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) }
+                        else if (availability == null) {
+                            Text(availabilityError.ifBlank { "تعذر التحقق من التوفر؛ لن نعرض أيامًا متاحة دون تأكيد الخادم." }, color = FuchsiaColors.Error, modifier = Modifier.padding(vertical = 18.dp))
+                        } else AvailabilityCalendar(month.value, availability!!.booked + availability!!.closed, selectedDate, bookingDays, onDate = { selectedDate = it })
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "متاح حسب جدول القاعة"); LegendDot(FuchsiaColors.Muted.copy(alpha = .35f), "محجوز/مغلق") }
                     }
                 }
             }
@@ -265,7 +319,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("إرسال طلب حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
-                            Text("سيبقى الطلب بانتظار مراجعة القاعة، وستظهر النتيجة في سجل الحجوزات.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                            Text("يُحتجز الموعد مؤقتًا 30 دقيقة أثناء مراجعة الطلب، وتظهر النتيجة في سجل الحجوزات.", color = FuchsiaColors.Muted, fontSize = 12.sp)
                             OutlinedTextField(value = customerName, onValueChange = { customerName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("اسم العميل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
                             OutlinedTextField(value = customerPhone, onValueChange = { customerPhone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم الهاتف") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
                             OutlinedTextField(value = partySize, onValueChange = { partySize = it.filter(Char::isDigit).take(4) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عدد الضيوف المتوقع") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
@@ -311,7 +365,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                     runCatching {
                                         val bookingTotal = venue.priceFrom * bookingDays
                                         val venueAmount = if (paymentType == "full") bookingTotal else bookingTotal * 0.30
-                                        FuchsiaApi.createReservation(JSONObject().put("storeId", venue.id).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("bookingDays", bookingDays).put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("occasion", "حجز قاعة أعراس").put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
+                                        FuchsiaApi.createVenueBooking(JSONObject().put("venueId", venue.id).put("audience", selectedAudience).put("idempotencyKey", idempotencyKey).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("bookingDays", bookingDays).put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
                                     }.onSuccess { submitted = it }.onFailure { submitError = it.message ?: "تعذر إرسال طلب الحجز." }
                                     submitting = false
                                 }
@@ -381,6 +435,12 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "محدد"); LegendDot(FuchsiaColors.White, "متاح"); LegendDot(FuchsiaColors.Muted.copy(alpha = .25f), "محجوز") }
     }
+}
+
+private fun audienceLabel(value: String): String = when (value) {
+    "women" -> "نسائية"
+    "men" -> "رجالية"
+    else -> "للنساء والرجال"
 }
 
 private fun isRangeAvailable(startDateKey: String, bookingDays: Int, booked: Set<String>): Boolean {

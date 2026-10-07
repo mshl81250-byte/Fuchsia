@@ -195,11 +195,12 @@ private fun CategoryProductRow(product: StoreProduct, onOpen: () -> Unit, onAdd:
             Box(Modifier.size(94.dp).clip(RoundedCornerShape(14.dp)).background(FuchsiaColors.RoseLight), contentAlignment = Alignment.Center) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(31.dp))
-                if (product.fulfillmentType == "rental") RentalTypeBadge(product.name, Modifier.align(Alignment.BottomCenter).padding(4.dp), compact = true)
+                if (product.fulfillmentType == "rental") RentalTypeBadge(product.name, Modifier.align(Alignment.BottomCenter).padding(4.dp), compact = true, rentalCategory = product.rentalCategory)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (product.description.isNotBlank()) Text(product.description, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (product.fulfillmentType == "rental") RentalAudienceBadge(product.eventAudience, compact = true)
                 Text(if (product.fulfillmentType == "rental") "${formatRiyal(product.rentalDailyPrice ?: product.price)} لليوم" else formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                 if (product.fulfillmentType == "rental") Text("اختر التاريخ والمدة وطريقة الاستلام", color = FuchsiaColors.Muted, fontSize = 11.sp)
                 Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Icon(if (product.fulfillmentType == "rental") Icons.Rounded.EventAvailable else Icons.Rounded.CardGiftcard, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text(if (product.fulfillmentType == "rental") "احجز الإيجار" else "إضافة إلى السلة", style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp)) }

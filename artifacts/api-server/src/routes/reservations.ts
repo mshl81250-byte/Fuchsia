@@ -67,8 +67,8 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(400).json({ error: "يجب اختيار موعد بعد 30 دقيقة وخلال الأشهر الستة القادمة" });
       return;
     }
-    if (isVenueBooking && (!Number.isFinite(paymentAmount) || paymentAmount <= 1000 || paymentWalletId == null || !Number.isInteger(paymentWalletId) || paymentWalletId < 1 || !transactionReference || !paymentReceiptUrl)) {
-      res.status(400).json({ error: "اختر المحفظة وأدخل رقم العملية وارفع إيصال التحويل" });
+    if (isVenueBooking) {
+      res.status(410).json({ error: "حجز القاعات انتقل إلى مسار البيانات والحجز الحقيقي" });
       return;
     }
 
@@ -77,7 +77,6 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(404).json({ error: "الفرع المختار غير موجود" });
       return;
     }
-
     const [insertResult] = await db.insert(tableReservationsTable).values({
       sessionId: String(userId),
       userId,

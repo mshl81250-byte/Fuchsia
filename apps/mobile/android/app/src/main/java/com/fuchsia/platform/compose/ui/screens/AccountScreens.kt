@@ -84,6 +84,7 @@ fun AccountScreen(
     onAddresses: () -> Unit,
     onOrders: () -> Unit,
     onWishlist: () -> Unit,
+    onVenuePartner: () -> Unit,
     onSettings: () -> Unit,
     onContact: () -> Unit,
     onSignedOut: () -> Unit,
@@ -184,6 +185,7 @@ fun AccountScreen(
                 }
                 item { AccountAction(Icons.Rounded.LocationOn, "عناوين التوصيل", "إضافة وتعديل العناوين مع الخريطة", onAddresses) }
                 item { AccountAction(Icons.Rounded.FavoriteBorder, "المنتجات المفضلة", "$favoritesCount منتجات محفوظة", onWishlist) }
+                item { AccountAction(Icons.Rounded.Star, "مساحة الشريك", "إدارة القاعات وجدول الإتاحة وإرسال طلب الاعتماد", onVenuePartner) }
                 item { AccountAction(Icons.Rounded.Settings, "الإعدادات والمظهر", "الإشعارات والوضع الفاتح أو الداكن واللغة", onSettings) }
                 item { AccountAction(Icons.Rounded.Person, "الدعم والتواصل", "تواصل معنا أو اطّلع على الأسئلة الشائعة", onContact) }
                 if (loading) item { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }

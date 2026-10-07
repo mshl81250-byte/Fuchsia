@@ -149,18 +149,15 @@ internal fun CommerceMoneyRow(label: String, amount: Double, bold: Boolean = fal
 }
 
 @Composable
-internal fun RentalTypeBadge(name: String, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val normalized = name.lowercase(Locale.forLanguageTag("ar-YE"))
-    val label = when {
-        compact && "كوش" in normalized -> "إيجار كوش"
-        compact && "طاول" in normalized -> "إيجار طاولات"
-        "كوش" in normalized -> "كوشة أعراس · إيجار"
-        "طاول" in normalized -> "طاولات مناسبات · إيجار"
-        else -> "إيجار مناسبات"
+internal fun RentalTypeBadge(name: String, modifier: Modifier = Modifier, compact: Boolean = false, rentalCategory: String? = null) {
+    val label = when (rentalCategory) {
+        "kosh" -> if (compact) "إيجار كوش" else "كوشة أعراس · إيجار"
+        "table" -> if (compact) "إيجار طاولات" else "طاولات مناسبات · إيجار"
+        else -> if (compact) "إيجار" else "إيجار مناسبات"
     }
-    val icon = when {
-        "كوش" in normalized -> Icons.Rounded.Weekend
-        "طاول" in normalized -> Icons.Rounded.TableRestaurant
+    val icon = when (rentalCategory) {
+        "kosh" -> Icons.Rounded.Weekend
+        "table" -> Icons.Rounded.TableRestaurant
         else -> Icons.Rounded.EventAvailable
     }
     Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = FuchsiaColors.Gold.copy(alpha = .16f)) {
@@ -172,6 +169,18 @@ internal fun RentalTypeBadge(name: String, modifier: Modifier = Modifier, compac
             Icon(icon, contentDescription = label, tint = FuchsiaColors.Gold, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
             Text(label, color = FuchsiaColors.Ink, fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
+    }
+}
+
+@Composable
+internal fun RentalAudienceBadge(audience: String, compact: Boolean = false) {
+    val label = when (audience) {
+        "women" -> if (compact) "نسائي" else "مناسب للنساء"
+        "men" -> if (compact) "رجالي" else "مناسب للرجال"
+        else -> if (compact) "للنساء والرجال" else "مناسب للنساء والرجال"
+    }
+    Surface(shape = RoundedCornerShape(10.dp), color = FuchsiaColors.RoseLight) {
+        Text(label, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = FuchsiaColors.TextAccent, fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 

@@ -40,6 +40,11 @@ data class StoreProduct(
     val rentalDeposit: Double = 0.0,
     val rentalMinDays: Int = 1,
     val rentalMaxDays: Int = 3,
+    val rentalCategory: String = "other",
+    val eventAudience: String = "both",
+    val tableHeightCm: Double? = null,
+    val availableColors: List<String> = emptyList(),
+    val stockQuantity: Int? = null,
 )
 
 data class CartLine(
@@ -92,12 +97,14 @@ data class VenueSummary(
     val name: String,
     val description: String,
     val imageUrl: String?,
+    val images: List<String> = emptyList(),
     val address: String,
     val city: String,
     val capacity: Int,
     val priceFrom: Double,
     val rating: Double,
     val reviewCount: Int,
+    val audience: String,
     val amenities: List<String>,
     val rules: String,
 )
@@ -106,11 +113,13 @@ data class VenueAvailability(
     val venueId: Int,
     val month: String,
     val booked: Set<String>,
+    val closed: Set<String> = emptySet(),
 )
 
 data class TableReservation(
     val id: Int,
     val storeId: Int,
+    val venueId: Int = 0,
     val reservationAt: String,
     val bookingDays: Int = 1,
     val partySize: Int,
@@ -356,45 +365,52 @@ object FuchsiaApi {
         }
     }
 
-    private val demoVenues = listOf(
-        VenueSummary(1, "قاعة اللؤلؤة الملكية", "قاعة فاخرة للأعراس مع ديكور ملكي وإضاءة احترافية.", "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=900&h=500&fit=crop", "شارع الستين، صنعاء", "صنعاء", 450, 350000.0, 4.9, 128, listOf("مواقف واسعة", "تكييف مركزي", "منصة عروس", "ضيافة"), "يثبت الموعد بعد مراجعة الدفع. الإلغاء قبل 72 ساعة."),
-        VenueSummary(2, "صالة روز جاردن", "أجواء هادئة وحديقة جميلة للمناسبات العائلية وحفلات الزفاف.", "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=900&h=500&fit=crop", "حي حدة، صنعاء", "صنعاء", 300, 275000.0, 4.8, 96, listOf("حديقة خارجية", "تصوير", "مواقف", "كوشة"), "يجب تأكيد الحجز بعد مراجعة الإيصال."),
-        VenueSummary(3, "قاعة الفخامة", "قاعة واسعة بتصميم عصري، مناسبة للأعراس الكبيرة والمؤتمرات.", "https://images.unsplash.com/photo-1507504031003-b417219a0fde?w=900&h=500&fit=crop", "شارع الجزائر، صنعاء", "صنعاء", 600, 500000.0, 4.7, 84, listOf("سعة 600 شخص", "شاشة LED", "مسرح", "مولد كهرباء"), "لا يثبت التاريخ إلا بعد قبول الطلب والدفع."),
-        VenueSummary(4, "دار الياسمين للمناسبات", "صالة أنيقة بتفاصيل دافئة وخدمة تجهيز متكاملة.", "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=900&h=500&fit=crop", "حي الروضة، صنعاء", "صنعاء", 250, 220000.0, 4.6, 71, listOf("تجهيز كامل", "غرفة عروس", "ضيافة", "مواقف"), "الحجز للأيام المتاحة فقط وبعد مراجعة التحويل."),
-        VenueSummary(5, "صالة النخبة الذهبية", "قاعة راقية بتصميم ذهبي ومكان مخصص للخطوبة والأعراس.", "https://images.unsplash.com/photo-1511578314322-379afb476865?w=900&h=500&fit=crop", "شارع الخمسين، صنعاء", "صنعاء", 380, 315000.0, 4.8, 103, listOf("ديكور ذهبي", "صوتيات", "إضاءة", "كوشة فاخرة"), "العربون غير مسترد حسب سياسة القاعة بعد تثبيت الموعد."),
-    )
-
-    private fun demoAvailability(venueId: Int, month: String): VenueAvailability {
-        val days = when (venueId) { 1 -> listOf(5, 12, 19); 2 -> listOf(7, 14, 21); 3 -> listOf(3, 10, 17, 24); 4 -> listOf(8, 15, 22); else -> listOf(6, 13, 20, 27) }
-        return VenueAvailability(venueId, month, days.map { "$month-${it.toString().padStart(2, '0')}" }.toSet())
-    }
-
-    suspend fun venues(search: String = ""): List<VenueSummary> = withContext(Dispatchers.IO) {
-        val suffix = if (search.isBlank()) "" else "?search=${urlEncode(search.trim())}"
-        val demo = demoVenues.filter { search.isBlank() || it.name.contains(search.trim(), ignoreCase = true) || it.address.contains(search.trim(), ignoreCase = true) }
-        runCatching { parseVenues(JSONArray(getText("/api/venues$suffix"))) }
-            .getOrNull()?.takeIf { it.isNotEmpty() } ?: demo
+    suspend fun venues(search: String = "", audience: String? = null): List<VenueSummary> = withContext(Dispatchers.IO) {
+        val params = listOfNotNull(
+            search.trim().takeIf(String::isNotBlank)?.let { "search=${urlEncode(it)}" },
+            audience?.takeIf(String::isNotBlank)?.let { "audience=${urlEncode(it)}" },
+        )
+        val suffix = if (params.isEmpty()) "" else "?${params.joinToString("&")}"
+        parseVenues(JSONArray(getText("/api/venues$suffix")))
     }
 
     suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
 
-    suspend fun venueAvailability(venueId: Int, month: String): VenueAvailability = withContext(Dispatchers.IO) {
-        runCatching {
-            val nextMonth = month.substring(0, 4).toIntOrNull()?.let { year ->
-                val monthNumber = month.substringAfter('-').toIntOrNull() ?: return@runCatching demoAvailability(venueId, month)
-                if (monthNumber == 12) java.lang.String.format(java.util.Locale.US, "%04d-01", year + 1)
-                else java.lang.String.format(java.util.Locale.US, "%04d-%02d", year, monthNumber + 1)
-            } ?: return@runCatching demoAvailability(venueId, month)
-            val json = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}")
-            val nextJson = runCatching { getJson("/api/venues/$venueId/availability?month=${urlEncode(nextMonth)}") }.getOrNull()
-            val booked = buildSet {
-                listOfNotNull(json, nextJson).forEach { response ->
-                    val rows = response.optJSONArray("booked") ?: JSONArray()
-                    for (i in 0 until rows.length()) add(rows.optString(i))
-                }
+    suspend fun venuePartnerProfile(bearerToken: String): JSONObject = getJson("/api/venue-partner/me", bearerToken)
+
+    suspend fun requestVenuePartner(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/owner-request", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun createPartnerVenue(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun savePartnerVenueAvailability(venueId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues/$venueId/availability", "PUT", payload, bearerToken = bearerToken)
+
+    suspend fun updatePartnerVenue(venueId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues/$venueId", "PATCH", payload, bearerToken = bearerToken)
+
+    suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
+        val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
+        val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }
+            ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
+        val nextMonth = if (monthNumber == 12) java.lang.String.format(java.util.Locale.US, "%04d-01", year + 1)
+        else java.lang.String.format(java.util.Locale.US, "%04d-%02d", year, monthNumber + 1)
+        val current = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}&audience=${urlEncode(audience)}")
+        val next = getJson("/api/venues/$venueId/availability?month=${urlEncode(nextMonth)}&audience=${urlEncode(audience)}")
+        val booked = buildSet {
+            listOf(current, next).forEach { response ->
+                val rows = response.optJSONArray("booked") ?: JSONArray()
+                for (index in 0 until rows.length()) add(rows.optString(index))
             }
-            VenueAvailability(json.optInt("venueId", venueId), json.optString("month", month), booked)
-        }.getOrElse { demoAvailability(venueId, month) }
+        }
+        val closed = buildSet {
+            listOf(current, next).forEach { response ->
+                val rows = response.optJSONArray("closed") ?: JSONArray()
+                for (index in 0 until rows.length()) add(rows.optString(index))
+            }
+        }
+        VenueAvailability(current.optInt("venueId", venueId), current.optString("month", month), booked, closed)
     }
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
@@ -473,6 +489,9 @@ object FuchsiaApi {
     suspend fun createReservation(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/reservations", "POST", payload, bearerToken = bearerToken).toReservation()
 
+    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
+        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
+
     suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
             ?: throw ApiException("تعذر معرفة نوع ملف الإيصال")
@@ -515,15 +534,17 @@ object FuchsiaApi {
 
     private fun JSONObject.toVenue() = VenueSummary(
         id = optInt("id"),
-        name = optString("nameAr").ifBlank { "قاعة مناسبات" },
+        name = optString("nameAr"),
         description = optString("descriptionAr"),
         imageUrl = nullableString("imageUrl"),
-        address = optString("address").ifBlank { "صنعاء، اليمن" },
-        city = optString("city").ifBlank { "صنعاء" },
-        capacity = optInt("capacity", 300),
+        images = optStringArray("images"),
+        address = optString("address"),
+        city = optString("city"),
+        capacity = optInt("capacity", 0),
         priceFrom = optDouble("priceFrom", 0.0),
         rating = optDouble("rating", 0.0),
         reviewCount = optInt("reviewCount", 0),
+        audience = optString("venueAudience").ifBlank { "both" },
         amenities = optStringArray("amenities"),
         rules = optString("rules"),
     )
@@ -541,25 +562,7 @@ object FuchsiaApi {
         val discountedPrice = optDouble("discountPrice").takeIf { it > 0 }
         val basePrice = optDouble("price", 0.0)
         val productName = optString("nameAr").ifBlank { optString("name") }
-        val inferredRental = optString("fulfillmentType").ifBlank {
-            if (optInt("categoryId") == 1 || optInt("categoryId") == 3 || productName.contains("كوش") || productName.contains("طاولة")) "rental" else "sale"
-        }
-        val inferredDailyPrice = when (optInt("id")) {
-            1 -> 50000.0
-            2 -> 35000.0
-            3 -> 40000.0
-            7 -> 18000.0
-            8 -> 14000.0
-            else -> discountedPrice ?: basePrice
-        }
-        val inferredDeposit = when (optInt("id")) {
-            1 -> 30000.0
-            2 -> 20000.0
-            3 -> 25000.0
-            7 -> 10000.0
-            8 -> 8000.0
-            else -> 0.0
-        }
+        val fulfillmentType = optString("fulfillmentType").ifBlank { "sale" }
         return StoreProduct(
             id = optInt("id"),
             name = productName,
@@ -574,11 +577,16 @@ object FuchsiaApi {
             inStock = optBoolean("inStock", true),
             deliveryDays = if (isNull("deliveryDays")) null else optInt("deliveryDays"),
             tags = optStringArray("tags"),
-            fulfillmentType = inferredRental,
-            rentalDailyPrice = nullableDouble("rentalDailyPrice") ?: inferredDailyPrice.takeIf { inferredRental == "rental" },
-            rentalDeposit = if (optDouble("rentalDeposit", 0.0) > 0) optDouble("rentalDeposit") else inferredDeposit,
+            fulfillmentType = fulfillmentType,
+            rentalDailyPrice = nullableDouble("rentalDailyPrice"),
+            rentalDeposit = optDouble("rentalDeposit", 0.0),
             rentalMinDays = optInt("rentalMinDays", 1),
             rentalMaxDays = optInt("rentalMaxDays", 3),
+            rentalCategory = optString("rentalCategory").ifBlank { "other" },
+            eventAudience = optString("eventAudience").ifBlank { "both" },
+            tableHeightCm = if (isNull("tableHeightCm")) null else optDouble("tableHeightCm"),
+            availableColors = optStringArray("availableColors"),
+            stockQuantity = if (isNull("stockQuantity")) null else optInt("stockQuantity"),
         )
     }
 
@@ -630,6 +638,7 @@ object FuchsiaApi {
     private fun JSONObject.toReservation() = TableReservation(
         id = optInt("id"),
         storeId = optInt("storeId"),
+        venueId = optInt("venueId"),
         reservationAt = optString("reservationAt"),
         bookingDays = optInt("bookingDays", 1),
         partySize = optInt("partySize"),

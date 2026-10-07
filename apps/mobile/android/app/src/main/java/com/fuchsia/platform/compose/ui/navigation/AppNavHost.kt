@@ -75,6 +75,7 @@ import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 import com.fuchsia.platform.compose.ui.screens.WishlistScreen
 import com.fuchsia.platform.compose.ui.screens.VenueBookingScreen
+import com.fuchsia.platform.compose.ui.screens.VenuePartnerScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -93,6 +94,7 @@ object AppRoutes {
     const val GiftOrder = "gift-order"
     const val Reservation = "reservation"
     const val VenueBooking = "venue-booking"
+    const val VenuePartner = "venue-partner"
     const val OrderSuccess = "order-success/{orderId}"
     const val Orders = "orders?focusOrderId={focusOrderId}"
     const val OrdersRoot = "orders?focusOrderId=0"
@@ -364,6 +366,7 @@ fun FuchsiaAppNavHost(
                     onAddresses = { navController.navigate(AppRoutes.AddressBook) },
                     onOrders = { selectTab(AppRoutes.OrdersRoot) },
                     onWishlist = { selectTab(AppRoutes.Wishlist) },
+                    onVenuePartner = { navController.navigate(AppRoutes.VenuePartner) },
                     onSettings = { selectTab(AppRoutes.Settings) },
                     onContact = { navController.navigate(AppRoutes.Contact) },
                     onSignedOut = {
@@ -374,6 +377,9 @@ fun FuchsiaAppNavHost(
                     },
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Account, ::selectTab) },
                 )
+            }
+            composable(AppRoutes.VenuePartner) {
+                VenuePartnerScreen(onBack = { navController.popBackStack() })
             }
             composable(AppRoutes.Settings) {
                 SettingsScreen(

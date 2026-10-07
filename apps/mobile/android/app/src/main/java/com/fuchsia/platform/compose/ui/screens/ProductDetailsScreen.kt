@@ -181,7 +181,10 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(current.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        if (current.fulfillmentType == "rental") RentalTypeBadge(current.name)
+                        if (current.fulfillmentType == "rental") {
+                            RentalTypeBadge(current.name, rentalCategory = current.rentalCategory)
+                            RentalAudienceBadge(current.eventAudience)
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("★", color = FuchsiaColors.Gold, fontSize = 18.sp)
                             Text(if (current.rating > 0) String.format("%.1f", current.rating) else "جديد", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
@@ -213,6 +216,16 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                                     ).show()
                                 },
                             )
+                            if (current.rentalCategory == "table") {
+                                val tableSpecs = buildList {
+                                    current.tableHeightCm?.let { add("الارتفاع: ${String.format(Locale.US, "%.0f", it)} سم") }
+                                    current.stockQuantity?.let { add("العدد المتاح: $it") }
+                                }.joinToString(" · ")
+                                if (tableSpecs.isNotBlank()) Text(tableSpecs, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                if (current.availableColors.isNotEmpty()) Text("الألوان المتوفرة: ${current.availableColors.joinToString("، ")}", color = FuchsiaColors.Muted, fontSize = 13.sp)
+                            } else if (current.rentalCategory == "kosh" && current.stockQuantity != null) {
+                                Text("عدد الكوش المتاح: ${current.stockQuantity}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
                         }
                         if (!current.inStock) Text("غير متوفر حاليًا", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
                     }

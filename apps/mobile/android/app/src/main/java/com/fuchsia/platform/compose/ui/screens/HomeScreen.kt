@@ -423,16 +423,18 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
             Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight).clickable(onClick = onOpen)) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(35.dp))
-                if (product.fulfillmentType == "rental") RentalTypeBadge(product.name, Modifier.align(Alignment.TopStart).padding(6.dp), compact = true)
+                if (product.fulfillmentType == "rental") RentalTypeBadge(product.name, Modifier.align(Alignment.TopStart).padding(6.dp), compact = true, rentalCategory = product.rentalCategory)
                 IconButton(onClick = onFavorite, modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(35.dp)) {
                     Icon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = if (isFavorite) "إزالة من المفضلة" else "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
                 }
             }
             Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+                if (product.fulfillmentType == "rental") RentalAudienceBadge(product.eventAudience, compact = true)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("★", color = FuchsiaColors.Gold, fontSize = 13.sp)
-                    Text("4.8", color = FuchsiaColors.Muted, fontSize = 10.sp)
+                    if (product.rating > 0) Text("★ ${String.format(Locale.US, "%.1f", product.rating)}", color = FuchsiaColors.Gold, fontSize = 10.sp)
+                    else Text("جديد", color = FuchsiaColors.Muted, fontSize = 10.sp)
+                    if (product.reviewCount > 0) Text("(${product.reviewCount})", color = FuchsiaColors.Muted, fontSize = 9.sp)
                 }
                 Text(if (product.fulfillmentType == "rental") "${formatRiyal(product.rentalDailyPrice ?: product.price)} لليوم" else formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                 Button(onClick = if (product.fulfillmentType == "rental") onOpen else onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {

@@ -14,3 +14,4 @@ export * from "./payment-wallets";
 export * from "./wallet-transactions";
 export * from "./notifications";
 export * from "./notification-channels";
+export * from "./venues";
