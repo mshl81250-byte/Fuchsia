@@ -7,6 +7,7 @@ const RENTAL_MIGRATION_ID = "20261007_sale_and_rental_products_v1";
 const RENTAL_DEPOSIT_MIGRATION_ID = "20261007_rental_deposit_settlement_v1";
 const WALLET_TRANSACTIONS_MIGRATION_ID = "20261007_wallet_transactions_v1";
 const VENUE_PAYMENT_MIGRATION_ID = "20261007_venue_reservation_payments_v1";
+const RENTAL_HANDOVER_MIGRATION_ID = "20261007_rental_handover_plan_v1";
 
 /** Additive, idempotent schema preparation. Existing customer and commerce data is preserved. */
 export async function runMigrations(): Promise<void> {
@@ -120,6 +121,18 @@ export async function runMigrations(): Promise<void> {
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [VENUE_PAYMENT_MIGRATION_ID]);
   }
 
+  const [handoverRows] = await pool.query("SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1", [RENTAL_HANDOVER_MIGRATION_ID]);
+  if ((handoverRows as Array<{ migration_id: string }>).length === 0) {
+    const handoverColumns = [
+      "ALTER TABLE cart_items ADD COLUMN rental_fulfillment VARCHAR(16) NULL",
+      "ALTER TABLE cart_items ADD COLUMN rental_time_slot VARCHAR(16) NULL",
+      "ALTER TABLE order_items ADD COLUMN rental_fulfillment VARCHAR(16) NULL",
+      "ALTER TABLE order_items ADD COLUMN rental_time_slot VARCHAR(16) NULL",
+    ];
+    for (const statement of handoverColumns) { try { await pool.query(statement); } catch (error) { logger.warn({ error, statement }, "Rental handover column may already exist"); } }
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [RENTAL_HANDOVER_MIGRATION_ID]);
+  }
+
   const [rentalRows] = await pool.query(
     "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
     [RENTAL_MIGRATION_ID],
@@ -136,12 +149,16 @@ export async function runMigrations(): Promise<void> {
       "ALTER TABLE cart_items ADD COLUMN rental_days INT NULL",
       "ALTER TABLE cart_items ADD COLUMN rental_end_date DATE NULL",
       "ALTER TABLE cart_items ADD COLUMN rental_deposit DOUBLE NOT NULL DEFAULT 0",
+      "ALTER TABLE cart_items ADD COLUMN rental_fulfillment VARCHAR(16) NULL",
+      "ALTER TABLE cart_items ADD COLUMN rental_time_slot VARCHAR(16) NULL",
       "ALTER TABLE orders ADD COLUMN rental_deposit DOUBLE NOT NULL DEFAULT 0",
       "ALTER TABLE order_items ADD COLUMN fulfillment_type VARCHAR(16) NOT NULL DEFAULT 'sale'",
       "ALTER TABLE order_items ADD COLUMN rental_start_date DATE NULL",
       "ALTER TABLE order_items ADD COLUMN rental_days INT NULL",
       "ALTER TABLE order_items ADD COLUMN rental_end_date DATE NULL",
       "ALTER TABLE order_items ADD COLUMN rental_deposit DOUBLE NOT NULL DEFAULT 0",
+      "ALTER TABLE order_items ADD COLUMN rental_fulfillment VARCHAR(16) NULL",
+      "ALTER TABLE order_items ADD COLUMN rental_time_slot VARCHAR(16) NULL",
     ];
     for (const statement of columns) {
       try {

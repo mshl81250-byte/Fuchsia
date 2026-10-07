@@ -83,6 +83,8 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
     var quantity by remember(productId) { mutableIntStateOf(1) }
     var rentalDays by remember(productId) { mutableIntStateOf(1) }
     var rentalStartDate by remember(productId) { mutableStateOf<String?>(null) }
+    var rentalFulfillment by remember(productId) { mutableStateOf("pickup") }
+    var rentalTimeSlot by remember(productId) { mutableStateOf("morning") }
 
     LaunchedEffect(productId) {
         loading = true
@@ -124,9 +126,11 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                             quantity = quantity,
                                             rentalStartDate = rentalStartDate,
                                             rentalDays = rentalDays.takeIf { current.fulfillmentType == "rental" },
+                                            rentalFulfillment = rentalFulfillment.takeIf { current.fulfillmentType == "rental" },
+                                            rentalTimeSlot = rentalTimeSlot.takeIf { current.fulfillmentType == "rental" },
                                         )
                                     }
-                                        .onSuccess { notice.showSnackbar("تمت إضافة المنتج إلى السلة بنجاح") }
+                                        .onSuccess { notice.showSnackbar("تم تجهيز حجز الإيجار في السلة — أكمل العربون والضمان") }
                                         .onFailure { notice.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
                                 }
                             },
@@ -190,6 +194,10 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                 days = rentalDays,
                                 startDate = rentalStartDate,
                                 onDaysChange = { rentalDays = it },
+                                fulfillment = rentalFulfillment,
+                                timeSlot = rentalTimeSlot,
+                                onFulfillmentChange = { rentalFulfillment = it },
+                                onTimeSlotChange = { rentalTimeSlot = it },
                                 onDateClick = {
                                     val today = Calendar.getInstance()
                                     DatePickerDialog(
@@ -224,6 +232,10 @@ private fun RentalSelection(
     startDate: String?,
     onDaysChange: (Int) -> Unit,
     onDateClick: () -> Unit,
+    fulfillment: String,
+    timeSlot: String,
+    onFulfillmentChange: (String) -> Unit,
+    onTimeSlotChange: (String) -> Unit,
 ) {
     Card(
         Modifier.fillMaxWidth(),
@@ -249,6 +261,17 @@ private fun RentalSelection(
                 )
             }
             Text("يسمح بالإيجار من $minDays إلى $maxDays أيام.", color = FuchsiaColors.Muted, fontSize = 11.sp)
+            Text("طريقة الحصول على الكوشة أو الطاولات", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Button(onClick = { onFulfillmentChange("pickup") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (fulfillment == "pickup") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("سأستلمها بنفسي", color = if (fulfillment == "pickup") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }
+                Button(onClick = { onFulfillmentChange("delivery") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (fulfillment == "delivery") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("أحتاج توصيل", color = if (fulfillment == "delivery") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }
+            }
+            Text("متى تحتاجها؟", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Button(onClick = { onTimeSlotChange("morning") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "morning") FuchsiaColors.Gold else FuchsiaColors.White)) { Text("صباحًا", color = FuchsiaColors.Ink, fontSize = 11.sp) }
+                Button(onClick = { onTimeSlotChange("evening") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "evening") FuchsiaColors.Gold else FuchsiaColors.White)) { Text("مساءً", color = FuchsiaColors.Ink, fontSize = 11.sp) }
+            }
+            Text(if (fulfillment == "delivery") "سيتم تحديد عنوان التوصيل والرسوم في الخطوة التالية." else "عند الاستلام: تدفع العربون للحجز، والمتبقي والضمان عند استلام القطعة.", color = FuchsiaColors.TextAccent, fontSize = 11.sp)
         }
     }
 }

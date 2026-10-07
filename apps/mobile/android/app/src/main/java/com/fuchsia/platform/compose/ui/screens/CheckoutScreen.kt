@@ -145,7 +145,9 @@ fun CheckoutScreen(
                     longitude = saved.longitude
                 }
             }
-            cart = FuchsiaApi.getCart(sessionId)
+            cart = FuchsiaApi.getCart(sessionId).also { loadedCart ->
+                if (loadedCart.items.any { it.fulfillmentType == "rental" } && paymentType == "cash_on_delivery") paymentType = "partial"
+            }
             wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList())
             if (cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
         } catch (failure: Throwable) {
@@ -217,16 +219,22 @@ fun CheckoutScreen(
             snackbarShown(scope, snackbar, "السلة فارغة أو الجلسة غير متاحة.")
             return
         }
-        if (fullName.isBlank() || phone.isBlank() || address.isBlank()) {
-            snackbarShown(scope, snackbar, "يرجى إدخال الاسم ورقم الهاتف وعنوان التوصيل.")
+        val rentalItems = currentCart.items.filter { it.fulfillmentType == "rental" }
+        val needsDelivery = rentalItems.any { it.rentalFulfillment == "delivery" } || rentalItems.isEmpty()
+        if (fullName.isBlank() || phone.isBlank() || (needsDelivery && address.isBlank())) {
+            snackbarShown(scope, snackbar, if (needsDelivery) "يرجى إدخال الاسم ورقم الهاتف وعنوان التوصيل." else "يرجى إدخال الاسم ورقم الهاتف.")
             return
         }
-        if (latitude == null || longitude == null) {
+        if (needsDelivery && (latitude == null || longitude == null)) {
             snackbarShown(scope, snackbar, "يرجى تحديد موقع التوصيل الحالي أولًا.")
             return
         }
-        if (!isSanaaLocation(latitude!!, longitude!!)) {
+        if (needsDelivery && !isSanaaLocation(latitude!!, longitude!!)) {
             snackbarShown(scope, snackbar, "التوصيل متاح حاليًا داخل نطاق صنعاء فقط.")
+            return
+        }
+        if (rentalItems.isNotEmpty() && paymentType == "cash_on_delivery") {
+            snackbarShown(scope, snackbar, "حجز الإيجار يحتاج دفع العربون أو المبلغ الكامل مقدمًا لتثبيت الموعد.")
             return
         }
         if (isGift && (recipientName.isBlank() || giftMessage.isBlank())) {
@@ -479,11 +487,14 @@ fun CheckoutScreen(
                             if (rentalItems.isNotEmpty()) {
                                 CommerceMoneyRow("إيجار العناصر (${rentalItems.sumOf { it.rentalDays ?: 1 }} يومًا)", rentalTotal)
                                 CommerceMoneyRow("تأمين الإيجار المسترد", cart?.rentalDeposit ?: 0.0, accent = true)
+                                rentalItems.forEach { rental ->
+                                    Text("${rental.productName}: ${if (rental.rentalFulfillment == "delivery") "توصيل" else "استلام ذاتي"} · ${if (rental.rentalTimeSlot == "evening") "مساءً" else "صباحًا"}", color = FuchsiaColors.TextAccent, fontSize = 11.sp)
+                                }
                                 Text("التأمين يُسترد بعد إعادة العناصر بحالتها وفي الموعد المتفق عليه.", color = FuchsiaColors.Muted, fontSize = 11.sp)
                             }
                             CommerceMoneyRow("التوصيل", cart?.deliveryFee ?: 0.0)
                             CommerceMoneyRow("الإجمالي", cart?.total ?: 0.0, bold = true, accent = true)
-                            if (paymentType == "partial") CommerceMoneyRow("المطلوب الآن (عربون)", ceil((cart?.total ?: 0.0) / 2.0), bold = true)
+                            if (paymentType == "partial") CommerceMoneyRow(if (rentalItems.isNotEmpty()) "المطلوب الآن (عربون حجز)" else "المطلوب الآن (عربون)", ceil((cart?.total ?: 0.0) / 2.0), bold = true)
                         }
                     }
                 }

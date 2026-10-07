@@ -14,6 +14,8 @@ export const cartItemsTable = mysqlTable("cart_items", {
   rentalDays: int("rental_days"),
   rentalEndDate: date("rental_end_date", { mode: "string" }),
   rentalDeposit: double("rental_deposit").notNull().default(0),
+  rentalFulfillment: varchar("rental_fulfillment", { length: 16 }),
+  rentalTimeSlot: varchar("rental_time_slot", { length: 16 }),
   imageUrl: text("image_url").notNull(),
   giftWrapping: boolean("gift_wrapping").notNull().default(false),
   giftMessage: text("gift_message"),

@@ -268,6 +268,8 @@ private fun CartItemCard(
                 if (item.fulfillmentType == "rental") {
                     Text("إيجار · ${formatYemeniRiyal(item.price)} لليوم", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
                     Text("${item.rentalStartDate ?: "-"} · ${item.rentalDays ?: 1} ${if ((item.rentalDays ?: 1) == 1) "يوم" else "أيام"}", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                    Text(if (item.rentalFulfillment == "delivery") "طريقة الاستلام: توصيل إلى العنوان" else "طريقة الاستلام: استلام ذاتي من القاعة", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                    Text(if (item.rentalTimeSlot == "evening") "وقت التجهيز: مساءً" else "وقت التجهيز: صباحًا", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                     if (item.rentalDeposit > 0) Text("تأمين مسترد: ${formatYemeniRiyal(item.rentalDeposit)}", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                 } else {
                     Text("للبيع · ${formatYemeniRiyal(item.price)}", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)

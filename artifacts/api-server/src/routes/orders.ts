@@ -130,12 +130,8 @@ router.post("/", async (req, res): Promise<void> => {
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
 
-    if (!sessionId || !deliveryAddress || !customerName || !customerPhone) {
+    if (!sessionId || !customerName || !customerPhone) {
       res.status(400).json({ error: "Missing required fields" });
-      return;
-    }
-    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
-      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
       return;
     }
 
@@ -156,6 +152,11 @@ router.post("/", async (req, res): Promise<void> => {
       return;
     }
     const hasRentalItems = cartItems.some((item) => item.fulfillmentType === "rental");
+    const needsDelivery = !hasRentalItems || cartItems.some((item) => item.rentalFulfillment === "delivery");
+    if (needsDelivery && (!deliveryAddress || typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6)) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
+      return;
+    }
     const initialStatus = hasRentalItems ? "rental_pending_confirmation" : "received";
 
     const subtotal = cartItems.reduce((sum, item) => {
@@ -163,7 +164,8 @@ router.post("/", async (req, res): Promise<void> => {
       return sum + item.price * item.quantity * days;
     }, 0);
     const rentalDeposit = cartItems.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
-    const total = subtotal + rentalDeposit + DELIVERY_FEE;
+    const deliveryFee = needsDelivery ? DELIVERY_FEE : 0;
+    const total = subtotal + rentalDeposit + deliveryFee;
     if (normalizedPaymentType !== "cash_on_delivery") {
       if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {
         res.status(400).json({ error: "مبلغ الدفع غير صحيح" });
@@ -189,7 +191,7 @@ router.post("/", async (req, res): Promise<void> => {
       status: initialStatus,
       total,
       subtotal,
-      deliveryFee: DELIVERY_FEE,
+      deliveryFee,
       discount: 0,
       deliveryAddress,
       deliveryLatitude,
@@ -257,6 +259,8 @@ router.post("/", async (req, res): Promise<void> => {
         rentalDays: item.rentalDays,
         rentalEndDate: item.rentalEndDate,
         rentalDeposit: item.rentalDeposit,
+        rentalFulfillment: item.rentalFulfillment,
+        rentalTimeSlot: item.rentalTimeSlot,
         imageUrl: item.imageUrl,
       });
     }

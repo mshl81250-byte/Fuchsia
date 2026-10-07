@@ -44,7 +44,7 @@ async function buildCart(sessionId: string) {
   const normalizedItems = items.map((item) => ({ ...item, lineTotal: lineTotal(item) }));
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
   const rentalDeposit = items.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
-  const deliveryFee = items.length > 0 ? DELIVERY_FEE : 0;
+  const deliveryFee = items.some((item) => item.fulfillmentType !== "rental" || item.rentalFulfillment === "delivery") ? DELIVERY_FEE : 0;
   const total = subtotal + rentalDeposit + deliveryFee;
   return {
     sessionId,
@@ -74,7 +74,7 @@ router.get("/", async (req, res): Promise<void> => {
 
 router.post("/", async (req, res): Promise<void> => {
   try {
-    const { sessionId, productId, quantity, giftWrapping, giftMessage, rentalStartDate, rentalDays } = req.body;
+    const { sessionId, productId, quantity, giftWrapping, giftMessage, rentalStartDate, rentalDays, rentalFulfillment, rentalTimeSlot } = req.body;
     if (!sessionId || !productId || !Number.isInteger(quantity) || quantity < 1) {
       res.status(400).json({ error: "بيانات المنتج أو الكمية غير صحيحة" });
       return;
@@ -91,6 +91,8 @@ router.post("/", async (req, res): Promise<void> => {
     }
 
     const rental = isRental(product);
+    const fulfillment = rental ? (rentalFulfillment === "delivery" ? "delivery" : "pickup") : null;
+    const timeSlot = rental ? (rentalTimeSlot === "evening" ? "evening" : "morning") : null;
     const days = rental ? Number(rentalDays) : null;
     if (rental) {
       if (!validDate(rentalStartDate) || !Number.isInteger(days) || days! < product.rentalMinDays || days! > product.rentalMaxDays) {
@@ -135,6 +137,8 @@ router.post("/", async (req, res): Promise<void> => {
         rentalDays: rental ? days : null,
         rentalEndDate,
         rentalDeposit: rental ? product.rentalDeposit : 0,
+        rentalFulfillment: fulfillment,
+        rentalTimeSlot: timeSlot,
         imageUrl: product.imageUrl,
         giftWrapping: giftWrapping ?? false,
         giftMessage: giftMessage ?? null,

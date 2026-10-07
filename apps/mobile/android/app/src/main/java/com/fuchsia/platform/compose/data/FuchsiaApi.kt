@@ -56,6 +56,8 @@ data class CartLine(
     val rentalDays: Int? = null,
     val rentalEndDate: String? = null,
     val rentalDeposit: Double = 0.0,
+    val rentalFulfillment: String? = null,
+    val rentalTimeSlot: String? = null,
     val lineTotal: Double = price * quantity,
 )
 
@@ -288,6 +290,8 @@ object FuchsiaApi {
         giftMessage: String? = null,
         rentalStartDate: String? = null,
         rentalDays: Int? = null,
+        rentalFulfillment: String? = null,
+        rentalTimeSlot: String? = null,
     ): ShoppingCart = parseCart(
         post(
             "/api/cart",
@@ -298,7 +302,9 @@ object FuchsiaApi {
                 .put("giftWrapping", giftWrapping)
                 .put("giftMessage", giftMessage)
                 .putNullable("rentalStartDate", rentalStartDate)
-                .putNullable("rentalDays", rentalDays),
+                .putNullable("rentalDays", rentalDays)
+                .putNullable("rentalFulfillment", rentalFulfillment)
+                .putNullable("rentalTimeSlot", rentalTimeSlot),
         ),
     )
 
@@ -575,6 +581,8 @@ object FuchsiaApi {
                         rentalDays = if (row.isNull("rentalDays")) null else row.optInt("rentalDays"),
                         rentalEndDate = row.nullableString("rentalEndDate"),
                         rentalDeposit = row.optDouble("rentalDeposit", 0.0),
+                        rentalFulfillment = row.nullableString("rentalFulfillment"),
+                        rentalTimeSlot = row.nullableString("rentalTimeSlot"),
                         lineTotal = row.optDouble("lineTotal", row.optDouble("price", 0.0) * row.optInt("quantity", 1)),
                     ),
                 )
