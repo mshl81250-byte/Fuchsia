@@ -227,7 +227,7 @@ fun OrdersScreen(
                                 }
                                 if (userToken.isNullOrBlank() || error.contains("انتهت صلاحية الجلسة")) {
                                     androidx.compose.material3.TextButton(onClick = onSignIn) {
-                                        Text("تسجيل الدخول", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                                        Text("تسجيل الدخول", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -258,7 +258,7 @@ private fun OrderHistorySummary(total: Int, delivered: Int, active: Int) {
 @Composable
 private fun HistoryStat(label: String, value: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(value.toString(), color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+        Text(value.toString(), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
         Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
     }
 }
@@ -280,7 +280,7 @@ private fun OrderChoiceCard(order: CustomerOrder, selected: Boolean, onClick: ()
                 Text("${order.itemCount} منتجات · ${formatDate(order.createdAt)}", color = FuchsiaColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatMoney(order.total), color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(formatMoney(order.total), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(orderStatusLabels[order.status] ?: "قيد المعالجة", color = FuchsiaColors.Muted, fontSize = 10.sp)
             }
         }

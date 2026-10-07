@@ -173,7 +173,7 @@ internal fun CommerceEmptyState(title: String, detail: String, action: String, o
     ) {
         Surface(shape = RoundedCornerShape(23.dp), color = FuchsiaColors.Rose, modifier = Modifier.size(70.dp)) {
             androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                Text("✿", color = FuchsiaColors.Primary, fontSize = 30.sp)
+                Text("✿", color = FuchsiaColors.TextAccent, fontSize = 30.sp)
             }
         }
         Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink, textAlign = TextAlign.Center)

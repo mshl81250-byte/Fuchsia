@@ -264,7 +264,7 @@ private fun CartItemCard(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.productName, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(formatYemeniRiyal(item.price), color = FuchsiaColors.Primary, style = MaterialTheme.typography.labelLarge)
+                Text(formatYemeniRiyal(item.price), color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
                 if (item.giftWrapping) Text("تغليف هدية", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     QuantityButton(Icons.Rounded.Remove, "تقليل الكمية", enabled = !busy, onClick = onDecrease)

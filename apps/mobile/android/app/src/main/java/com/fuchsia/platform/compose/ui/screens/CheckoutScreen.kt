@@ -341,7 +341,7 @@ fun CheckoutScreen(
                             }
                         }) {
                             val title = if (savedAddresses.isEmpty()) "اختيار أو إدارة عناوين التوصيل" else "اختيار عنوان محفوظ (${savedAddresses.size})"
-                            Text(title, color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(title, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                         }
                     }
                     if (addressServiceError.isNotBlank()) CommerceNotice(addressServiceError, isError = true)
@@ -385,7 +385,7 @@ fun CheckoutScreen(
                                 if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
                                 else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
                             if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")
@@ -534,14 +534,14 @@ private fun AddressPickerDialog(
                         border = BorderStroke(1.dp, if (address.isDefault) FuchsiaColors.Primary else FuchsiaColors.Line),
                     ) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(if (address.isDefault) "${address.label} · افتراضي" else address.label, color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                            Text(if (address.isDefault) "${address.label} · افتراضي" else address.label, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                             Text(address.address, color = FuchsiaColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
                             Text("${address.recipientName} · ${address.phone}", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
                 TextButton(onClick = onManage, modifier = Modifier.align(Alignment.End)) {
-                    Text("إدارة العناوين", color = FuchsiaColors.Primary)
+                    Text("إدارة العناوين", color = FuchsiaColors.TextAccent)
                 }
             }
         },
@@ -575,7 +575,7 @@ private fun WalletChoice(wallet: PaymentWallet, selected: Boolean, onClick: () -
     ) {
         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-            Text(wallet.accountNumber, color = FuchsiaColors.Primary, fontWeight = FontWeight.SemiBold)
+            Text(wallet.accountNumber, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.SemiBold)
             if (wallet.instructions.isNotBlank()) Text(wallet.instructions, color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
         }
     }

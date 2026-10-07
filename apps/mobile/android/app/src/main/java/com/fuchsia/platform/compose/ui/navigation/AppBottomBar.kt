@@ -75,7 +75,7 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
                     },
                     label = {
                         AnimatedVisibility(visible = selected, enter = fadeIn(tween(160)) + scaleIn(tween(160)), exit = fadeOut(tween(100)) + scaleOut(tween(100))) {
-                            Text(tab.label, style = MaterialTheme.typography.labelSmall, color = FuchsiaColors.Primary)
+                            Text(tab.label, style = MaterialTheme.typography.labelSmall, color = FuchsiaColors.TextAccent)
                         }
                     },
                     alwaysShowLabel = false,

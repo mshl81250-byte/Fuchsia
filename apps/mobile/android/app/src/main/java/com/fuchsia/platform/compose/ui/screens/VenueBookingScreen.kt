@@ -137,7 +137,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
             Box(Modifier.fillMaxWidth().height(170.dp).background(FuchsiaColors.RoseLight)) {
                 if (!venue.imageUrl.isNullOrBlank()) AsyncImage(venue.imageUrl, contentDescription = venue.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.EventAvailable, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(52.dp))
-                Surface(Modifier.align(Alignment.TopEnd).padding(12.dp), shape = RoundedCornerShape(10.dp), color = FuchsiaColors.White.copy(alpha = .94f)) { Text("متاحة للحجز", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = FuchsiaColors.Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                Surface(Modifier.align(Alignment.TopEnd).padding(12.dp), shape = RoundedCornerShape(10.dp), color = FuchsiaColors.White.copy(alpha = .94f)) { Text("متاحة للحجز", Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = FuchsiaColors.TextAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
             }
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(venue.name, color = FuchsiaColors.Ink, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -147,7 +147,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) { Text("★ ${venue.rating}", color = FuchsiaColors.Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("· ${venue.capacity} شخص", color = FuchsiaColors.Muted, fontSize = 12.sp) }
-                    Text("من ${formatYemeniRiyal(venue.priceFrom)}", color = FuchsiaColors.Primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("من ${formatYemeniRiyal(venue.priceFrom)}", color = FuchsiaColors.TextAccent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
@@ -208,7 +208,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                     Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("بعد اختيار اليوم", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold); Text(if (selectedDate == null) "حدد يومًا متاحًا من التقويم لقراءة الخطوة التالية." else "التاريخ المختار: $selectedDate\nسيتم لاحقًا إضافة بيانات العميل والدفع وتأكيد الحجز.", color = FuchsiaColors.Muted, fontSize = 13.sp) }
                 }
             }
-            item { Button(onClick = { showRules = true }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Primary)) { Icon(Icons.Rounded.Rule, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(7.dp)); Text("قراءة شروط الحجز", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) } }
+            item { Button(onClick = { showRules = true }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Primary)) { Icon(Icons.Rounded.Rule, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(7.dp)); Text("قراءة شروط الحجز", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) } }
         }
     }
     if (showRules) AlertDialog(onDismissRequest = { showRules = false }, title = { Text("شروط حجز ${venue.name}", fontWeight = FontWeight.ExtraBold) }, text = { Text(venue.rules, color = FuchsiaColors.Muted) }, confirmButton = { Button(onClick = { showRules = false }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("فهمت") } })

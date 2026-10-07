@@ -163,7 +163,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                             Text("(${current.reviewCount} تقييم)", color = FuchsiaColors.Muted, fontSize = 12.sp)
                         }
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text(formatRiyal(current.price), color = FuchsiaColors.Primary, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(formatRiyal(current.price), color = FuchsiaColors.TextAccent, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
                             current.originalPrice?.let { Text(formatRiyal(it), color = FuchsiaColors.Muted, fontSize = 12.sp, textDecoration = TextDecoration.LineThrough) }
                         }
                         if (!current.inStock) Text("غير متوفر حاليًا", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)

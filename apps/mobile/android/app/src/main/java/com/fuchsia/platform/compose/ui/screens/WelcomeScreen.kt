@@ -215,9 +215,9 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
                         Text("تسجيل الدخول", fontWeight = FontWeight.Bold)
                     }
                     Button(onClick = onRegister, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
-                        Text("إنشاء حساب جديد", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                        Text("إنشاء حساب جديد", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                     }
-                    TextButton(onClick = onExplore) { Text("تصفح دون حساب", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = onExplore) { Text("تصفح دون حساب", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -274,7 +274,7 @@ private fun BrandHeader() {
                 contentScale = ContentScale.Fit,
             )
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
+                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
             }
         }
         Surface(shape = RoundedCornerShape(50), color = FuchsiaColors.White, tonalElevation = 0.dp, shadowElevation = 1.dp) {

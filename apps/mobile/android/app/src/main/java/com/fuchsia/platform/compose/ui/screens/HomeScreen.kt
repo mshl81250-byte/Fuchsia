@@ -320,7 +320,7 @@ private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -385,7 +385,7 @@ private fun OfferStrip(onClick: (() -> Unit)?) {
 private fun SectionHeading(title: String, detail: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
         Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink)
-        if (detail.isNotBlank()) Text(detail, color = FuchsiaColors.Primary, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
+        if (detail.isNotBlank()) Text(detail, color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
     }
 }
 
@@ -429,7 +429,7 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
                     Text("★", color = FuchsiaColors.Gold, fontSize = 13.sp)
                     Text("4.8", color = FuchsiaColors.Muted, fontSize = 10.sp)
                 }
-                Text(formatRiyal(product.price), color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                Text(formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                 Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                     Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(3.dp))

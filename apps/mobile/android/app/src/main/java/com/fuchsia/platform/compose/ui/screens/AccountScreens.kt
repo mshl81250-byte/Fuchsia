@@ -178,7 +178,7 @@ fun AccountScreen(
                                 AccountStat("مكتملة", completed.toString())
                                 AccountStat("ملغاة", cancelled.toString())
                             }
-                            Button(onClick = onOrders, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) { Text("عرض كل الطلبات", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) }
+                            Button(onClick = onOrders, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) { Text("عرض كل الطلبات", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -188,7 +188,7 @@ fun AccountScreen(
                 item { AccountAction(Icons.Rounded.Person, "الدعم والتواصل", "تواصل معنا أو اطّلع على الأسئلة الشائعة", onContact) }
                 if (loading) item { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
                 if (error.isNotBlank()) item { Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall) }
-                item { OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)) { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(8.dp)); Text("تسجيل الخروج", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) } }
+                item { OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)) { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(8.dp)); Text("تسجيل الخروج", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) } }
             }
         }
     }
@@ -199,7 +199,7 @@ fun AccountScreen(
                 Text("هل تريد تسجيل الخروج؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
                 Text("ستحتاج إلى تسجيل الدخول مجدداً لمتابعة طلباتك.", color = FuchsiaColors.Muted, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
                 Button(onClick = { confirmSignOut = false; SessionVault.clear(context); onSignedOut() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) }
-                TextButton(onClick = { confirmSignOut = false }, modifier = Modifier.fillMaxWidth()) { Text("إلغاء", color = FuchsiaColors.Primary) }
+                TextButton(onClick = { confirmSignOut = false }, modifier = Modifier.fillMaxWidth()) { Text("إلغاء", color = FuchsiaColors.TextAccent) }
             }
         }
     }
@@ -244,7 +244,7 @@ private fun AccountStatsCard(orderCount: Int, rewardPoints: Int, totalSpent: Dou
 @Composable
 private fun AccountStat(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(value, color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
     }
 }
@@ -505,7 +505,7 @@ fun AddressBookScreen(onBack: () -> Unit) {
                             }
                         }
                     }
-                }) { Text("حذف", color = FuchsiaColors.Primary) }
+                }) { Text("حذف", color = FuchsiaColors.TextAccent) }
             },
             dismissButton = { TextButton(enabled = !busy, onClick = { deletingAddress = null }) { Text("إلغاء") } },
         )
@@ -533,7 +533,7 @@ private fun AddressCard(
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         Text(address.label, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-                        if (address.isDefault) Text("افتراضي", color = FuchsiaColors.Primary, style = MaterialTheme.typography.labelSmall)
+                        if (address.isDefault) Text("افتراضي", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelSmall)
                     }
                     Text(address.recipientName, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall)
                 }
@@ -548,7 +548,7 @@ private fun AddressCard(
                 TextButton(onClick = onDefault, enabled = !busy, modifier = Modifier.align(Alignment.End)) {
                     Icon(Icons.Rounded.Star, contentDescription = null, tint = FuchsiaColors.Gold, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("تعيين افتراضي", color = FuchsiaColors.Primary)
+                    Text("تعيين افتراضي", color = FuchsiaColors.TextAccent)
                 }
             }
         }
@@ -608,7 +608,7 @@ private fun AddressEditorDialog(
                 }
             }) {
                 if (saving) CircularProgressIndicator(Modifier.size(18.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
-                else Text("حفظ", color = FuchsiaColors.Primary)
+                else Text("حفظ", color = FuchsiaColors.TextAccent)
             }
         },
         dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text("إلغاء") } },

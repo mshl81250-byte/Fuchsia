@@ -107,7 +107,7 @@ fun AuthScreen(
             Image(painter = painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.size(width = 68.dp, height = 66.dp), contentScale = ContentScale.Fit)
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -131,11 +131,11 @@ fun AuthScreen(
                     Text("تسجيل الدخول", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
                 OutlinedButton(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp)) {
-                    Text("إنشاء حساب", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("إنشاء حساب", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             } else {
                 OutlinedButton(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp)) {
-                    Text("تسجيل الدخول", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("تسجيل الدخول", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
                 Button(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                     Text("إنشاء حساب", fontWeight = FontWeight.Bold, fontSize = 12.sp)

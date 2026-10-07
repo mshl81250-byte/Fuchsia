@@ -307,7 +307,7 @@ fun ReservationScreen(onBack: () -> Unit) {
                             border = BorderStroke(1.dp, FuchsiaColors.Line),
                         ) {
                             Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("تم إرسال طلب الحجز #${reservation.id}", color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold)
+                                Text("تم إرسال طلب الحجز #${reservation.id}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold)
                                 Text("الحالة: بانتظار تأكيد الفرع · ${formatDate(selectedDateTime.time)} · $partySize ضيوف", color = FuchsiaColors.Ink)
                             }
                         }
@@ -329,7 +329,7 @@ fun ReservationScreen(onBack: () -> Unit) {
                             Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text("حجز #${last.id} · ${stores.firstOrNull { it.id == last.storeId }?.name ?: "فرع فوشيا"}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                                 Text("${last.partySize} ضيوف · ${formatIsoDate(last.reservationAt)}", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                                Text(reservationStatus(last.status), color = FuchsiaColors.Primary, fontWeight = FontWeight.SemiBold)
+                                Text(reservationStatus(last.status), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }

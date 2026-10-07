@@ -486,7 +486,7 @@ fun FuchsiaAppNavHost(
                     Text("هل تريد مغادرة التطبيق؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
                     Text("شكراً لاستخدام فوشيا، نتطلع لخدمتك مجدداً.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
                     Button(onClick = { (context as? Activity)?.finish() }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("خروج", fontWeight = FontWeight.Bold) }
-                    TextButton(onClick = { showExitSheet = false }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("البقاء", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { showExitSheet = false }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("البقاء", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
                 }
             }
         }
