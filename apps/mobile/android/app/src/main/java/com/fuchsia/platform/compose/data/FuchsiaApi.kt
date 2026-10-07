@@ -390,6 +390,49 @@ object FuchsiaApi {
     suspend fun updatePartnerVenue(venueId: Int, payload: JSONObject, bearerToken: String): JSONObject =
         sendJson("/api/venue-partner/venues/$venueId", "PATCH", payload, bearerToken = bearerToken)
 
+    suspend fun vendorStores(bearerToken: String): List<JSONObject> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(getText("/api/vendor/stores", bearerToken))
+        buildList { for (index in 0 until rows.length()) rows.optJSONObject(index)?.let(::add) }
+    }
+
+    suspend fun vendorProducts(storeId: Int, bearerToken: String): List<JSONObject> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(getText("/api/vendor/products?storeId=$storeId", bearerToken))
+        buildList { for (index in 0 until rows.length()) rows.optJSONObject(index)?.let(::add) }
+    }
+
+    suspend fun createVendorProduct(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/vendor/products", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun updateVendorProduct(productId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/vendor/products/$productId", "PATCH", payload, bearerToken = bearerToken)
+
+    suspend fun uploadPartnerImage(context: Context, uri: Uri, purpose: String, bearerToken: String): String = withContext(Dispatchers.IO) {
+        require(purpose == "venue" || purpose == "rental") { "نوع الصورة غير صحيح" }
+        val contentType = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';') ?: throw IllegalArgumentException("تعذر تحديد نوع الصورة")
+        require(contentType in setOf("image/jpeg", "image/png", "image/webp")) { "اختر صورة JPG أو PNG أو WebP" }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("تعذر قراءة الصورة")
+        require(bytes.isNotEmpty() && bytes.size <= 7 * 1024 * 1024) { "يجب ألا يتجاوز حجم الصورة 7 ميغابايت" }
+
+        val boundary = "----Fuchsia${UUID.randomUUID().toString().replace("-", "")}"
+        val connection = open("/api/uploads/image", "POST", bearerToken)
+        try {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            connection.outputStream.use { stream ->
+                val output = stream.buffered()
+                fun writeText(value: String) { output.write(value.toByteArray(Charsets.UTF_8)) }
+                writeText("--$boundary\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\n$purpose\r\n")
+                val extension = when (contentType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+                writeText("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"upload.$extension\"\r\nContent-Type: $contentType\r\n\r\n")
+                output.write(bytes)
+                writeText("\r\n--$boundary--\r\n")
+                output.flush()
+            }
+            val response = readJson(connection)
+            response.optString("url").takeIf(String::isNotBlank) ?: throw IllegalStateException("لم يُرجع التخزين رابط الصورة")
+        } finally { connection.disconnect() }
+    }
+
     suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
         val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
         val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }

@@ -93,6 +93,23 @@ router.patch("/venue-owners/:id", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/store-owner-links", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select({
+      id: storesTable.id,
+      nameAr: storesTable.nameAr,
+      ownerUserId: storesTable.ownerUserId,
+      ownerName: usersTable.fullName,
+      ownerEmail: usersTable.email,
+    }).from(storesTable).leftJoin(usersTable, eq(storesTable.ownerUserId, usersTable.id)).orderBy(storesTable.id);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rows);
+  } catch (error) {
+    req.log.error({ error }, "Admin list store owner links failed");
+    res.status(500).json({ error: "تعذر تحميل ربط ملاك المتاجر" });
+  }
+});
+
 router.patch("/stores/:id/owner", async (req, res): Promise<void> => {
   try {
     const id = Number.parseInt(req.params.id, 10);

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu, CalendarDays, Building2 } from "lucide-react";
+import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu, CalendarDays, Building2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { OrdersView } from "@/components/dashboard/orders-view";
 import { OverviewView } from "@/components/dashboard/overview-view";
@@ -13,10 +13,11 @@ import { CouponsView } from "@/components/dashboard/coupons-view";
 import { RentalsView } from "@/components/dashboard/rentals-view";
 import { VenueReservationsView } from "@/components/dashboard/venue-reservations-view";
 import { VenueOwnersView } from "@/components/dashboard/venue-owners-view";
+import { StoreOwnersView } from "@/components/dashboard/store-owners-view";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-type Tab = "orders" | "rentals" | "venue-reservations" | "venue-owners" | "overview" | "customers" | "coupons";
+type Tab = "orders" | "rentals" | "venue-reservations" | "venue-owners" | "store-owners" | "overview" | "customers" | "coupons";
 
 export default function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -124,6 +125,7 @@ export default function Dashboard() {
     { id: "rentals", label: "الإيجارات", icon: CalendarDays },
     { id: "venue-reservations", label: "حجوزات القاعات", icon: CalendarDays },
     { id: "venue-owners", label: "أصحاب القاعات", icon: Building2 },
+    { id: "store-owners", label: "ملاك متاجر التأجير", icon: Store },
     { id: "overview", label: "نظرة عامة", icon: LayoutDashboard },
     { id: "customers", label: "العملاء", icon: Users },
     { id: "coupons", label: "الكوبونات", icon: Tag },
@@ -215,6 +217,7 @@ export default function Dashboard() {
             {activeTab === "rentals" && <RentalsView />}
             {activeTab === "venue-reservations" && <VenueReservationsView />}
             {activeTab === "venue-owners" && <VenueOwnersView />}
+            {activeTab === "store-owners" && <StoreOwnersView />}
             {activeTab === "overview" && <OverviewView />}
             {activeTab === "customers" && <CustomersView />}
             {activeTab === "coupons" && <CouponsView />}

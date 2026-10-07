@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -45,11 +47,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
+import com.fuchsia.platform.compose.data.StoreCategory
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -84,6 +86,23 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
     var imageLinks by remember { mutableStateOf("") }
     var audienceScope by remember { mutableStateOf("both") }
     var openDays by remember { mutableStateOf(setOf<Int>()) }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) scope.launch {
+            if (token.isNullOrBlank()) { error = "سجّل الدخول قبل رفع الصور."; return@launch }
+            busy = true; error = ""
+            val uploaded = mutableListOf<String>()
+            for (uri in uris.take(8)) {
+                try { uploaded += FuchsiaApi.uploadPartnerImage(context, uri, "venue", token) }
+                catch (failure: Exception) { error = failure.message ?: "تعذر رفع الصورة."; break }
+            }
+            if (uploaded.isNotEmpty()) {
+                val existing = imageLinks.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                imageLinks = (existing + uploaded).distinct().take(8).joinToString(",\n")
+                info = "تم رفع ${uploaded.size} صورة إلى التخزين الدائم."
+            }
+            busy = false
+        }
+    }
 
     suspend fun reload() {
         val bearerToken = token ?: throw IllegalStateException("سجّل الدخول بحسابك أولًا")
@@ -120,6 +139,7 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            if (!token.isNullOrBlank()) item { RentalOwnerPanel(token, context) }
             if (loading) item { Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             else if (ownerStatus == "none") {
                 item {
@@ -166,8 +186,11 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                         PartnerField(description, { description = it }, "وصف القاعة", singleLine = false)
                         PartnerField(capacity, { capacity = it.filter(Char::isDigit).take(5) }, "السعة القصوى للضيوف", keyboardType = KeyboardType.Number)
                         PartnerField(dailyPrice, { dailyPrice = it.filter(Char::isDigit).take(12) }, "سعر الحجز لليوم بالريال", keyboardType = KeyboardType.Number)
-                        PartnerField(imageLinks, { imageLinks = it }, "رابط الصورة الرئيسية ثم روابط إضافية مفصولة بفاصلة", singleLine = false)
-                        Text("ملاحظة: هذا الإصدار يقبل روابط صور مستضافة؛ رفع الصور من الجهاز يتطلب ربط تخزين صور دائم للمشروع.", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                        Button(onClick = { imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+                            Text("اختيار ورفع صور من الجهاز", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                        }
+                        PartnerField(imageLinks, { imageLinks = it }, "أو روابط الصور المستضافة (مفصولة بفاصلة)", singleLine = false)
+                        Text("حد أقصى 8 صور لكل قاعة. يحتاج رفع الجهاز إلى إعداد تخزين S3 في بيئة الخادم.", color = FuchsiaColors.Muted, fontSize = 11.sp)
                         Text("القسم الذي تسمح به القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("both" to "النساء والرجال", "women" to "النساء فقط", "men" to "الرجال فقط").forEach { (value, label) ->
@@ -273,4 +296,163 @@ private fun partnerAudienceLabel(value: String) = when (value) {
     "women" -> "نساء فقط"
     "men" -> "رجال فقط"
     else -> "النساء والرجال"
+}
+
+
+@Composable
+private fun RentalOwnerPanel(token: String, context: android.content.Context) {
+    val scope = rememberCoroutineScope()
+    var stores by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<StoreCategory>>(emptyList()) }
+    var products by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var storeId by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    var info by remember { mutableStateOf("") }
+    var rentalCategory by remember { mutableStateOf("kosh") }
+    var eventAudience by remember { mutableStateOf("both") }
+    var productName by remember { mutableStateOf("") }
+    var productDescription by remember { mutableStateOf("") }
+    var dailyPrice by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("") }
+    var tableHeight by remember { mutableStateOf("") }
+    var colors by remember { mutableStateOf("") }
+    var imageLinks by remember { mutableStateOf("") }
+    var selectedImagePurpose by remember { mutableStateOf("rental") }
+
+    suspend fun reloadProducts(targetStoreId: Int) {
+        products = FuchsiaApi.vendorProducts(targetStoreId, token)
+    }
+
+    LaunchedEffect(token) {
+        loading = true
+        runCatching {
+            stores = FuchsiaApi.vendorStores(token)
+            categories = FuchsiaApi.categories()
+            if (storeId == 0) storeId = stores.firstOrNull()?.optInt("id") ?: 0
+            if (storeId > 0) reloadProducts(storeId)
+        }.onFailure { error = it.message ?: "تعذر تحميل كتالوج التأجير." }
+        loading = false
+    }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) scope.launch {
+            busy = true; error = ""
+            val uploaded = mutableListOf<String>()
+            for (uri in uris.take(8)) {
+                try { uploaded += FuchsiaApi.uploadPartnerImage(context, uri, selectedImagePurpose, token) }
+                catch (failure: Exception) { error = failure.message ?: "تعذر رفع الصورة."; break }
+            }
+            if (uploaded.isNotEmpty()) {
+                val existing = imageLinks.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }
+                imageLinks = (existing + uploaded).distinct().take(8).joinToString(",\n")
+                info = "تم رفع ${uploaded.size} صورة إلى التخزين الدائم."
+            }
+            busy = false
+        }
+    }
+
+    val categoryName = if (rentalCategory == "kosh") "كوش" else "طاول"
+    val matchingCategory = categories.firstOrNull { it.name.contains(categoryName, ignoreCase = true) }
+
+    PartnerPanel(title = "إدارة الكوش والطاولات") {
+        if (loading) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = FuchsiaColors.Primary)
+        } else if (stores.isEmpty()) {
+            Text("سيظهر لك هذا القسم بعد أن تربط الإدارة متجر التأجير بحسابك. أرسل لهم رقم حسابك من صفحة العملاء.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+        } else {
+            Text("أضف تجهيزات التأجير ببياناتها الحقيقية. المنتج الجديد مسودة ويمكن نشره بعد اكتمال شروطه.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+            if (stores.size > 1) stores.chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { store ->
+                        val id = store.optInt("id")
+                        FilterChip(selected = storeId == id, onClick = { storeId = id; scope.launch { runCatching { reloadProducts(id) }.onFailure { error = it.message.orEmpty() } } }, label = { Text(store.optString("nameAr"), fontSize = 11.sp) })
+                    }
+                }
+            }
+            Text("نوع القطعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = rentalCategory == "kosh", onClick = { rentalCategory = "kosh" }, label = { Text("كوشة عرس") })
+                FilterChip(selected = rentalCategory == "table", onClick = { rentalCategory = "table" }, label = { Text("طاولة") })
+            }
+            Text("مناسبة القسم", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("both" to "نساء ورجال", "women" to "نساء", "men" to "رجال").forEach { (value, label) ->
+                    FilterChip(selected = eventAudience == value, onClick = { eventAudience = value }, label = { Text(label, fontSize = 11.sp) })
+                }
+            }
+            PartnerField(productName, { productName = it }, "اسم القطعة")
+            PartnerField(productDescription, { productDescription = it }, "الوصف", singleLine = false)
+            PartnerField(dailyPrice, { dailyPrice = it.filter { char -> char in '0'..'9' } }, "سعر الإيجار لليوم بالريال", keyboardType = KeyboardType.Number)
+            PartnerField(quantity, { quantity = it.filter(Char::isDigit).take(5) }, "العدد المتاح", keyboardType = KeyboardType.Number)
+            if (rentalCategory == "table") {
+                PartnerField(tableHeight, { tableHeight = it.filter { char -> char in '0'..'9' || char == '.' }.take(6) }, "ارتفاع الطاولة بالسنتيمتر", keyboardType = KeyboardType.Decimal)
+                PartnerField(colors, { colors = it }, "الألوان المتوفرة مفصولة بفاصلة")
+            }
+            Button(onClick = { selectedImagePurpose = "rental"; imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+                Text("اختيار ورفع صور القطعة", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+            }
+            PartnerField(imageLinks, { imageLinks = it }, "أو روابط صور مستضافة (مفصولة بفاصلة)", singleLine = false)
+            Text(if (matchingCategory == null) "لا توجد فئة كتالوج مطابقة لـ${if (rentalCategory == "kosh") "الكوش" else "الطاولات"}؛ أضفها الإدارة أولًا." else "سيُدرج المنتج ضمن فئة: ${matchingCategory.name}" , color = if (matchingCategory == null) FuchsiaColors.Primary else FuchsiaColors.Muted, fontSize = 11.sp)
+            PartnerSubmitButton("حفظ قطعة التأجير كمسودة", busy) {
+                val daily = dailyPrice.toDoubleOrNull() ?: 0.0
+                val count = quantity.toIntOrNull() ?: 0
+                val imageUrls = imageLinks.split(',', '\n').map { it.trim() }.filter { it.isNotBlank() }.distinct().take(8)
+                val colorList = colors.split(',').map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                if (storeId < 1 || matchingCategory == null || productName.isBlank() || daily <= 0 || count < 1 || imageUrls.isEmpty() || (rentalCategory == "table" && ((tableHeight.toDoubleOrNull() ?: 0.0) <= 0 || colorList.isEmpty()))) {
+                    error = "أكمل اسم القطعة والسعر والكمية والصور، وارتفاع الطاولة وألوانها عند اختيار الطاولات."
+                } else scope.launch {
+                    busy = true; error = ""; info = ""
+                    val payload = JSONObject()
+                        .put("storeId", storeId)
+                        .put("nameAr", productName.trim())
+                        .put("description", productDescription.trim())
+                        .put("price", daily)
+                        .put("fulfillmentType", "rental")
+                        .put("rentalCategory", rentalCategory)
+                        .put("eventAudience", eventAudience)
+                        .put("rentalDailyPrice", daily)
+                        .put("rentalDeposit", 0)
+                        .put("rentalMinDays", 1)
+                        .put("rentalMaxDays", 3)
+                        .put("categoryId", matchingCategory.id)
+                        .put("imageUrl", imageUrls.first())
+                        .put("images", JSONArray(imageUrls).toString())
+                        .put("availableColors", JSONArray(colorList).toString())
+                        .put("stockQuantity", count)
+                        .put("inStock", true)
+                    if (rentalCategory == "table") payload.put("tableHeightCm", tableHeight.toDoubleOrNull())
+                    runCatching { FuchsiaApi.createVendorProduct(payload, token); reloadProducts(storeId) }
+                        .onSuccess { productName = ""; productDescription = ""; dailyPrice = ""; quantity = ""; tableHeight = ""; colors = ""; imageLinks = ""; info = "تم حفظ القطعة كمسودة ضمن متجرك." }
+                        .onFailure { error = it.message ?: "تعذر حفظ قطعة التأجير." }
+                    busy = false
+                }
+            }
+            if (products.isNotEmpty()) {
+                Text("منتجات متجرك", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                products.forEach { product ->
+                    val id = product.optInt("id")
+                    val published = product.optBoolean("isPublished")
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(product.optString("nameAr"), color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            Text(if (published) "منشور للعملاء" else "مسودة غير منشورة", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                        }
+                        if (!published) Button(enabled = !busy, onClick = {
+                            scope.launch {
+                                busy = true; error = ""
+                                runCatching { FuchsiaApi.updateVendorProduct(id, JSONObject().put("isPublished", true), token); reloadProducts(storeId) }
+                                    .onSuccess { info = "تم نشر المنتج." }
+                                    .onFailure { error = it.message ?: "لا يمكن نشر المنتج قبل إكمال بياناته." }
+                                busy = false
+                            }
+                        }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("نشر", color = Color.White) }
+                    }
+                }
+            }
+        }
+        if (error.isNotBlank()) CommerceNotice(error, isError = true)
+        if (info.isNotBlank()) CommerceNotice(info)
+    }
 }
