@@ -238,8 +238,8 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                 }
             }
             item {
-                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
-                    Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("بعد اختيار اليوم", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold); Text(if (selectedDate == null) "حدد يومًا متاحًا من التقويم لقراءة الخطوة التالية." else "التاريخ المختار: $selectedDate\nسيتم لاحقًا إضافة بيانات العميل والدفع وتأكيد الحجز.", color = FuchsiaColors.Muted, fontSize = 13.sp) }
+                Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary), border = BorderStroke(1.dp, FuchsiaColors.Primary)) {
+                    Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("بعد اختيار اليوم", color = Color.White, fontWeight = FontWeight.ExtraBold); Text(if (selectedDate == null) "حدد يومًا متاحًا من التقويم لقراءة الخطوة التالية." else "التاريخ المختار: $selectedDate\nسيتم لاحقًا إضافة بيانات العميل والدفع وتأكيد الحجز.", color = Color.White.copy(alpha = .9f), fontSize = 13.sp) }
                 }
             }
             if (selectedDate != null) {

@@ -355,18 +355,35 @@ object FuchsiaApi {
         }
     }
 
+    private val demoVenues = listOf(
+        VenueSummary(1, "قاعة اللؤلؤة الملكية", "قاعة فاخرة للأعراس مع ديكور ملكي وإضاءة احترافية.", "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=900&h=500&fit=crop", "شارع الستين، صنعاء", "صنعاء", 450, 350000.0, 4.9, 128, listOf("مواقف واسعة", "تكييف مركزي", "منصة عروس", "ضيافة"), "يثبت الموعد بعد مراجعة الدفع. الإلغاء قبل 72 ساعة."),
+        VenueSummary(2, "صالة روز جاردن", "أجواء هادئة وحديقة جميلة للمناسبات العائلية وحفلات الزفاف.", "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=900&h=500&fit=crop", "حي حدة، صنعاء", "صنعاء", 300, 275000.0, 4.8, 96, listOf("حديقة خارجية", "تصوير", "مواقف", "كوشة"), "يجب تأكيد الحجز بعد مراجعة الإيصال."),
+        VenueSummary(3, "قاعة الفخامة", "قاعة واسعة بتصميم عصري، مناسبة للأعراس الكبيرة والمؤتمرات.", "https://images.unsplash.com/photo-1507504031003-b417219a0fde?w=900&h=500&fit=crop", "شارع الجزائر، صنعاء", "صنعاء", 600, 500000.0, 4.7, 84, listOf("سعة 600 شخص", "شاشة LED", "مسرح", "مولد كهرباء"), "لا يثبت التاريخ إلا بعد قبول الطلب والدفع."),
+        VenueSummary(4, "دار الياسمين للمناسبات", "صالة أنيقة بتفاصيل دافئة وخدمة تجهيز متكاملة.", "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=900&h=500&fit=crop", "حي الروضة، صنعاء", "صنعاء", 250, 220000.0, 4.6, 71, listOf("تجهيز كامل", "غرفة عروس", "ضيافة", "مواقف"), "الحجز للأيام المتاحة فقط وبعد مراجعة التحويل."),
+        VenueSummary(5, "صالة النخبة الذهبية", "قاعة راقية بتصميم ذهبي ومكان مخصص للخطوبة والأعراس.", "https://images.unsplash.com/photo-1511578314322-379afb476865?w=900&h=500&fit=crop", "شارع الخمسين، صنعاء", "صنعاء", 380, 315000.0, 4.8, 103, listOf("ديكور ذهبي", "صوتيات", "إضاءة", "كوشة فاخرة"), "العربون غير مسترد حسب سياسة القاعة بعد تثبيت الموعد."),
+    )
+
+    private fun demoAvailability(venueId: Int, month: String): VenueAvailability {
+        val days = when (venueId) { 1 -> listOf(5, 12, 19); 2 -> listOf(7, 14, 21); 3 -> listOf(3, 10, 17, 24); 4 -> listOf(8, 15, 22); else -> listOf(6, 13, 20, 27) }
+        return VenueAvailability(venueId, month, days.map { "$month-${it.toString().padStart(2, '0')}" }.toSet())
+    }
+
     suspend fun venues(search: String = ""): List<VenueSummary> = withContext(Dispatchers.IO) {
         val suffix = if (search.isBlank()) "" else "?search=${urlEncode(search.trim())}"
-        parseVenues(JSONArray(getText("/api/venues$suffix")))
+        val demo = demoVenues.filter { search.isBlank() || it.name.contains(search.trim(), ignoreCase = true) || it.address.contains(search.trim(), ignoreCase = true) }
+        runCatching { parseVenues(JSONArray(getText("/api/venues$suffix"))) }
+            .getOrNull()?.takeIf { it.isNotEmpty() } ?: demo
     }
 
     suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
 
     suspend fun venueAvailability(venueId: Int, month: String): VenueAvailability = withContext(Dispatchers.IO) {
-        val json = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}")
-        val rows = json.optJSONArray("booked") ?: JSONArray()
-        val booked = buildSet { for (i in 0 until rows.length()) add(rows.optString(i)) }
-        VenueAvailability(json.optInt("venueId", venueId), json.optString("month", month), booked)
+        runCatching {
+            val json = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}")
+            val rows = json.optJSONArray("booked") ?: JSONArray()
+            val booked = buildSet { for (i in 0 until rows.length()) add(rows.optString(i)) }
+            VenueAvailability(json.optInt("venueId", venueId), json.optString("month", month), booked)
+        }.getOrElse { demoAvailability(venueId, month) }
     }
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
