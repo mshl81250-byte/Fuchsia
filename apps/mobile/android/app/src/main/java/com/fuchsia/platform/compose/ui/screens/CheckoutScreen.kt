@@ -252,7 +252,12 @@ fun CheckoutScreen(
         val currentSession = sessionId
         val currentCart = cart
         if (currentSession == null || currentCart == null || currentCart.items.isEmpty()) {
-            snackbarShown(scope, snackbar, "السلة فارغة أو الجلسة غير متاحة.")
+            snackbarShown(
+                scope,
+                snackbar,
+                if (directRental != null) "جلسة الحجز غير متاحة. أعد فتح تفاصيل المنتج وحاول مجددًا."
+                else "السلة فارغة أو الجلسة غير متاحة.",
+            )
             return
         }
         val rentalItems = currentCart.items.filter { it.fulfillmentType == "rental" }
@@ -554,7 +559,17 @@ fun CheckoutScreen(
                 if (error.isNotBlank()) item { CommerceNotice(error, isError = true) }
                 item { CommerceNotice("لن يُنشأ الطلب إلا بعد استلام رد الخادم. يرجى التحقق من العنوان وموقع التوصيل قبل التأكيد.") }
             } else {
-                item { CommerceEmptyState("لا توجد منتجات للإتمام", error.ifBlank { "يرجى إضافة هدية إلى السلة أولًا." }, "العودة", onBack) }
+                item {
+                    CommerceEmptyState(
+                        if (directRental != null) "تعذر تجهيز الحجز" else "لا توجد منتجات للإتمام",
+                        error.ifBlank {
+                            if (directRental != null) "أعد فتح تفاصيل العنصر وحاول تجهيز الحجز من جديد."
+                            else "يرجى إضافة هدية إلى السلة أولًا."
+                        },
+                        "العودة",
+                        onBack,
+                    )
+                }
             }
         }
     }
