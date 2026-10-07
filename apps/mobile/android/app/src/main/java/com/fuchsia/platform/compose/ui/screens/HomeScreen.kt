@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsNone
@@ -422,6 +423,7 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
             Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight).clickable(onClick = onOpen)) {
                 if (!product.imageUrl.isNullOrBlank()) AsyncImage(product.imageUrl, contentDescription = product.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 else Icon(Icons.Rounded.CardGiftcard, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(35.dp))
+                if (product.fulfillmentType == "rental") RentalTypeBadge(product.name, Modifier.align(Alignment.TopStart).padding(6.dp), compact = true)
                 IconButton(onClick = onFavorite, modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(35.dp)) {
                     Icon(if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, contentDescription = if (isFavorite) "إزالة من المفضلة" else "إضافة للمفضلة", tint = FuchsiaColors.Primary, modifier = Modifier.size(21.dp))
                 }
@@ -432,11 +434,11 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
                     Text("★", color = FuchsiaColors.Gold, fontSize = 13.sp)
                     Text("4.8", color = FuchsiaColors.Muted, fontSize = 10.sp)
                 }
-                Text(formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
-                    Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(15.dp))
+                Text(if (product.fulfillmentType == "rental") "${formatRiyal(product.rentalDailyPrice ?: product.price)} لليوم" else formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                Button(onClick = if (product.fulfillmentType == "rental") onOpen else onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                    Icon(if (product.fulfillmentType == "rental") Icons.Rounded.EventAvailable else Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("إضافة للسلة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(if (product.fulfillmentType == "rental") "احجز الإيجار" else "إضافة للسلة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
