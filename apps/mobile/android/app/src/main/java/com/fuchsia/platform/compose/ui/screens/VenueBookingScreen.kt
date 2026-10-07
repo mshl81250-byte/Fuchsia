@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.EventAvailable
@@ -322,15 +323,21 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
         cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 week.forEach { day ->
-                    Box(Modifier.weight(1f).height(46.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.weight(1f).height(67.dp), contentAlignment = Alignment.Center) {
                         if (day != null) {
                             val date = (month.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
                             val key = keyFormat.format(date.time)
                             val isBooked = key in booked
                             val isPast = date.before(Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) })
                             val isSelected = selected == key
-                            Surface(onClick = { if (!isBooked && !isPast) onDate(key) }, modifier = Modifier.size(40.dp), shape = RoundedCornerShape(13.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked -> FuchsiaColors.Muted.copy(alpha = .16f); isPast -> FuchsiaColors.Cream; else -> FuchsiaColors.White }, border = when { isSelected -> null; isBooked -> BorderStroke(1.dp, FuchsiaColors.Muted.copy(alpha = .22f)); key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); else -> BorderStroke(1.dp, FuchsiaColors.Line) }, enabled = !isBooked && !isPast) {
-                                Box(contentAlignment = Alignment.Center) { Text(day.toString(), color = when { isSelected -> Color.White; isBooked || isPast -> FuchsiaColors.Muted.copy(alpha = .55f); else -> FuchsiaColors.Ink }, fontSize = 13.sp, fontWeight = if (isSelected || key == todayKey) FontWeight.ExtraBold else FontWeight.SemiBold) }
+                            val statusLabel = when { isSelected -> "محدد"; isBooked -> "محجوز"; isPast -> "مكتمل"; else -> "متاح" }
+                            val statusColor = when { isSelected -> Color.White; isBooked -> FuchsiaColors.Error; isPast -> FuchsiaColors.Muted; else -> FuchsiaColors.Success }
+                            Surface(onClick = { if (!isBooked && !isPast) onDate(key) }, modifier = Modifier.fillMaxWidth().height(61.dp), shape = RoundedCornerShape(12.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked -> Color(0xFFFFEBEE); isPast -> FuchsiaColors.Cream; else -> Color(0xFFEAF8F0) }, border = when { isSelected -> null; isBooked -> BorderStroke(1.dp, Color(0xFFE57373)); isPast -> BorderStroke(1.dp, FuchsiaColors.Line); key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); else -> BorderStroke(1.dp, Color(0xFF9AD8B2)) }, enabled = !isBooked && !isPast) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                    Text(day.toString(), color = if (isSelected) Color.White else FuchsiaColors.Ink, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                                    if (isPast) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = statusColor, modifier = Modifier.size(13.dp))
+                                    Text(statusLabel, color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                }
                             }
                         }
                     }
