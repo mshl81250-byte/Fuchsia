@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
@@ -93,7 +94,11 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
         snackbarHost = { FuchsiaNoticeHost(notice) },
         bottomBar = {
             if (current != null) {
-                Surface(modifier = Modifier.navigationBarsPadding(), color = FuchsiaColors.White, shadowElevation = 14.dp) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().zIndex(5f),
+                    color = FuchsiaColors.White,
+                    shadowElevation = 18.dp,
+                ) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -110,7 +115,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                 }
                             },
                             enabled = current.inStock,
-                            modifier = Modifier.weight(1f).height(56.dp),
+                            modifier = Modifier.weight(1f).height(58.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                         ) {
@@ -236,11 +241,11 @@ private fun CircleAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 
 @Composable
 private fun QuantityStepper(quantity: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
-    Surface(shape = RoundedCornerShape(14.dp), color = FuchsiaColors.RoseLight) {
-        Row(Modifier.padding(horizontal = 5.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            IconButton(onClick = onDecrease, modifier = Modifier.size(42.dp)) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp)) }
-            Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(27.dp), textAlign = TextAlign.Center)
-            IconButton(onClick = onIncrease, modifier = Modifier.size(42.dp)) { Icon(Icons.Rounded.Add, contentDescription = "زيادة الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp)) }
+    Surface(shape = RoundedCornerShape(16.dp), color = FuchsiaColors.RoseLight) {
+        Row(Modifier.padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(48.dp)) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(22.dp)) }
+            Text(quantity.toString(), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
+            IconButton(onClick = onIncrease, modifier = Modifier.size(48.dp)) { Icon(Icons.Rounded.Add, contentDescription = "زيادة الكمية", tint = FuchsiaColors.Primary, modifier = Modifier.size(22.dp)) }
         }
     }
 }

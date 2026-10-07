@@ -113,24 +113,26 @@ fun CartScreen(
         containerColor = FuchsiaColors.Cream,
         snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
-            Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-                val current = cart
-                if (!loading && !current?.items.isNullOrEmpty()) {
-                    Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            CommerceMoneyRow("الإجمالي شامل التوصيل", current.total, bold = true, accent = true)
-                            CommercePrimaryButton(
-                                text = "متابعة إلى إتمام الطلب",
-                                onClick = onCheckout,
-                                enabled = current.items.isNotEmpty(),
-                            )
-                        }
+            val current = cart
+            if (!loading && !current?.items.isNullOrEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                    color = FuchsiaColors.White,
+                    shadowElevation = 14.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CommerceMoneyRow("الإجمالي شامل التوصيل", current.total, bold = true, accent = true)
+                        CommercePrimaryButton(
+                            text = "متابعة إلى إتمام الطلب",
+                            onClick = onCheckout,
+                            enabled = current.items.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                        )
                     }
                 }
-                bottomBar()
             }
         },
     ) { contentPadding ->
