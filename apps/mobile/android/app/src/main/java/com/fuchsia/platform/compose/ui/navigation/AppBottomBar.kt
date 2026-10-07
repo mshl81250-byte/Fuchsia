@@ -70,7 +70,7 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
                             shape = RoundedCornerShape(if (selected) 16.dp else 14.dp),
                             color = if (selected) FuchsiaColors.Rose else MaterialTheme.colorScheme.surface,
                         ) {
-                            Icon(tab.icon, contentDescription = tab.label, tint = if (selected) FuchsiaColors.Primary else FuchsiaColors.Muted, modifier = Modifier.padding(9.dp).size(27.dp))
+                            Icon(tab.icon, contentDescription = tab.label, tint = if (selected) FuchsiaColors.IconAccent else FuchsiaColors.Muted, modifier = Modifier.padding(9.dp).size(27.dp))
                         }
                     },
                     label = {
@@ -80,8 +80,8 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
                     },
                     alwaysShowLabel = false,
                     colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = FuchsiaColors.Primary,
-                        selectedTextColor = FuchsiaColors.Primary,
+                        selectedIconColor = FuchsiaColors.IconAccent,
+                        selectedTextColor = FuchsiaColors.TextAccent,
                         indicatorColor = MaterialTheme.colorScheme.surface,
                         unselectedIconColor = FuchsiaColors.Muted,
                         unselectedTextColor = FuchsiaColors.Muted,

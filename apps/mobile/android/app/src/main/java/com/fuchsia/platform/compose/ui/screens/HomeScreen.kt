@@ -395,7 +395,7 @@ private fun CategoryTile(category: StoreCategory, onClick: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth().height(72.dp).background(FuchsiaColors.RoseLight)) {
                 if (!category.imageUrl.isNullOrBlank()) AsyncImage(category.imageUrl, contentDescription = category.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                else Icon(Icons.Rounded.LocalFlorist, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.align(Alignment.Center).size(28.dp))
+                else Icon(Icons.Rounded.LocalFlorist, contentDescription = null, tint = FuchsiaColors.IconAccent, modifier = Modifier.align(Alignment.Center).size(28.dp))
             }
             Text(category.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(vertical = 9.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -406,7 +406,7 @@ private fun CategoryTile(category: StoreCategory, onClick: () -> Unit) {
 private fun QuickService(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = modifier.height(88.dp), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Column(Modifier.fillMaxSize().padding(7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
-            Box(Modifier.size(37.dp).background(FuchsiaColors.RoseLight, CircleShape), contentAlignment = Alignment.Center) { Icon(icon, contentDescription = title, tint = FuchsiaColors.Primary, modifier = Modifier.size(20.dp)) }
+            Box(Modifier.size(37.dp).background(FuchsiaColors.RoseLight, CircleShape), contentAlignment = Alignment.Center) { Icon(icon, contentDescription = title, tint = FuchsiaColors.IconAccent, modifier = Modifier.size(20.dp)) }
             Text(title, color = FuchsiaColors.Ink, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

@@ -28,6 +28,7 @@ private data class FuchsiaPalette(
     val gold: Color,
     val surface: Color,
     val textAccent: Color,
+    val iconAccent: Color,
     val success: Color,
     val error: Color,
 )
@@ -45,6 +46,7 @@ private val LightPalette = FuchsiaPalette(
     gold = Color(0xFF8F2940),
     surface = Color(0xFFFFFFFF),
     textAccent = Color(0xFF760132),
+    iconAccent = Color(0xFF760132),
     success = Color(0xFF377456),
     error = Color(0xFFB3261E),
 )
@@ -61,6 +63,7 @@ private val DarkPalette = FuchsiaPalette(
     gold = Color(0xFFC45A6C),
     surface = Color(0xFF1E1E1E),
     textAccent = Color(0xFFFFFFFF),
+    iconAccent = Color(0xFFFFFFFF),
     success = Color(0xFF71C297),
     error = Color(0xFFF28B82),
 )
@@ -90,6 +93,8 @@ object FuchsiaColors {
         @Composable get() = LocalFuchsiaPalette.current.surface
     val TextAccent: Color
         @Composable get() = LocalFuchsiaPalette.current.textAccent
+    val IconAccent: Color
+        @Composable get() = LocalFuchsiaPalette.current.iconAccent
     val Success: Color
         @Composable get() = LocalFuchsiaPalette.current.success
     val Error: Color

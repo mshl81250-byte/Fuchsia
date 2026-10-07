@@ -217,7 +217,7 @@ private fun AccountInfoLine(label: String, value: String) {
 private fun AccountMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
     Card(modifier = modifier, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(29.dp))
+            Icon(icon, contentDescription = null, tint = FuchsiaColors.IconAccent, modifier = Modifier.size(29.dp))
             Text(value, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
             Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
         }
@@ -259,7 +259,7 @@ private fun AccountAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(42.dp).background(FuchsiaColors.Rose, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = FuchsiaColors.Primary)
+                Icon(icon, contentDescription = null, tint = FuchsiaColors.IconAccent)
             }
             Column(Modifier.weight(1f)) {
                 Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
