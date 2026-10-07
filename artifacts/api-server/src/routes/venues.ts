@@ -54,13 +54,26 @@ router.get("/:id/availability", async (req, res): Promise<void> => {
     const start = new Date(`${month}-01T00:00:00.000Z`);
     const end = new Date(start);
     end.setUTCMonth(end.getUTCMonth() + 1);
+    const queryStart = new Date(start);
+    queryStart.setUTCDate(queryStart.getUTCDate() - 7);
     const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(eq(storesTable.id, id));
     if (!store) { res.status(404).json({ error: "القاعة غير موجودة" }); return; }
-    const rows = await db.select({ date: tableReservationsTable.reservationAt, status: tableReservationsTable.status })
+    const rows = await db.select({ date: tableReservationsTable.reservationAt, days: tableReservationsTable.bookingDays, status: tableReservationsTable.status })
       .from(tableReservationsTable)
-      .where(and(eq(tableReservationsTable.storeId, id), gte(tableReservationsTable.reservationAt, start), lt(tableReservationsTable.reservationAt, end)));
-    const booked = rows.filter(row => !["cancelled", "rejected"].includes(row.status)).map(row => row.date.toISOString().slice(0, 10));
-    res.json({ venueId: id, month, booked: [...new Set(booked)] });
+      .where(and(eq(tableReservationsTable.storeId, id), gte(tableReservationsTable.reservationAt, queryStart), lt(tableReservationsTable.reservationAt, end)));
+    const booked = new Set<string>();
+    for (const row of rows) {
+      if (["cancelled", "rejected"].includes(row.status)) continue;
+      const date = new Date(`${row.date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+      const days = Math.max(1, Math.min(7, row.days || 1));
+      for (let offset = 0; offset < days; offset += 1) {
+        const day = new Date(date);
+        day.setUTCDate(day.getUTCDate() + offset);
+        const key = day.toISOString().slice(0, 10);
+        if (key.startsWith(`${month}-`)) booked.add(key);
+      }
+    }
+    res.json({ venueId: id, month, booked: [...booked].sort() });
   } catch (err) {
     req.log.error({ err }, "Failed to load venue availability");
     res.status(500).json({ error: "تعذر تحميل تقويم التوفر" });

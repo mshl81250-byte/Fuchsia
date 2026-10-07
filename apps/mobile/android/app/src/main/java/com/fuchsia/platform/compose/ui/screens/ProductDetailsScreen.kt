@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
@@ -142,7 +143,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                         ) {
-                            Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(19.dp))
+                            Icon(if (current.fulfillmentType == "rental") Icons.Rounded.EventAvailable else Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(19.dp))
                             Spacer(Modifier.width(7.dp))
                             Text(if (current.fulfillmentType == "rental") "استأجر الآن" else "إضافة للسلة", fontWeight = FontWeight.Bold)
                         }
@@ -180,6 +181,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                 item {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(current.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, fontSize = 23.sp, lineHeight = 29.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (current.fulfillmentType == "rental") RentalTypeBadge(current.name)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("★", color = FuchsiaColors.Gold, fontSize = 18.sp)
                             Text(if (current.rating > 0) String.format("%.1f", current.rating) else "جديد", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
@@ -192,6 +194,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                         }
                         if (current.fulfillmentType == "rental") {
                             RentalSelection(
+                                dailyPrice = current.rentalDailyPrice ?: current.price,
                                 minDays = current.rentalMinDays,
                                 maxDays = current.rentalMaxDays,
                                 days = rentalDays,
@@ -229,6 +232,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
 
 @Composable
 private fun RentalSelection(
+    dailyPrice: Double,
     minDays: Int,
     maxDays: Int,
     days: Int,
@@ -247,7 +251,7 @@ private fun RentalSelection(
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("تفاصيل الإيجار", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
-            Text("اختر تاريخ البداية وعدد أيام الاستئجار ليظهر السعر الإجمالي في السلة.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+            Text("اختر تاريخ البداية والمدة وطريقة الاستلام أو التوصيل.", color = FuchsiaColors.Muted, fontSize = 12.sp)
             Button(
                 onClick = onDateClick,
                 modifier = Modifier.fillMaxWidth(),
@@ -264,6 +268,7 @@ private fun RentalSelection(
                 )
             }
             Text("يسمح بالإيجار من $minDays إلى $maxDays أيام.", color = FuchsiaColors.Muted, fontSize = 11.sp)
+            Text("${formatRiyal(dailyPrice)} لليوم · إجمالي $days ${if (days == 1) "يوم" else "أيام"}: ${formatRiyal(dailyPrice * days)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
             Text("طريقة الحصول على الكوشة أو الطاولات", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Button(onClick = { onFulfillmentChange("pickup") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (fulfillment == "pickup") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("سأستلمها بنفسي", color = if (fulfillment == "pickup") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }

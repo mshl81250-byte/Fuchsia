@@ -380,9 +380,19 @@ object FuchsiaApi {
 
     suspend fun venueAvailability(venueId: Int, month: String): VenueAvailability = withContext(Dispatchers.IO) {
         runCatching {
+            val nextMonth = month.substring(0, 4).toIntOrNull()?.let { year ->
+                val monthNumber = month.substringAfter('-').toIntOrNull() ?: return@runCatching demoAvailability(venueId, month)
+                if (monthNumber == 12) java.lang.String.format(java.util.Locale.US, "%04d-01", year + 1)
+                else java.lang.String.format(java.util.Locale.US, "%04d-%02d", year, monthNumber + 1)
+            } ?: return@runCatching demoAvailability(venueId, month)
             val json = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}")
-            val rows = json.optJSONArray("booked") ?: JSONArray()
-            val booked = buildSet { for (i in 0 until rows.length()) add(rows.optString(i)) }
+            val nextJson = runCatching { getJson("/api/venues/$venueId/availability?month=${urlEncode(nextMonth)}") }.getOrNull()
+            val booked = buildSet {
+                listOfNotNull(json, nextJson).forEach { response ->
+                    val rows = response.optJSONArray("booked") ?: JSONArray()
+                    for (i in 0 until rows.length()) add(rows.optString(i))
+                }
+            }
             VenueAvailability(json.optInt("venueId", venueId), json.optString("month", month), booked)
         }.getOrElse { demoAvailability(venueId, month) }
     }

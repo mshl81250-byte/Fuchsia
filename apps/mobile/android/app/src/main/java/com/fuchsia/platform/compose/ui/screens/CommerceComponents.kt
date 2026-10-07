@@ -14,7 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.TableRestaurant
+import androidx.compose.material.icons.rounded.Weekend
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -142,6 +145,33 @@ internal fun CommerceMoneyRow(label: String, amount: Double, bold: Boolean = fal
             color = if (accent) FuchsiaColors.Primary else FuchsiaColors.Ink,
             fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Medium,
         )
+    }
+}
+
+@Composable
+internal fun RentalTypeBadge(name: String, modifier: Modifier = Modifier, compact: Boolean = false) {
+    val normalized = name.lowercase(Locale.forLanguageTag("ar-YE"))
+    val label = when {
+        compact && "كوش" in normalized -> "إيجار كوش"
+        compact && "طاول" in normalized -> "إيجار طاولات"
+        "كوش" in normalized -> "كوشة أعراس · إيجار"
+        "طاول" in normalized -> "طاولات مناسبات · إيجار"
+        else -> "إيجار مناسبات"
+    }
+    val icon = when {
+        "كوش" in normalized -> Icons.Rounded.Weekend
+        "طاول" in normalized -> Icons.Rounded.TableRestaurant
+        else -> Icons.Rounded.EventAvailable
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = FuchsiaColors.Gold.copy(alpha = .16f)) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 5.dp else 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Icon(icon, contentDescription = label, tint = FuchsiaColors.Gold, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
+            Text(label, color = FuchsiaColors.Ink, fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
