@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { storesTable, insertStoreSchema } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { requireAdmin } from "../lib/admin-auth";
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", requireAdmin, async (req, res): Promise<void> => {
   try {
     const data = insertStoreSchema.parse(req.body);
     await db.insert(storesTable).values(data);

@@ -15,6 +15,7 @@ export const storesTable = mysqlTable("stores", {
   workingHours: text("working_hours"),
   phone: text("phone"),
   location: text("location"),
+  ownerUserId: int("owner_user_id"),
   isFeatured: boolean("is_featured").notNull().default(false),
   productCount: int("product_count").notNull().default(0),
 });

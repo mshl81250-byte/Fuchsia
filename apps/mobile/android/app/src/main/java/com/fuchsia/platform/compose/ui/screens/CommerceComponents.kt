@@ -14,7 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.TableRestaurant
+import androidx.compose.material.icons.rounded.Weekend
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -146,6 +149,42 @@ internal fun CommerceMoneyRow(label: String, amount: Double, bold: Boolean = fal
 }
 
 @Composable
+internal fun RentalTypeBadge(name: String, modifier: Modifier = Modifier, compact: Boolean = false, rentalCategory: String? = null) {
+    val label = when (rentalCategory) {
+        "kosh" -> if (compact) "إيجار كوش" else "كوشة أعراس · إيجار"
+        "table" -> if (compact) "إيجار طاولات" else "طاولات مناسبات · إيجار"
+        else -> if (compact) "إيجار" else "إيجار مناسبات"
+    }
+    val icon = when (rentalCategory) {
+        "kosh" -> Icons.Rounded.Weekend
+        "table" -> Icons.Rounded.TableRestaurant
+        else -> Icons.Rounded.EventAvailable
+    }
+    Surface(modifier = modifier, shape = RoundedCornerShape(12.dp), color = FuchsiaColors.Gold.copy(alpha = .16f)) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (compact) 8.dp else 10.dp, vertical = if (compact) 5.dp else 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            Icon(icon, contentDescription = label, tint = FuchsiaColors.Gold, modifier = Modifier.size(if (compact) 15.dp else 18.dp))
+            Text(label, color = FuchsiaColors.Ink, fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+internal fun RentalAudienceBadge(audience: String, compact: Boolean = false) {
+    val label = when (audience) {
+        "women" -> if (compact) "نسائي" else "مناسب للنساء"
+        "men" -> if (compact) "رجالي" else "مناسب للرجال"
+        else -> if (compact) "للنساء والرجال" else "مناسب للنساء والرجال"
+    }
+    Surface(shape = RoundedCornerShape(10.dp), color = FuchsiaColors.RoseLight) {
+        Text(label, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = FuchsiaColors.TextAccent, fontSize = if (compact) 9.sp else 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
+@Composable
 internal fun CommerceNotice(message: String, isError: Boolean = false, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -173,7 +212,7 @@ internal fun CommerceEmptyState(title: String, detail: String, action: String, o
     ) {
         Surface(shape = RoundedCornerShape(23.dp), color = FuchsiaColors.Rose, modifier = Modifier.size(70.dp)) {
             androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                Text("✿", color = FuchsiaColors.Primary, fontSize = 30.sp)
+                Text("✿", color = FuchsiaColors.TextAccent, fontSize = 30.sp)
             }
         }
         Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink, textAlign = TextAlign.Center)

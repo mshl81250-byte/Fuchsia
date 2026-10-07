@@ -4,12 +4,13 @@ import {
   usersTable, productsTable, storesTable, ordersTable,
   categoriesTable, bannersTable, couponsTable, insertCouponSchema,
   orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
-  tableReservationsTable
+  walletTransactionsTable, venueBookingsTable, venuesTable, venueBookingEventsTable, venueOwnersTable
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
+import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
 
 const router = Router();
 
@@ -57,25 +58,110 @@ router.post("/auth/logout", (_req, res): void => {
 
 router.use(requireAdmin);
 
+router.get("/venue-owners", async (req, res): Promise<void> => {
+  try {
+    const owners = await db.select({
+      id: venueOwnersTable.id,
+      userId: venueOwnersTable.userId,
+      businessName: venueOwnersTable.businessName,
+      contactPhone: venueOwnersTable.contactPhone,
+      status: venueOwnersTable.status,
+      createdAt: venueOwnersTable.createdAt,
+    }).from(venueOwnersTable).orderBy(desc(venueOwnersTable.createdAt));
+    res.json(owners.map((owner) => ({ ...owner, createdAt: owner.createdAt.toISOString() })));
+  } catch (error) {
+    req.log.error({ error }, "Admin list venue owners failed");
+    res.status(500).json({ error: "تعذر تحميل طلبات الشراكة" });
+  }
+});
+
+router.patch("/venue-owners/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const status = req.body?.status;
+    if (!Number.isInteger(id) || id < 1 || !["pending", "active", "suspended"].includes(status)) {
+      res.status(400).json({ error: "حالة اعتماد الشريك غير صحيحة" });
+      return;
+    }
+    await db.update(venueOwnersTable).set({ status, updatedAt: new Date() }).where(eq(venueOwnersTable.id, id));
+    const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.id, id));
+    if (!owner) { res.status(404).json({ error: "طلب الشراكة غير موجود" }); return; }
+    res.json({ ...owner, createdAt: owner.createdAt.toISOString(), updatedAt: owner.updatedAt.toISOString() });
+  } catch (error) {
+    req.log.error({ error }, "Admin update venue owner failed");
+    res.status(500).json({ error: "تعذر تحديث اعتماد الشريك" });
+  }
+});
+
+router.get("/store-owner-links", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select({
+      id: storesTable.id,
+      nameAr: storesTable.nameAr,
+      ownerUserId: storesTable.ownerUserId,
+      ownerName: usersTable.fullName,
+      ownerEmail: usersTable.email,
+    }).from(storesTable).leftJoin(usersTable, eq(storesTable.ownerUserId, usersTable.id)).orderBy(storesTable.id);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rows);
+  } catch (error) {
+    req.log.error({ error }, "Admin list store owner links failed");
+    res.status(500).json({ error: "تعذر تحميل ربط ملاك المتاجر" });
+  }
+});
+
+router.patch("/stores/:id/owner", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const ownerUserId = req.body?.ownerUserId == null ? null : Number(req.body.ownerUserId);
+    if (!Number.isInteger(id) || id < 1 || (ownerUserId !== null && (!Number.isInteger(ownerUserId) || ownerUserId < 1))) {
+      res.status(400).json({ error: "معرف المتجر أو المالك غير صحيح" });
+      return;
+    }
+    if (ownerUserId !== null) {
+      const [user] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, ownerUserId));
+      if (!user) { res.status(404).json({ error: "حساب المستخدم غير موجود" }); return; }
+    }
+    const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(eq(storesTable.id, id));
+    if (!store) { res.status(404).json({ error: "المتجر غير موجود" }); return; }
+    await db.update(storesTable).set({ ownerUserId }).where(eq(storesTable.id, id));
+    res.json({ success: true, storeId: id, ownerUserId });
+  } catch (error) {
+    req.log.error({ error }, "Admin assign store owner failed");
+    res.status(500).json({ error: "تعذر ربط مالك المتجر" });
+  }
+});
+
 router.get("/reservations", async (req, res): Promise<void> => {
   try {
     const rows = await db.select({
-      id: tableReservationsTable.id,
-      sessionId: tableReservationsTable.sessionId,
-      userId: tableReservationsTable.userId,
-      storeId: tableReservationsTable.storeId,
-      storeName: storesTable.nameAr,
-      reservationAt: tableReservationsTable.reservationAt,
-      partySize: tableReservationsTable.partySize,
-      customerName: tableReservationsTable.customerName,
-      customerPhone: tableReservationsTable.customerPhone,
-      occasion: tableReservationsTable.occasion,
-      notes: tableReservationsTable.notes,
-      status: tableReservationsTable.status,
-      createdAt: tableReservationsTable.createdAt,
-    }).from(tableReservationsTable)
-      .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
-      .orderBy(desc(tableReservationsTable.reservationAt))
+      id: venueBookingsTable.id,
+      sessionId: venueBookingsTable.customerUserId,
+      userId: venueBookingsTable.customerUserId,
+      venueId: venueBookingsTable.venueId,
+      storeName: venuesTable.nameAr,
+      venueName: venuesTable.nameAr,
+      audience: venueBookingsTable.audience,
+      reservationAt: venueBookingsTable.reservationAt,
+      bookingDays: venueBookingsTable.bookingDays,
+      partySize: venueBookingsTable.partySize,
+      customerName: venueBookingsTable.customerName,
+      customerPhone: venueBookingsTable.customerPhone,
+      occasion: venuesTable.nameAr,
+      notes: venueBookingsTable.notes,
+      status: venueBookingsTable.status,
+      paymentType: venueBookingsTable.paymentType,
+      paymentAmount: venueBookingsTable.paymentAmount,
+      platformFee: venueBookingsTable.platformFee,
+      paymentWalletId: venueBookingsTable.paymentWalletId,
+      transactionReference: venueBookingsTable.transactionReference,
+      paymentReceiptUrl: venueBookingsTable.paymentReceiptUrl,
+      paymentStatus: venueBookingsTable.paymentStatus,
+      expiresAt: venueBookingsTable.expiresAt,
+      createdAt: venueBookingsTable.createdAt,
+    }).from(venueBookingsTable)
+      .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
+      .orderBy(desc(venueBookingsTable.reservationAt))
       .limit(250);
     res.setHeader("Cache-Control", "no-store");
     res.json(rows.map((row) => ({
@@ -98,32 +184,66 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       res.status(400).json({ error: "حالة الحجز أو رقمه غير صحيح" });
       return;
     }
-    const [existing] = await db.select({ id: tableReservationsTable.id })
-      .from(tableReservationsTable).where(eq(tableReservationsTable.id, id));
+    const [existing] = await db.select().from(venueBookingsTable).where(eq(venueBookingsTable.id, id));
     if (!existing) {
       res.status(404).json({ error: "الحجز غير موجود" });
       return;
     }
-    await db.update(tableReservationsTable).set({ status }).where(eq(tableReservationsTable.id, id));
+    if (status === "confirmed" && (existing.status !== "pending" || !existing.expiresAt || existing.expiresAt.getTime() <= Date.now())) {
+      res.status(409).json({ error: "انتهت مهلة الحجز المؤقت؛ اطلب من العميل إنشاء طلب جديد بعد فحص التوفر" });
+      return;
+    }
+    await db.update(venueBookingsTable).set({
+      status,
+      expiresAt: null,
+      paymentStatus: status === "confirmed" ? "approved" : status === "rejected" ? "rejected" : existing.paymentStatus,
+    }).where(eq(venueBookingsTable.id, id));
+    await db.insert(venueBookingEventsTable).values({
+      bookingId: id,
+      actorType: "admin",
+      eventType: "status_changed",
+      fromStatus: existing.status,
+      toStatus: status,
+      notes: "تم التحديث من لوحة الإدارة",
+    });
     const [row] = await db.select({
-      id: tableReservationsTable.id,
-      sessionId: tableReservationsTable.sessionId,
-      userId: tableReservationsTable.userId,
-      storeId: tableReservationsTable.storeId,
-      storeName: storesTable.nameAr,
-      reservationAt: tableReservationsTable.reservationAt,
-      partySize: tableReservationsTable.partySize,
-      customerName: tableReservationsTable.customerName,
-      customerPhone: tableReservationsTable.customerPhone,
-      occasion: tableReservationsTable.occasion,
-      notes: tableReservationsTable.notes,
-      status: tableReservationsTable.status,
-      createdAt: tableReservationsTable.createdAt,
-    }).from(tableReservationsTable)
-      .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
-      .where(eq(tableReservationsTable.id, id));
+      id: venueBookingsTable.id,
+      sessionId: venueBookingsTable.customerUserId,
+      venueId: venueBookingsTable.venueId,
+      storeName: venuesTable.nameAr,
+      venueName: venuesTable.nameAr,
+      audience: venueBookingsTable.audience,
+      reservationAt: venueBookingsTable.reservationAt,
+      bookingDays: venueBookingsTable.bookingDays,
+      partySize: venueBookingsTable.partySize,
+      customerName: venueBookingsTable.customerName,
+      customerPhone: venueBookingsTable.customerPhone,
+      notes: venueBookingsTable.notes,
+      status: venueBookingsTable.status,
+      paymentType: venueBookingsTable.paymentType,
+      paymentAmount: venueBookingsTable.paymentAmount,
+      platformFee: venueBookingsTable.platformFee,
+      paymentWalletId: venueBookingsTable.paymentWalletId,
+      transactionReference: venueBookingsTable.transactionReference,
+      paymentReceiptUrl: venueBookingsTable.paymentReceiptUrl,
+      paymentStatus: venueBookingsTable.paymentStatus,
+      expiresAt: venueBookingsTable.expiresAt,
+      createdAt: venueBookingsTable.createdAt,
+    }).from(venueBookingsTable)
+      .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
+      .where(eq(venueBookingsTable.id, id));
     if (!row) { res.status(404).json({ error: "الحجز غير موجود" }); return; }
-    res.json({ ...row, reservationAt: row.reservationAt.toISOString(), createdAt: row.createdAt.toISOString() });
+    if (status === "confirmed" || status === "rejected" || status === "cancelled") {
+      await createCustomerNotification({
+        sessionId: String(row.sessionId),
+        type: "venue_reservation_status",
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "تم إلغاء حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.venueName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.venueName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `تم إلغاء حجز ${row.venueName || "القاعة"}.`,
+        customerName: row.customerName,
+        phone: row.customerPhone,
+      });
+    }
+    res.json({ ...row, reservationAt: row.reservationAt.toISOString(), expiresAt: row.expiresAt?.toISOString() ?? null, createdAt: row.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Admin reservation update failed");
     res.status(500).json({ error: "تعذر تحديث الحجز" });
@@ -173,6 +293,148 @@ router.get("/carts", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Admin list carts failed");
     res.status(500).json({ error: "تعذر تحميل السلال" });
+  }
+});
+
+const rentalStatuses = [
+  "rental_pending_confirmation",
+  "rental_confirmed",
+  "rental_rejected",
+  "rental_preparing",
+  "rental_out",
+  "rental_return_pending",
+  "rental_returned",
+  "rental_late",
+  "rental_damaged",
+  "cancelled",
+] as const;
+
+router.get("/rentals", async (req, res): Promise<void> => {
+  try {
+    const status = typeof req.query.status === "string" ? req.query.status : null;
+    const orders = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(500);
+    const rentals = (await Promise.all(orders.map(async (order) => {
+      const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
+      const rentalItems = items.filter((item) => item.fulfillmentType === "rental");
+      if (rentalItems.length === 0 || (status && order.status !== status)) return null;
+      return { ...order, items: rentalItems, createdAt: order.createdAt.toISOString() };
+    }))).filter((order): order is NonNullable<typeof order> => order !== null);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rentals);
+  } catch (err) {
+    req.log.error({ err }, "Admin list rentals failed");
+    res.status(500).json({ error: "تعذر تحميل الإيجارات" });
+  }
+});
+
+router.patch("/rentals/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const status = req.body?.status;
+    if (!Number.isInteger(id) || id < 1 || !rentalStatuses.includes(status)) {
+      res.status(400).json({ error: "حالة الإيجار أو رقمه غير صحيح" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) {
+      res.status(404).json({ error: "طلب الإيجار غير موجود" });
+      return;
+    }
+    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    if (!items.some((item) => item.fulfillmentType === "rental")) {
+      res.status(400).json({ error: "الطلب لا يحتوي على عناصر إيجار" });
+      return;
+    }
+    await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id));
+    if (order.status !== status) await appendOrderStatusEvent(id, status, "admin");
+    if (order.status !== status) {
+      const rentalMessages: Record<string, { title: string; message: string }> = {
+        rental_confirmed: { title: "تم قبول حجز الإيجار", message: `تم تأكيد توفر عناصر الإيجار للطلب رقم ${id}.` },
+        rental_rejected: { title: "الإيجار غير متوفر", message: `نعتذر، عناصر الإيجار غير متوفرة للطلب رقم ${id} في التاريخ المطلوب. سيتواصل معك فريق فوشيا.` },
+        rental_preparing: { title: "بدأ تجهيز الإيجار", message: `بدأ تجهيز عناصر الإيجار للطلب رقم ${id}.` },
+        rental_out: { title: "تم تسليم الإيجار", message: `تم تسليم عناصر الإيجار للطلب رقم ${id}.` },
+        rental_return_pending: { title: "حان موعد الاسترجاع", message: `حان موعد ترتيب استرجاع عناصر الإيجار للطلب رقم ${id}.` },
+      };
+      const message = rentalMessages[status];
+      if (message) {
+        const [recipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
+        await createCustomerNotification({ sessionId: order.sessionId, orderId: id, type: "rental_status", ...message, customerName: order.customerName, phone: order.customerPhone, email: recipient?.email });
+      }
+    }
+    const [updated] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!updated) { res.status(404).json({ error: "طلب الإيجار غير موجود" }); return; }
+    res.json({ ...updated, items: items.filter((item) => item.fulfillmentType === "rental"), createdAt: updated.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin rental update failed");
+    res.status(500).json({ error: "تعذر تحديث حالة الإيجار" });
+  }
+});
+
+router.patch("/rentals/:id/deposit", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const damageDeduction = Number(req.body?.damageDeduction ?? 0);
+    const lateFee = Number(req.body?.lateFee ?? 0);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 1000) : "";
+    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(damageDeduction) || !Number.isFinite(lateFee) || damageDeduction < 0 || lateFee < 0 || (!reason && damageDeduction + lateFee > 0)) {
+      res.status(400).json({ error: "بيانات تسوية التأمين غير صحيحة" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) { res.status(404).json({ error: "طلب الإيجار غير موجود" }); return; }
+    if (order.rentalDeposit <= 0) { res.status(400).json({ error: "لا يوجد تأمين قابل للتسوية لهذا الطلب" }); return; }
+    if (order.rentalDepositStatus !== "pending") { res.status(409).json({ error: "تمت تسوية تأمين هذا الطلب مسبقًا" }); return; }
+    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    if (!items.some((item) => item.fulfillmentType === "rental")) { res.status(400).json({ error: "الطلب لا يحتوي على عناصر إيجار" }); return; }
+    const totalDeduction = damageDeduction + lateFee;
+    if (totalDeduction > order.rentalDeposit) { res.status(400).json({ error: "قيمة الخصم أكبر من مبلغ التأمين" }); return; }
+    const refunded = order.rentalDeposit - totalDeduction;
+    const settlementStatus = totalDeduction === 0 ? "refunded" : refunded === 0 ? "forfeited" : "partially_deducted";
+    const nextOrderStatus = totalDeduction > 0 ? "rental_damaged" : "rental_returned";
+    await db.update(ordersTable).set({
+      status: nextOrderStatus,
+      rentalDepositStatus: settlementStatus,
+      rentalDepositRefunded: refunded,
+      rentalDamageDeduction: damageDeduction,
+      rentalLateFee: lateFee,
+      rentalDepositReason: reason || null,
+      rentalDepositProcessedAt: new Date(),
+    }).where(eq(ordersTable.id, id));
+    await appendOrderStatusEvent(id, nextOrderStatus, "admin");
+    const refund = refunded > 0 ? await requestWalletRefund({
+      orderId: id,
+      walletId: order.paymentWalletId,
+      amount: refunded,
+      reason: reason || "استرداد تأمين الإيجار",
+      idempotencyKey: `rental-deposit:${id}:${refunded.toFixed(2)}`,
+    }) : null;
+    const [recipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
+    await createCustomerNotification({
+      sessionId: order.sessionId,
+      orderId: id,
+      type: "rental_deposit_settled",
+      title: totalDeduction === 0 ? "تم استرداد تأمين الإيجار" : "تمت تسوية تأمين الإيجار",
+      message: totalDeduction === 0
+        ? `تم اعتماد استرداد تأمين الإيجار للطلب رقم ${id} بمبلغ ${refunded.toLocaleString("ar-YE")} ريال${refund?.status === "manual_required" ? "، وسيتم تنفيذ التحويل يدويًا من المحفظة المحلية." : "، وجارٍ تنفيذ التحويل إلى المحفظة."}`
+        : `تمت تسوية تأمين الإيجار للطلب رقم ${id}. المبلغ المسترد ${refunded.toLocaleString("ar-YE")} ريال. السبب: ${reason}${refund?.status === "manual_required" ? " وسيتم تنفيذ التحويل يدويًا." : ""}`,
+      customerName: order.customerName,
+      phone: order.customerPhone,
+      email: recipient?.email,
+    });
+    const [updated] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    res.json({ ...updated, refund, providerConfigured: isWalletProviderConfigured(), items: items.filter((item) => item.fulfillmentType === "rental"), createdAt: updated!.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin rental deposit settlement failed");
+    res.status(500).json({ error: "تعذر تسوية تأمين الإيجار" });
+  }
+});
+
+router.get("/wallet-transactions", async (_req, res): Promise<void> => {
+  try {
+    const transactions = await db.select().from(walletTransactionsTable).orderBy(desc(walletTransactionsTable.createdAt)).limit(500);
+    res.json({ providerConfigured: isWalletProviderConfigured(), transactions: transactions.map((transaction) => ({ ...transaction, createdAt: transaction.createdAt.toISOString(), processedAt: transaction.processedAt?.toISOString() ?? null })) });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر تحميل معاملات المحافظ" });
   }
 });
 
@@ -306,6 +568,7 @@ router.patch("/orders/:id/payment", async (req, res): Promise<void> => {
       return;
     }
     await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id));
+    await db.update(walletTransactionsTable).set({ status: status === "verified" ? "completed" : "failed", processedAt: status === "verified" ? new Date() : null }).where(eq(walletTransactionsTable.orderId, id));
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
     if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
     const [paymentRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];

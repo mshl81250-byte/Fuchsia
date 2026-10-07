@@ -28,6 +28,40 @@ data class StoreProduct(
     val price: Double = 0.0,
     val imageUrl: String? = null,
     val categoryId: Int = 0,
+    val images: List<String> = emptyList(),
+    val rating: Double = 0.0,
+    val reviewCount: Int = 0,
+    val originalPrice: Double? = null,
+    val inStock: Boolean = true,
+    val deliveryDays: Int? = null,
+    val tags: List<String> = emptyList(),
+    val fulfillmentType: String = "sale",
+    val rentalDailyPrice: Double? = null,
+    val rentalDeposit: Double = 0.0,
+    val rentalMinDays: Int = 1,
+    val rentalMaxDays: Int = 3,
+    val rentalCategory: String = "other",
+    val eventAudience: String = "both",
+    val tableHeightCm: Double? = null,
+    val availableColors: List<String> = emptyList(),
+    val stockQuantity: Int? = null,
+)
+
+data class RentalBookingDraft(
+    val product: StoreProduct,
+    val startDate: String,
+    val days: Int,
+    val quantity: Int,
+    val fulfillment: String,
+    val timeSlot: String,
+    val idempotencyKey: String,
+)
+
+data class RentalAvailability(
+    val availableQuantity: Int,
+    val stockQuantity: Int,
+    val reservedQuantity: Int,
+    val endDate: String,
 )
 
 data class CartLine(
@@ -39,6 +73,14 @@ data class CartLine(
     val imageUrl: String?,
     val giftWrapping: Boolean,
     val giftMessage: String?,
+    val fulfillmentType: String = "sale",
+    val rentalStartDate: String? = null,
+    val rentalDays: Int? = null,
+    val rentalEndDate: String? = null,
+    val rentalDeposit: Double = 0.0,
+    val rentalFulfillment: String? = null,
+    val rentalTimeSlot: String? = null,
+    val lineTotal: Double = price * quantity,
 )
 
 data class ShoppingCart(
@@ -48,6 +90,7 @@ data class ShoppingCart(
     val deliveryFee: Double,
     val discount: Double,
     val total: Double,
+    val rentalDeposit: Double = 0.0,
 )
 
 data class PaymentWallet(
@@ -66,10 +109,36 @@ data class StoreSummary(
     val isOpen: Boolean,
 )
 
+data class VenueSummary(
+    val id: Int,
+    val name: String,
+    val description: String,
+    val imageUrl: String?,
+    val images: List<String> = emptyList(),
+    val address: String,
+    val city: String,
+    val capacity: Int,
+    val priceFrom: Double,
+    val rating: Double,
+    val reviewCount: Int,
+    val audience: String,
+    val amenities: List<String>,
+    val rules: String,
+)
+
+data class VenueAvailability(
+    val venueId: Int,
+    val month: String,
+    val booked: Set<String>,
+    val closed: Set<String> = emptySet(),
+)
+
 data class TableReservation(
     val id: Int,
     val storeId: Int,
+    val venueId: Int = 0,
     val reservationAt: String,
+    val bookingDays: Int = 1,
     val partySize: Int,
     val status: String,
     val customerName: String,
@@ -94,12 +163,27 @@ data class CustomerOrder(
     val total: Double,
     val createdAt: String,
     val itemCount: Int,
+    val isGift: Boolean,
 )
 
 data class OrderStatusUpdate(
     val status: String,
     val message: String,
     val createdAt: String,
+)
+
+data class RentalTracking(
+    val startDate: String,
+    val returnDate: String,
+    val days: Int,
+    val deposit: Double,
+    val reminder: String?,
+    val depositStatus: String = "pending",
+    val refundedAmount: Double = 0.0,
+    val damageDeduction: Double = 0.0,
+    val lateFee: Double = 0.0,
+    val depositReason: String? = null,
+    val processedAt: String? = null,
 )
 
 data class OrderTracking(
@@ -111,6 +195,7 @@ data class OrderTracking(
     val driverName: String?,
     val driverPhone: String?,
     val history: List<OrderStatusUpdate>,
+    val rental: RentalTracking? = null,
 )
 
 class ApiException(message: String, val statusCode: Int = 0) : Exception(message)
@@ -200,6 +285,26 @@ object FuchsiaApi {
     suspend fun productsByCategory(categoryId: Int): List<StoreProduct> =
         parseProducts(getText("/api/products?categoryId=$categoryId"))
 
+    suspend fun searchProducts(query: String): List<StoreProduct> = withContext(Dispatchers.IO) {
+        parseProducts(getText("/api/products?search=${urlEncode(query.trim())}&limit=30"))
+    }
+
+    suspend fun product(productId: Int): StoreProduct = withContext(Dispatchers.IO) {
+        getJson("/api/products/$productId").toStoreProduct()
+    }
+
+    suspend fun favorites(userId: Int): List<StoreProduct> = withContext(Dispatchers.IO) {
+        parseProducts(getText("/api/favorites?userId=$userId"))
+    }
+
+    suspend fun toggleFavorite(userId: Int, productId: Int): Boolean = withContext(Dispatchers.IO) {
+        sendJson(
+            "/api/favorites",
+            "POST",
+            JSONObject().put("userId", userId).put("productId", productId),
+        ).optBoolean("isFavorite", false)
+    }
+
     suspend fun getCart(sessionId: String): ShoppingCart = parseCart(
         getJson("/api/cart?sessionId=${urlEncode(sessionId)}"),
     )
@@ -210,6 +315,10 @@ object FuchsiaApi {
         quantity: Int = 1,
         giftWrapping: Boolean = false,
         giftMessage: String? = null,
+        rentalStartDate: String? = null,
+        rentalDays: Int? = null,
+        rentalFulfillment: String? = null,
+        rentalTimeSlot: String? = null,
     ): ShoppingCart = parseCart(
         post(
             "/api/cart",
@@ -218,7 +327,11 @@ object FuchsiaApi {
                 .put("productId", productId)
                 .put("quantity", quantity)
                 .put("giftWrapping", giftWrapping)
-                .put("giftMessage", giftMessage),
+                .put("giftMessage", giftMessage)
+                .putNullable("rentalStartDate", rentalStartDate)
+                .putNullable("rentalDays", rentalDays)
+                .putNullable("rentalFulfillment", rentalFulfillment)
+                .putNullable("rentalTimeSlot", rentalTimeSlot),
         ),
     )
 
@@ -269,7 +382,113 @@ object FuchsiaApi {
         }
     }
 
+    suspend fun venues(search: String = "", audience: String? = null): List<VenueSummary> = withContext(Dispatchers.IO) {
+        val params = listOfNotNull(
+            search.trim().takeIf(String::isNotBlank)?.let { "search=${urlEncode(it)}" },
+            audience?.takeIf(String::isNotBlank)?.let { "audience=${urlEncode(it)}" },
+        )
+        val suffix = if (params.isEmpty()) "" else "?${params.joinToString("&")}"
+        parseVenues(JSONArray(getText("/api/venues$suffix")))
+    }
+
+    suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
+
+    suspend fun venuePartnerProfile(bearerToken: String): JSONObject = getJson("/api/venue-partner/me", bearerToken)
+
+    suspend fun requestVenuePartner(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/owner-request", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun createPartnerVenue(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun savePartnerVenueAvailability(venueId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues/$venueId/availability", "PUT", payload, bearerToken = bearerToken)
+
+    suspend fun updatePartnerVenue(venueId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/venue-partner/venues/$venueId", "PATCH", payload, bearerToken = bearerToken)
+
+    suspend fun vendorStores(bearerToken: String): List<JSONObject> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(getText("/api/vendor/stores", bearerToken))
+        buildList { for (index in 0 until rows.length()) rows.optJSONObject(index)?.let(::add) }
+    }
+
+    suspend fun vendorProducts(storeId: Int, bearerToken: String): List<JSONObject> = withContext(Dispatchers.IO) {
+        val rows = JSONArray(getText("/api/vendor/products?storeId=$storeId", bearerToken))
+        buildList { for (index in 0 until rows.length()) rows.optJSONObject(index)?.let(::add) }
+    }
+
+    suspend fun createVendorProduct(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/vendor/products", "POST", payload, bearerToken = bearerToken)
+
+    suspend fun updateVendorProduct(productId: Int, payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/vendor/products/$productId", "PATCH", payload, bearerToken = bearerToken)
+
+    suspend fun uploadPartnerImage(context: Context, uri: Uri, purpose: String, bearerToken: String): String = withContext(Dispatchers.IO) {
+        require(purpose == "venue" || purpose == "rental") { "نوع الصورة غير صحيح" }
+        val contentType = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';') ?: throw IllegalArgumentException("تعذر تحديد نوع الصورة")
+        require(contentType in setOf("image/jpeg", "image/png", "image/webp")) { "اختر صورة JPG أو PNG أو WebP" }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IllegalStateException("تعذر قراءة الصورة")
+        require(bytes.isNotEmpty() && bytes.size <= 7 * 1024 * 1024) { "يجب ألا يتجاوز حجم الصورة 7 ميغابايت" }
+
+        val boundary = "----Fuchsia${UUID.randomUUID().toString().replace("-", "")}"
+        val connection = open("/api/uploads/image", "POST", bearerToken)
+        try {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            connection.outputStream.use { stream ->
+                val output = stream.buffered()
+                fun writeText(value: String) { output.write(value.toByteArray(Charsets.UTF_8)) }
+                writeText("--$boundary\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\n$purpose\r\n")
+                val extension = when (contentType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+                writeText("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"upload.$extension\"\r\nContent-Type: $contentType\r\n\r\n")
+                output.write(bytes)
+                writeText("\r\n--$boundary--\r\n")
+                output.flush()
+            }
+            val response = readJson(connection)
+            response.optString("url").takeIf(String::isNotBlank) ?: throw IllegalStateException("لم يُرجع التخزين رابط الصورة")
+        } finally { connection.disconnect() }
+    }
+
+    suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
+        val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
+        val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }
+            ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
+        val nextMonth = if (monthNumber == 12) java.lang.String.format(java.util.Locale.US, "%04d-01", year + 1)
+        else java.lang.String.format(java.util.Locale.US, "%04d-%02d", year, monthNumber + 1)
+        val current = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}&audience=${urlEncode(audience)}")
+        val next = getJson("/api/venues/$venueId/availability?month=${urlEncode(nextMonth)}&audience=${urlEncode(audience)}")
+        val booked = buildSet {
+            listOf(current, next).forEach { response ->
+                val rows = response.optJSONArray("booked") ?: JSONArray()
+                for (index in 0 until rows.length()) add(rows.optString(index))
+            }
+        }
+        val closed = buildSet {
+            listOf(current, next).forEach { response ->
+                val rows = response.optJSONArray("closed") ?: JSONArray()
+                for (index in 0 until rows.length()) add(rows.optString(index))
+            }
+        }
+        VenueAvailability(current.optInt("venueId", venueId), current.optString("month", month), booked, closed)
+    }
+
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
+
+    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int): RentalAvailability = withContext(Dispatchers.IO) {
+        val response = getJson(
+            "/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days",
+        )
+        RentalAvailability(
+            availableQuantity = response.optInt("availableQuantity"),
+            stockQuantity = response.optInt("stockQuantity"),
+            reservedQuantity = response.optInt("reservedQuantity"),
+            endDate = response.optString("endDate"),
+        )
+    }
+
+    suspend fun createRentalBooking(payload: JSONObject, bearerToken: String? = null): JSONObject =
+        sendJson("/api/rental-bookings", "POST", payload, bearerToken = bearerToken)
 
     suspend fun customerOrders(token: String): List<CustomerOrder> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/orders/mine", token))
@@ -283,6 +502,7 @@ object FuchsiaApi {
                         total = item.optDouble("total", 0.0),
                         createdAt = item.optString("createdAt"),
                         itemCount = item.optJSONArray("items")?.length() ?: 0,
+                        isGift = item.optBoolean("isGift", false),
                     ),
                 )
             }
@@ -313,6 +533,21 @@ object FuchsiaApi {
             driverName = json.nullableString("driverName"),
             driverPhone = json.nullableString("driverPhone"),
             history = history,
+            rental = json.optJSONObject("rental")?.let { rental ->
+                RentalTracking(
+                    startDate = rental.optString("startDate"),
+                    returnDate = rental.optString("returnDate"),
+                    days = rental.optInt("days", 1),
+                    deposit = rental.optDouble("deposit", 0.0),
+                    reminder = rental.nullableString("reminder"),
+                    depositStatus = rental.optString("depositStatus").ifBlank { "pending" },
+                    refundedAmount = rental.optDouble("refundedAmount", 0.0),
+                    damageDeduction = rental.optDouble("damageDeduction", 0.0),
+                    lateFee = rental.optDouble("lateFee", 0.0),
+                    depositReason = rental.nullableString("depositReason"),
+                    processedAt = rental.nullableString("processedAt"),
+                )
+            },
         )
     }
 
@@ -328,6 +563,9 @@ object FuchsiaApi {
 
     suspend fun createReservation(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/reservations", "POST", payload, bearerToken = bearerToken).toReservation()
+
+    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
+        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
 
     suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
@@ -360,21 +598,77 @@ object FuchsiaApi {
         buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val images = item.optJSONArray("images")
-                val image = images?.optString(0)?.takeIf { it.isNotBlank() }
-                    ?: item.nullableString("imageUrl")
-                add(
-                    StoreProduct(
-                        id = item.optInt("id"),
-                        name = item.optString("nameAr").ifBlank { item.optString("name") },
-                        description = item.optString("descriptionAr").ifBlank { item.optString("description") },
-                        price = item.optDouble("discountPrice").takeIf { it > 0 }
-                            ?: item.optDouble("price", 0.0),
-                        imageUrl = image,
-                        categoryId = item.optInt("categoryId"),
-                    ),
-                )
+                add(item.toStoreProduct())
             }
+        }
+    }
+
+    private fun parseVenues(array: JSONArray): List<VenueSummary> = buildList {
+        for (i in 0 until array.length()) array.optJSONObject(i)?.let { add(it.toVenue()) }
+    }
+
+    private fun JSONObject.toVenue() = VenueSummary(
+        id = optInt("id"),
+        name = optString("nameAr"),
+        description = optString("descriptionAr"),
+        imageUrl = nullableString("imageUrl"),
+        images = optStringArray("images"),
+        address = optString("address"),
+        city = optString("city"),
+        capacity = optInt("capacity", 0),
+        priceFrom = optDouble("priceFrom", 0.0),
+        rating = optDouble("rating", 0.0),
+        reviewCount = optInt("reviewCount", 0),
+        audience = optString("venueAudience").ifBlank { "both" },
+        amenities = optStringArray("amenities"),
+        rules = optString("rules"),
+    )
+
+    private fun JSONObject.toStoreProduct(): StoreProduct {
+        val imageRows = optJSONArray("images")
+        val images = buildList {
+            if (imageRows != null) {
+                for (i in 0 until imageRows.length()) {
+                    imageRows.optString(i).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }
+        val image = images.firstOrNull() ?: nullableString("imageUrl")
+        val discountedPrice = optDouble("discountPrice").takeIf { it > 0 }
+        val basePrice = optDouble("price", 0.0)
+        val productName = optString("nameAr").ifBlank { optString("name") }
+        val fulfillmentType = optString("fulfillmentType").ifBlank { "sale" }
+        return StoreProduct(
+            id = optInt("id"),
+            name = productName,
+            description = optString("descriptionAr").ifBlank { optString("description") },
+            price = discountedPrice ?: basePrice,
+            imageUrl = image,
+            categoryId = optInt("categoryId"),
+            images = images.ifEmpty { image?.let(::listOf).orEmpty() },
+            rating = optDouble("rating", 0.0),
+            reviewCount = optInt("reviewCount", 0),
+            originalPrice = discountedPrice?.let { basePrice.takeIf { value -> value > it } },
+            inStock = optBoolean("inStock", true),
+            deliveryDays = if (isNull("deliveryDays")) null else optInt("deliveryDays"),
+            tags = optStringArray("tags"),
+            fulfillmentType = fulfillmentType,
+            rentalDailyPrice = nullableDouble("rentalDailyPrice"),
+            rentalDeposit = optDouble("rentalDeposit", 0.0),
+            rentalMinDays = optInt("rentalMinDays", 1),
+            rentalMaxDays = optInt("rentalMaxDays", 3),
+            rentalCategory = optString("rentalCategory").ifBlank { "other" },
+            eventAudience = optString("eventAudience").ifBlank { "both" },
+            tableHeightCm = if (isNull("tableHeightCm")) null else optDouble("tableHeightCm"),
+            availableColors = optStringArray("availableColors"),
+            stockQuantity = if (isNull("stockQuantity")) null else optInt("stockQuantity"),
+        )
+    }
+
+    private fun JSONObject.optStringArray(name: String): List<String> {
+        val rows = optJSONArray(name) ?: return emptyList()
+        return buildList {
+            for (i in 0 until rows.length()) rows.optString(i).takeIf(String::isNotBlank)?.let(::add)
         }
     }
 
@@ -393,6 +687,14 @@ object FuchsiaApi {
                         imageUrl = row.nullableString("imageUrl"),
                         giftWrapping = row.optBoolean("giftWrapping"),
                         giftMessage = row.nullableString("giftMessage"),
+                        fulfillmentType = row.optString("fulfillmentType").ifBlank { "sale" },
+                        rentalStartDate = row.nullableString("rentalStartDate"),
+                        rentalDays = if (row.isNull("rentalDays")) null else row.optInt("rentalDays"),
+                        rentalEndDate = row.nullableString("rentalEndDate"),
+                        rentalDeposit = row.optDouble("rentalDeposit", 0.0),
+                        rentalFulfillment = row.nullableString("rentalFulfillment"),
+                        rentalTimeSlot = row.nullableString("rentalTimeSlot"),
+                        lineTotal = row.optDouble("lineTotal", row.optDouble("price", 0.0) * row.optInt("quantity", 1)),
                     ),
                 )
             }
@@ -404,13 +706,16 @@ object FuchsiaApi {
             deliveryFee = json.optDouble("deliveryFee", 0.0),
             discount = json.optDouble("discount", 0.0),
             total = json.optDouble("total", 0.0),
+            rentalDeposit = json.optDouble("rentalDeposit", 0.0),
         )
     }
 
     private fun JSONObject.toReservation() = TableReservation(
         id = optInt("id"),
         storeId = optInt("storeId"),
+        venueId = optInt("venueId"),
         reservationAt = optString("reservationAt"),
+        bookingDays = optInt("bookingDays", 1),
         partySize = optInt("partySize"),
         status = optString("status").ifBlank { "pending" },
         customerName = optString("customerName"),
@@ -434,6 +739,11 @@ object FuchsiaApi {
 
     private fun JSONObject.nullableDouble(name: String): Double? =
         if (isNull(name)) null else optDouble(name).takeIf(Double::isFinite)
+
+    private fun JSONObject.putNullable(name: String, value: Any?): JSONObject {
+        if (value == null) put(name, JSONObject.NULL) else put(name, value)
+        return this
+    }
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 

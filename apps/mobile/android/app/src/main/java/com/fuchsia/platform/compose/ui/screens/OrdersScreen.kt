@@ -26,6 +26,8 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.LocalShipping
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -69,6 +71,15 @@ private val orderStatusLabels = mapOf(
     "delivering" to "الطلب في الطريق",
     "delivered" to "تم التسليم",
     "cancelled" to "تم إلغاء الطلب",
+    "rental_pending_confirmation" to "بانتظار تأكيد الإيجار",
+    "rental_confirmed" to "تم قبول توفر الإيجار",
+    "rental_rejected" to "الإيجار غير متوفر",
+    "rental_preparing" to "جاري تجهيز الإيجار",
+    "rental_out" to "العنصر لدى العميل",
+    "rental_return_pending" to "بانتظار الاسترجاع",
+    "rental_returned" to "تم استرجاع الإيجار",
+    "rental_late" to "تأخر الاسترجاع",
+    "rental_damaged" to "مراجعة التأمين",
 )
 
 @Composable
@@ -184,6 +195,15 @@ fun OrdersScreen(
                         }
                     }
                 }
+                if (orders.isNotEmpty()) {
+                    item {
+                        OrderHistorySummary(
+                            total = orders.size,
+                            delivered = orders.count { it.status == "delivered" },
+                            active = orders.count { it.status in setOf("received", "preparing", "delivering") },
+                        )
+                    }
+                }
 
                 if (orders.isNotEmpty()) {
                     item {
@@ -207,7 +227,7 @@ fun OrdersScreen(
                         Card(
                             shape = RoundedCornerShape(17.dp),
                             colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
-                            border = BorderStroke(1.dp, if (error.startsWith("لا توجد")) FuchsiaColors.Line else Color(0xFFE9C9D7)),
+                            border = BorderStroke(1.dp, if (error.startsWith("لا توجد")) FuchsiaColors.Line else Color(0xFFE2D0CC)),
                         ) {
                             Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                                 Text(error, color = FuchsiaColors.Ink, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -218,7 +238,7 @@ fun OrdersScreen(
                                 }
                                 if (userToken.isNullOrBlank() || error.contains("انتهت صلاحية الجلسة")) {
                                     androidx.compose.material3.TextButton(onClick = onSignIn) {
-                                        Text("تسجيل الدخول", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+                                        Text("تسجيل الدخول", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -227,6 +247,30 @@ fun OrdersScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OrderHistorySummary(total: Int, delivered: Int, active: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = BorderStroke(1.dp, FuchsiaColors.Line),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            HistoryStat("كل الطلبات", total)
+            HistoryStat("قيد التنفيذ", active)
+            HistoryStat("تم التسليم", delivered)
+        }
+    }
+}
+
+@Composable
+private fun HistoryStat(label: String, value: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(value.toString(), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+        Text(label, color = FuchsiaColors.Muted, fontSize = 10.sp)
     }
 }
 
@@ -247,7 +291,7 @@ private fun OrderChoiceCard(order: CustomerOrder, selected: Boolean, onClick: ()
                 Text("${order.itemCount} منتجات · ${formatDate(order.createdAt)}", color = FuchsiaColors.Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatMoney(order.total), color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(formatMoney(order.total), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Text(orderStatusLabels[order.status] ?: "قيد المعالجة", color = FuchsiaColors.Muted, fontSize = 10.sp)
             }
         }
@@ -281,6 +325,35 @@ private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriv
                 Column(horizontalAlignment = Alignment.End) {
                     Text("تاريخ الطلب", color = FuchsiaColors.Muted, fontSize = 11.sp)
                     Text(formatDate(tracking.createdAt), color = FuchsiaColors.Ink, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                }
+            }
+            tracking.rental?.let { rental ->
+                val reminderText = when (rental.reminder) {
+                    "tomorrow" -> "تنبيه: موعد الاسترجاع غدًا. يرجى تجهيز العناصر للاستلام."
+                    "overdue" -> "تنبيه: تجاوز موعد الاسترجاع. يرجى التواصل مع فوشيا فورًا."
+                    else -> "موعد الاسترجاع المحدد حسب طلب الإيجار."
+                }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (rental.reminder == "overdue") Color(0xFFFFF0F0) else FuchsiaColors.RoseLight),
+                    border = BorderStroke(1.dp, if (rental.reminder == "overdue") Color(0xFFE4A0A0) else FuchsiaColors.Line),
+                ) {
+                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(if (rental.reminder == "overdue") Icons.Rounded.Shield else Icons.Rounded.CalendarToday, contentDescription = null, tint = if (rental.reminder == "overdue") Color(0xFFB4234A) else FuchsiaColors.Primary)
+                            Text("تفاصيل الإيجار", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                        }
+                        Text("المدة: ${rental.days} ${if (rental.days == 1) "يوم" else "أيام"} · من ${formatShortDate(rental.startDate)} إلى ${formatShortDate(rental.returnDate)}", color = FuchsiaColors.Ink, fontSize = 12.sp)
+                        Text("التأمين المسترد: ${formatMoney(rental.deposit)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        if (rental.depositStatus != "pending") {
+                            Text("المبلغ المعاد: ${formatMoney(rental.refundedAmount)}", color = Color(0xFF20835B), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            if (rental.damageDeduction > 0) Text("خصم تلف: ${formatMoney(rental.damageDeduction)}", color = Color(0xFF9E2D45), fontSize = 11.sp)
+                            if (rental.lateFee > 0) Text("خصم تأخير: ${formatMoney(rental.lateFee)}", color = Color(0xFF9E2D45), fontSize = 11.sp)
+                            rental.depositReason?.takeIf { it.isNotBlank() }?.let { Text("سبب التسوية: $it", color = FuchsiaColors.Muted, fontSize = 11.sp) }
+                        }
+                        Text(reminderText, color = if (rental.reminder == "overdue") Color(0xFF9E2D45) else FuchsiaColors.Muted, fontSize = 11.sp)
+                    }
                 }
             }
             Text("مراحل الطلب", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -336,6 +409,11 @@ private fun formatDate(value: String): String {
         runCatching { SimpleDateFormat(pattern, Locale.US).apply { isLenient = false; timeZone = TimeZone.getTimeZone("UTC") }.parse(value) }.getOrNull()
     } ?: return value
     return SimpleDateFormat("d MMM، h:mm a", Locale.forLanguageTag("ar-YE")).format(parsed)
+}
+
+private fun formatShortDate(value: String): String {
+    val parsed = runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(value) }.getOrNull() ?: return value
+    return SimpleDateFormat("d MMM", Locale.forLanguageTag("ar-YE")).format(parsed)
 }
 
 private fun formatTime(value: Long): String = if (value <= 0L) "—" else SimpleDateFormat("h:mm:ss a", Locale.forLanguageTag("ar-YE")).format(Date(value))

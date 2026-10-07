@@ -63,7 +63,7 @@ fun GiftOrderScreen(
         loading = true
         error = ""
         try {
-            products = FuchsiaApi.featuredProducts()
+            products = FuchsiaApi.featuredProducts().filter { it.fulfillmentType != "rental" }
             if (sessionId != null) cartCount = FuchsiaApi.getCart(sessionId).items.sumOf { it.quantity }
         } catch (failure: Throwable) {
             error = failure.message ?: "تعذر تحميل اختيارات الهدايا."
@@ -74,7 +74,7 @@ fun GiftOrderScreen(
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { FuchsiaNoticeHost(snackbar) },
         bottomBar = {
             if (cartCount > 0) {
                 Card(

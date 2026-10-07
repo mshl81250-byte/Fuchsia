@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable } from "@workspace/db";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable, walletTransactionsTable } from "@workspace/db";
 import { eq, desc, asc, sql, and, or } from "drizzle-orm";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
@@ -73,6 +73,9 @@ router.get("/:id/tracking", async (req, res): Promise<void> => {
     const history = await db.select().from(orderStatusEventsTable)
       .where(eq(orderStatusEventsTable.orderId, id))
       .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
+    const orderItems = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    const rentalItems = orderItems.filter((item) => item.fulfillmentType === "rental" && item.rentalStartDate && item.rentalEndDate);
+    const rentalReturnDate = rentalItems.map((item) => item.rentalEndDate!).sort().at(-1) ?? null;
     res.setHeader("Cache-Control", "no-store");
     res.json({
       orderId: order.id,
@@ -82,6 +85,19 @@ router.get("/:id/tracking", async (req, res): Promise<void> => {
       updatedAt: (history.at(-1)?.createdAt ?? order.createdAt).toISOString(),
       driverName: order.driverName,
       driverPhone: order.driverPhone,
+      rental: rentalReturnDate ? {
+        returnDate: rentalReturnDate,
+        startDate: rentalItems.map((item) => item.rentalStartDate!).sort()[0],
+        days: rentalItems.reduce((sum, item) => sum + (item.rentalDays ?? 1), 0),
+        deposit: order.rentalDeposit,
+        depositStatus: order.rentalDepositStatus,
+        refundedAmount: order.rentalDepositRefunded,
+        damageDeduction: order.rentalDamageDeduction,
+        lateFee: order.rentalLateFee,
+        depositReason: order.rentalDepositReason,
+        processedAt: order.rentalDepositProcessedAt?.toISOString() ?? null,
+        reminder: rentalReturnDate < new Date().toISOString().slice(0, 10) ? "overdue" : rentalReturnDate === new Date(Date.now() + 86400000).toISOString().slice(0, 10) ? "tomorrow" : null,
+      } : null,
       history: history.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
     });
   } catch (err) {
@@ -114,12 +130,8 @@ router.post("/", async (req, res): Promise<void> => {
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
 
-    if (!sessionId || !deliveryAddress || !customerName || !customerPhone) {
+    if (!sessionId || !customerName || !customerPhone) {
       res.status(400).json({ error: "Missing required fields" });
-      return;
-    }
-    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
-      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
       return;
     }
 
@@ -139,9 +151,25 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Cart is empty" });
       return;
     }
+    if (cartItems.some((item) => item.fulfillmentType === "rental")) {
+      res.status(409).json({ error: "حجوزات القاعات وتأجير الكوش والطاولات لها مسار حجز مباشر ولا تمر عبر السلة" });
+      return;
+    }
+    const hasRentalItems = cartItems.some((item) => item.fulfillmentType === "rental");
+    const needsDelivery = !hasRentalItems || cartItems.some((item) => item.rentalFulfillment === "delivery");
+    if (needsDelivery && (!deliveryAddress || typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6)) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
+      return;
+    }
+    const initialStatus = hasRentalItems ? "rental_pending_confirmation" : "received";
 
-    const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const total = subtotal + DELIVERY_FEE;
+    const subtotal = cartItems.reduce((sum, item) => {
+      const days = item.fulfillmentType === "rental" ? Math.max(1, item.rentalDays ?? 1) : 1;
+      return sum + item.price * item.quantity * days;
+    }, 0);
+    const rentalDeposit = cartItems.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
+    const deliveryFee = needsDelivery ? DELIVERY_FEE : 0;
+    const total = subtotal + rentalDeposit + deliveryFee;
     if (normalizedPaymentType !== "cash_on_delivery") {
       if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {
         res.status(400).json({ error: "مبلغ الدفع غير صحيح" });
@@ -164,10 +192,10 @@ router.post("/", async (req, res): Promise<void> => {
     await db.insert(ordersTable).values({
       sessionId,
       userId: userId ?? null,
-      status: "received",
+      status: initialStatus,
       total,
       subtotal,
-      deliveryFee: DELIVERY_FEE,
+      deliveryFee,
       discount: 0,
       deliveryAddress,
       deliveryLatitude,
@@ -182,6 +210,7 @@ router.post("/", async (req, res): Promise<void> => {
       paymentWalletId: paymentWalletId ?? null,
       paymentAmount: actualPaymentAmount,
       remainingAmount: Math.max(0, total - actualPaymentAmount),
+      rentalDeposit,
       transactionReference: transactionReference ?? null,
       paymentReceiptUrl: paymentReceiptUrl ?? null,
       couponCode: couponCode ?? null,
@@ -195,14 +224,28 @@ router.post("/", async (req, res): Promise<void> => {
     });
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
     if (!order) { res.status(500).json({ error: "تعذر إنشاء الطلب" }); return; }
-    await appendOrderStatusEvent(order.id, "received");
+    if (normalizedPaymentType !== "cash_on_delivery") {
+      await db.insert(walletTransactionsTable).values({
+        orderId: order.id,
+        walletId: Number(paymentWalletId),
+        kind: "payment",
+        status: "pending_review",
+        amount: actualPaymentAmount,
+        currency: "YER",
+        provider: "manual_local_wallet",
+        externalId: transactionReference ?? null,
+        idempotencyKey: `payment:${order.id}`,
+        reason: "دفعة مرتبطة بإيصال التحويل",
+      });
+    }
+    await appendOrderStatusEvent(order.id, initialStatus);
     const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
     await createCustomerNotification({
       sessionId,
       orderId: order.id,
       type: "order_received",
-      title: "تم استلام طلبك",
-      message: `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
+      title: hasRentalItems ? "تم استلام طلب الإيجار" : "تم استلام طلبك",
+      message: hasRentalItems ? `تم استلام طلب الإيجار رقم ${order.id} وسنراجع التوفر والتفاصيل قريباً.` : `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
       customerName,
       phone: customerPhone,
       email: recipient?.email,
@@ -215,6 +258,13 @@ router.post("/", async (req, res): Promise<void> => {
         productName: item.productName,
         price: item.price,
         quantity: item.quantity,
+        fulfillmentType: item.fulfillmentType,
+        rentalStartDate: item.rentalStartDate,
+        rentalDays: item.rentalDays,
+        rentalEndDate: item.rentalEndDate,
+        rentalDeposit: item.rentalDeposit,
+        rentalFulfillment: item.rentalFulfillment,
+        rentalTimeSlot: item.rentalTimeSlot,
         imageUrl: item.imageUrl,
       });
     }

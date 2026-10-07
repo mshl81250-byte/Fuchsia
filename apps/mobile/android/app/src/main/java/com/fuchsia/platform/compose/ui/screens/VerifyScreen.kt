@@ -127,8 +127,8 @@ fun VerifyScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Text("رمز التحقق للاختبار", color = FuchsiaColors.PrimaryDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(debugCode, color = FuchsiaColors.Primary, fontWeight = FontWeight.ExtraBold, fontSize = 27.sp, letterSpacing = 5.sp)
+                    Text("رمز التحقق للاختبار", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(debugCode, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 27.sp, letterSpacing = 5.sp)
                 }
             }
         }

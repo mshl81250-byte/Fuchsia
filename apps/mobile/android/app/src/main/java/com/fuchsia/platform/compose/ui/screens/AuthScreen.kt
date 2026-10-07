@@ -42,7 +42,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +62,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextDecoration
 import com.fuchsia.platform.compose.R
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
@@ -102,15 +100,16 @@ fun AuthScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Ink)
             }
             Spacer(Modifier.weight(1f))
-            Text("الحساب", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelLarge)
+            Text(if (isRegister) "إنشاء حساب" else "تسجيل الدخول", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelLarge)
         }
         Spacer(Modifier.height(4.dp))
-        Image(
-            painter = painterResource(R.drawable.fuchsia_logo),
-            contentDescription = "فوشيا بوتيك",
-            modifier = Modifier.align(Alignment.CenterHorizontally).size(width = 90.dp, height = 76.dp),
-            contentScale = ContentScale.Fit,
-        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Image(painter = painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.size(width = 68.dp, height = 66.dp), contentScale = ContentScale.Fit)
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+            }
+        }
         Spacer(Modifier.height(6.dp))
         Text(
             text = if (isRegister) "مرحبًا بك في فوشيا" else "مرحبًا من جديد",
@@ -126,6 +125,23 @@ fun AuthScreen(
             color = FuchsiaColors.Muted,
             textAlign = TextAlign.Center,
         )
+        Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!isRegister) {
+                Button(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                    Text("تسجيل الدخول", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                OutlinedButton(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp)) {
+                    Text("إنشاء حساب", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            } else {
+                OutlinedButton(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp)) {
+                    Text("تسجيل الدخول", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                Button(onClick = { isRegister = true; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                    Text("إنشاء حساب", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -236,8 +252,7 @@ fun AuthScreen(
                     }
                 }
 
-                if (!isRegister) {
-                    OutlinedButton(
+                OutlinedButton(
                         onClick = {
                             error = ""
                             busy = true
@@ -257,33 +272,12 @@ fun AuthScreen(
                         modifier = Modifier.fillMaxWidth().height(51.dp),
                         shape = RoundedCornerShape(15.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = FuchsiaColors.PrimaryDark),
-                    ) {
-                        Text("التصفح دون حساب", fontWeight = FontWeight.SemiBold)
-                    }
+                ) {
+                    Text("التصفح دون حساب", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
-        Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (isRegister) "هل يوجد حساب بالفعل؟" else "لا يوجد حساب؟",
-                color = FuchsiaColors.Muted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            TextButton(onClick = { isRegister = !isRegister; error = "" }) {
-                Text(
-                    if (isRegister) "تسجيل الدخول" else "إنشاء حساب",
-                    color = FuchsiaColors.Primary,
-                    fontWeight = FontWeight.Bold,
-                    textDecoration = TextDecoration.Underline,
-                )
-            }
-        }
         Text(
             "بياناتك محفوظة بأمان على جهازك.",
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

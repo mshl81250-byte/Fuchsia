@@ -44,7 +44,7 @@ fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit, onTrackOrde
         }
         Spacer(Modifier.height(22.dp))
         Text("تم استلام الطلب", color = FuchsiaColors.Ink, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
-        Text("بدأت فرحة جديدة", color = FuchsiaColors.Primary, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 5.dp))
+        Text("بدأت فرحة جديدة", color = FuchsiaColors.TextAccent, style = androidx.compose.material3.MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 5.dp))
         Text(
             "أُرسل طلبك إلى فوشيا بنجاح. سيجري التواصل بشأن التوصيل أو مراجعة الدفع بحسب الطريقة المختارة.",
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -60,7 +60,7 @@ fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit, onTrackOrde
         ) {
             Column(Modifier.fillMaxWidth().padding(17.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("رقم الطلب", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
-                Text("#$orderId", color = FuchsiaColors.Primary, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                Text("#$orderId", color = FuchsiaColors.TextAccent, style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
                 Text("احتفظ بهذا الرقم للمتابعة", color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
             }
         }
@@ -71,7 +71,7 @@ fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit, onTrackOrde
             shape = RoundedCornerShape(16.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Primary),
         ) {
-            Text("تتبع الطلب الآن", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold)
+            Text("تتبع الطلب الآن", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(10.dp))
         Button(
