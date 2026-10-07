@@ -74,6 +74,7 @@ import com.fuchsia.platform.compose.ui.screens.SettingsScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 import com.fuchsia.platform.compose.ui.screens.WishlistScreen
+import com.fuchsia.platform.compose.ui.screens.VenueBookingScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -91,6 +92,7 @@ object AppRoutes {
     const val Checkout = "checkout?gift={gift}"
     const val GiftOrder = "gift-order"
     const val Reservation = "reservation"
+    const val VenueBooking = "venue-booking"
     const val OrderSuccess = "order-success/{orderId}"
     const val Orders = "orders?focusOrderId={focusOrderId}"
     const val OrdersRoot = "orders?focusOrderId=0"
@@ -264,6 +266,7 @@ fun FuchsiaAppNavHost(
                     onProduct = { navController.navigate(AppRoutes.product(it)) },
                     onCart = { navController.navigate(AppRoutes.Cart) },
                     onReservation = { navController.navigate(AppRoutes.Reservation) },
+                    onVenueBooking = { navController.navigate(AppRoutes.VenueBooking) },
                     onGiftOrder = { navController.navigate(AppRoutes.GiftOrder) },
                     onOrders = { selectTab(AppRoutes.OrdersRoot) },
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Home, ::selectTab) },
@@ -338,6 +341,9 @@ fun FuchsiaAppNavHost(
             }
             composable(AppRoutes.Reservation) {
                 ReservationScreen(onBack = { navController.popBackStack() })
+            }
+            composable(AppRoutes.VenueBooking) {
+                VenueBookingScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = AppRoutes.Orders,

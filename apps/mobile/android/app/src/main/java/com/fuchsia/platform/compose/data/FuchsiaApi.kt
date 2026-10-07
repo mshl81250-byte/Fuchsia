@@ -73,6 +73,27 @@ data class StoreSummary(
     val isOpen: Boolean,
 )
 
+data class VenueSummary(
+    val id: Int,
+    val name: String,
+    val description: String,
+    val imageUrl: String?,
+    val address: String,
+    val city: String,
+    val capacity: Int,
+    val priceFrom: Double,
+    val rating: Double,
+    val reviewCount: Int,
+    val amenities: List<String>,
+    val rules: String,
+)
+
+data class VenueAvailability(
+    val venueId: Int,
+    val month: String,
+    val booked: Set<String>,
+)
+
 data class TableReservation(
     val id: Int,
     val storeId: Int,
@@ -297,6 +318,20 @@ object FuchsiaApi {
         }
     }
 
+    suspend fun venues(search: String = ""): List<VenueSummary> = withContext(Dispatchers.IO) {
+        val suffix = if (search.isBlank()) "" else "?search=${urlEncode(search.trim())}"
+        parseVenues(JSONArray(getText("/api/venues$suffix")))
+    }
+
+    suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
+
+    suspend fun venueAvailability(venueId: Int, month: String): VenueAvailability = withContext(Dispatchers.IO) {
+        val json = getJson("/api/venues/$venueId/availability?month=${urlEncode(month)}")
+        val rows = json.optJSONArray("booked") ?: JSONArray()
+        val booked = buildSet { for (i in 0 until rows.length()) add(rows.optString(i)) }
+        VenueAvailability(json.optInt("venueId", venueId), json.optString("month", month), booked)
+    }
+
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
 
     suspend fun customerOrders(token: String): List<CustomerOrder> = withContext(Dispatchers.IO) {
@@ -393,6 +428,25 @@ object FuchsiaApi {
             }
         }
     }
+
+    private fun parseVenues(array: JSONArray): List<VenueSummary> = buildList {
+        for (i in 0 until array.length()) array.optJSONObject(i)?.let { add(it.toVenue()) }
+    }
+
+    private fun JSONObject.toVenue() = VenueSummary(
+        id = optInt("id"),
+        name = optString("nameAr").ifBlank { "قاعة مناسبات" },
+        description = optString("descriptionAr"),
+        imageUrl = nullableString("imageUrl"),
+        address = optString("address").ifBlank { "صنعاء، اليمن" },
+        city = optString("city").ifBlank { "صنعاء" },
+        capacity = optInt("capacity", 300),
+        priceFrom = optDouble("priceFrom", 0.0),
+        rating = optDouble("rating", 0.0),
+        reviewCount = optInt("reviewCount", 0),
+        amenities = optStringArray("amenities"),
+        rules = optString("rules"),
+    )
 
     private fun JSONObject.toStoreProduct(): StoreProduct {
         val imageRows = optJSONArray("images")
