@@ -473,7 +473,14 @@ fun CheckoutScreen(
                     CommerceSectionTitle("ملخص المبلغ", "${cart?.items?.sumOf { it.quantity } ?: 0} قطع")
                     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                            CommerceMoneyRow("قيمة المنتجات", cart?.subtotal ?: 0.0)
+                            val rentalItems = cart?.items?.filter { it.fulfillmentType == "rental" }.orEmpty()
+                            val rentalTotal = rentalItems.sumOf { it.lineTotal }
+                            CommerceMoneyRow("قيمة المنتجات", (cart?.subtotal ?: 0.0) - rentalTotal)
+                            if (rentalItems.isNotEmpty()) {
+                                CommerceMoneyRow("إيجار العناصر (${rentalItems.sumOf { it.rentalDays ?: 1 }} يومًا)", rentalTotal)
+                                CommerceMoneyRow("تأمين الإيجار المسترد", cart?.rentalDeposit ?: 0.0, accent = true)
+                                Text("التأمين يُسترد بعد إعادة العناصر بحالتها وفي الموعد المتفق عليه.", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                            }
                             CommerceMoneyRow("التوصيل", cart?.deliveryFee ?: 0.0)
                             CommerceMoneyRow("الإجمالي", cart?.total ?: 0.0, bold = true, accent = true)
                             if (paymentType == "partial") CommerceMoneyRow("المطلوب الآن (عربون)", ceil((cart?.total ?: 0.0) / 2.0), bold = true)

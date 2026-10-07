@@ -11,5 +11,6 @@ export * from "./users";
 export * from "./user-addresses";
 export * from "./user-sessions";
 export * from "./payment-wallets";
+export * from "./wallet-transactions";
 export * from "./notifications";
 export * from "./notification-channels";

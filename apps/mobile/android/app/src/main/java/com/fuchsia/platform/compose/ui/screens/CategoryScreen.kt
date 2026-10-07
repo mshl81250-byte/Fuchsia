@@ -198,8 +198,9 @@ private fun CategoryProductRow(product: StoreProduct, onOpen: () -> Unit, onAdd:
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (product.description.isNotBlank()) Text(product.description, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Icon(Icons.Rounded.CardGiftcard, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("إضافة إلى السلة", style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp)) }
+                Text(if (product.fulfillmentType == "rental") "${formatRiyal(product.rentalDailyPrice ?: product.price)} لليوم" else formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                if (product.fulfillmentType == "rental") Text("حجز إيجار · اختر التاريخ والمدة", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().height(40.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Icon(Icons.Rounded.CardGiftcard, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text(if (product.fulfillmentType == "rental") "حجز الإيجار" else "إضافة إلى السلة", style = MaterialTheme.typography.labelLarge.copy(fontSize = 12.sp)) }
             }
         }
     }

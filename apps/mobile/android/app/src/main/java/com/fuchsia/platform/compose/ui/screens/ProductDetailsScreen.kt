@@ -1,5 +1,6 @@
 package com.fuchsia.platform.compose.ui.screens
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +68,8 @@ import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
+import java.util.Calendar
+import java.util.Locale
 
 @Composable
 fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit) {
@@ -78,12 +81,17 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
     var loading by remember(productId) { mutableStateOf(true) }
     var error by remember(productId) { mutableStateOf("") }
     var quantity by remember(productId) { mutableIntStateOf(1) }
+    var rentalDays by remember(productId) { mutableIntStateOf(1) }
+    var rentalStartDate by remember(productId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(productId) {
         loading = true
         error = ""
         runCatching { FuchsiaApi.product(productId) }
-            .onSuccess { product = it }
+            .onSuccess {
+                product = it
+                rentalDays = it.rentalMinDays
+            }
             .onFailure { error = it.message ?: "تعذر تحميل تفاصيل المنتج." }
         loading = false
     }
@@ -109,19 +117,27 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                                 val id = sessionId
                                 if (id == null) scope.launch { notice.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
                                 else scope.launch {
-                                    runCatching { FuchsiaApi.addToCart(id, current.id, quantity) }
+                                    runCatching {
+                                        FuchsiaApi.addToCart(
+                                            sessionId = id,
+                                            productId = current.id,
+                                            quantity = quantity,
+                                            rentalStartDate = rentalStartDate,
+                                            rentalDays = rentalDays.takeIf { current.fulfillmentType == "rental" },
+                                        )
+                                    }
                                         .onSuccess { notice.showSnackbar("تمت إضافة المنتج إلى السلة بنجاح") }
                                         .onFailure { notice.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
                                 }
                             },
-                            enabled = current.inStock,
+                            enabled = current.inStock && (current.fulfillmentType != "rental" || rentalStartDate != null),
                             modifier = Modifier.weight(1f).height(58.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                         ) {
                             Icon(Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(19.dp))
                             Spacer(Modifier.width(7.dp))
-                            Text("إضافة للسلة", fontWeight = FontWeight.Bold)
+                            Text(if (current.fulfillmentType == "rental") "استأجر الآن" else "إضافة للسلة", fontWeight = FontWeight.Bold)
                         }
                         QuantityStepper(quantity = quantity, onDecrease = { if (quantity > 1) quantity-- }, onIncrease = { quantity++ })
                     }
@@ -163,8 +179,26 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                             Text("(${current.reviewCount} تقييم)", color = FuchsiaColors.Muted, fontSize = 12.sp)
                         }
                         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text(formatRiyal(current.price), color = FuchsiaColors.TextAccent, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(formatRiyal(current.rentalDailyPrice ?: current.price), color = FuchsiaColors.TextAccent, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                            if (current.fulfillmentType == "rental") Text("لليوم", color = FuchsiaColors.Muted, fontSize = 12.sp)
                             current.originalPrice?.let { Text(formatRiyal(it), color = FuchsiaColors.Muted, fontSize = 12.sp, textDecoration = TextDecoration.LineThrough) }
+                        }
+                        if (current.fulfillmentType == "rental") {
+                            RentalSelection(
+                                minDays = current.rentalMinDays,
+                                maxDays = current.rentalMaxDays,
+                                days = rentalDays,
+                                startDate = rentalStartDate,
+                                onDaysChange = { rentalDays = it },
+                                onDateClick = {
+                                    val today = Calendar.getInstance()
+                                    DatePickerDialog(
+                                        context,
+                                        { _, year, month, day -> rentalStartDate = String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day) },
+                                        today.get(Calendar.YEAR), today.get(Calendar.MONTH), today.get(Calendar.DAY_OF_MONTH),
+                                    ).show()
+                                },
+                            )
                         }
                         if (!current.inStock) Text("غير متوفر حاليًا", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
                     }
@@ -178,6 +212,43 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RentalSelection(
+    minDays: Int,
+    maxDays: Int,
+    days: Int,
+    startDate: String?,
+    onDaysChange: (Int) -> Unit,
+    onDateClick: () -> Unit,
+) {
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text("تفاصيل الإيجار", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+            Text("اختر تاريخ البداية وعدد أيام الاستئجار ليظهر السعر الإجمالي في السلة.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+            Button(
+                onClick = onDateClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White, contentColor = FuchsiaColors.Primary),
+            ) {
+                Text(startDate?.let { "تاريخ البداية: $it" } ?: "اختر تاريخ بداية الإيجار")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Text("مدة الإيجار: $days ${if (days == 1) "يوم" else "أيام"}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                QuantityStepper(
+                    quantity = days,
+                    onDecrease = { if (days > minDays) onDaysChange(days - 1) },
+                    onIncrease = { if (days < maxDays) onDaysChange(days + 1) },
+                )
+            }
+            Text("يسمح بالإيجار من $minDays إلى $maxDays أيام.", color = FuchsiaColors.Muted, fontSize = 11.sp)
         }
     }
 }

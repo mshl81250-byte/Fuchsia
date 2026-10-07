@@ -4,16 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu } from "lucide-react";
+import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { OrdersView } from "@/components/dashboard/orders-view";
 import { OverviewView } from "@/components/dashboard/overview-view";
 import { CustomersView } from "@/components/dashboard/customers-view";
 import { CouponsView } from "@/components/dashboard/coupons-view";
+import { RentalsView } from "@/components/dashboard/rentals-view";
+import { VenueReservationsView } from "@/components/dashboard/venue-reservations-view";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-type Tab = "orders" | "overview" | "customers" | "coupons";
+type Tab = "orders" | "rentals" | "venue-reservations" | "overview" | "customers" | "coupons";
 
 export default function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -118,6 +120,8 @@ export default function Dashboard() {
 
   const TABS = [
     { id: "orders", label: "الطلبات", icon: PackageSearch },
+    { id: "rentals", label: "الإيجارات", icon: CalendarDays },
+    { id: "venue-reservations", label: "حجوزات القاعات", icon: CalendarDays },
     { id: "overview", label: "نظرة عامة", icon: LayoutDashboard },
     { id: "customers", label: "العملاء", icon: Users },
     { id: "coupons", label: "الكوبونات", icon: Tag },
@@ -206,6 +210,8 @@ export default function Dashboard() {
         <div className="flex-1 p-4 md:p-8 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
             {activeTab === "orders" && <OrdersView />}
+            {activeTab === "rentals" && <RentalsView />}
+            {activeTab === "venue-reservations" && <VenueReservationsView />}
             {activeTab === "overview" && <OverviewView />}
             {activeTab === "customers" && <CustomersView />}
             {activeTab === "coupons" && <CouponsView />}

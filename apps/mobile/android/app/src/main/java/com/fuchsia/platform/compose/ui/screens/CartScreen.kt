@@ -218,6 +218,7 @@ fun CartScreen(
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             CommerceSectionTitle("ملخص الطلب", "قبل التأكيد")
                             CommerceMoneyRow("المجموع الفرعي", cart?.subtotal ?: 0.0)
+                            if ((cart?.rentalDeposit ?: 0.0) > 0) CommerceMoneyRow("تأمين الإيجار المسترد", cart?.rentalDeposit ?: 0.0, accent = true)
                             CommerceMoneyRow("التوصيل", cart?.deliveryFee ?: 0.0)
                             if ((cart?.discount ?: 0.0) > 0) CommerceMoneyRow("الخصم", -(cart?.discount ?: 0.0), accent = true)
                             androidx.compose.material3.HorizontalDivider(color = FuchsiaColors.Line, modifier = Modifier.padding(vertical = 3.dp))
@@ -264,7 +265,13 @@ private fun CartItemCard(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.productName, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(formatYemeniRiyal(item.price), color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
+                if (item.fulfillmentType == "rental") {
+                    Text("إيجار · ${formatYemeniRiyal(item.price)} لليوم", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
+                    Text("${item.rentalStartDate ?: "-"} · ${item.rentalDays ?: 1} ${if ((item.rentalDays ?: 1) == 1) "يوم" else "أيام"}", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                    if (item.rentalDeposit > 0) Text("تأمين مسترد: ${formatYemeniRiyal(item.rentalDeposit)}", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                } else {
+                    Text("للبيع · ${formatYemeniRiyal(item.price)}", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
+                }
                 if (item.giftWrapping) Text("تغليف هدية", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     QuantityButton(Icons.Rounded.Remove, "تقليل الكمية", enabled = !busy, onClick = onDecrease)
@@ -277,7 +284,7 @@ private fun CartItemCard(
                     if (busy) CircularProgressIndicator(modifier = Modifier.size(15.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
                 }
             }
-            Text(formatYemeniRiyal(item.price * item.quantity), color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
+            Text(formatYemeniRiyal(item.lineTotal), color = FuchsiaColors.Ink, style = MaterialTheme.typography.labelLarge)
         }
     }
 }

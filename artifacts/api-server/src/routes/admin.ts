@@ -4,12 +4,13 @@ import {
   usersTable, productsTable, storesTable, ordersTable,
   categoriesTable, bannersTable, couponsTable, insertCouponSchema,
   orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
-  tableReservationsTable
+  tableReservationsTable, walletTransactionsTable
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
+import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
 
 const router = Router();
 
@@ -72,6 +73,13 @@ router.get("/reservations", async (req, res): Promise<void> => {
       occasion: tableReservationsTable.occasion,
       notes: tableReservationsTable.notes,
       status: tableReservationsTable.status,
+      paymentType: tableReservationsTable.paymentType,
+      paymentAmount: tableReservationsTable.paymentAmount,
+      platformFee: tableReservationsTable.platformFee,
+      paymentWalletId: tableReservationsTable.paymentWalletId,
+      transactionReference: tableReservationsTable.transactionReference,
+      paymentReceiptUrl: tableReservationsTable.paymentReceiptUrl,
+      paymentStatus: tableReservationsTable.paymentStatus,
       createdAt: tableReservationsTable.createdAt,
     }).from(tableReservationsTable)
       .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
@@ -118,11 +126,28 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       occasion: tableReservationsTable.occasion,
       notes: tableReservationsTable.notes,
       status: tableReservationsTable.status,
+      paymentType: tableReservationsTable.paymentType,
+      paymentAmount: tableReservationsTable.paymentAmount,
+      platformFee: tableReservationsTable.platformFee,
+      paymentWalletId: tableReservationsTable.paymentWalletId,
+      transactionReference: tableReservationsTable.transactionReference,
+      paymentReceiptUrl: tableReservationsTable.paymentReceiptUrl,
+      paymentStatus: tableReservationsTable.paymentStatus,
       createdAt: tableReservationsTable.createdAt,
     }).from(tableReservationsTable)
       .leftJoin(storesTable, eq(tableReservationsTable.storeId, storesTable.id))
       .where(eq(tableReservationsTable.id, id));
     if (!row) { res.status(404).json({ error: "الحجز غير موجود" }); return; }
+    if (status === "confirmed" || status === "rejected" || status === "cancelled") {
+      await createCustomerNotification({
+        sessionId: row.sessionId,
+        type: "venue_reservation_status",
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "تم إلغاء حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.storeName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.storeName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `تم إلغاء حجز ${row.storeName || "القاعة"}.`,
+        customerName: row.customerName,
+        phone: row.customerPhone,
+      });
+    }
     res.json({ ...row, reservationAt: row.reservationAt.toISOString(), createdAt: row.createdAt.toISOString() });
   } catch (err) {
     req.log.error({ err }, "Admin reservation update failed");
@@ -173,6 +198,148 @@ router.get("/carts", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Admin list carts failed");
     res.status(500).json({ error: "تعذر تحميل السلال" });
+  }
+});
+
+const rentalStatuses = [
+  "rental_pending_confirmation",
+  "rental_confirmed",
+  "rental_rejected",
+  "rental_preparing",
+  "rental_out",
+  "rental_return_pending",
+  "rental_returned",
+  "rental_late",
+  "rental_damaged",
+  "cancelled",
+] as const;
+
+router.get("/rentals", async (req, res): Promise<void> => {
+  try {
+    const status = typeof req.query.status === "string" ? req.query.status : null;
+    const orders = await db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(500);
+    const rentals = (await Promise.all(orders.map(async (order) => {
+      const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
+      const rentalItems = items.filter((item) => item.fulfillmentType === "rental");
+      if (rentalItems.length === 0 || (status && order.status !== status)) return null;
+      return { ...order, items: rentalItems, createdAt: order.createdAt.toISOString() };
+    }))).filter((order): order is NonNullable<typeof order> => order !== null);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rentals);
+  } catch (err) {
+    req.log.error({ err }, "Admin list rentals failed");
+    res.status(500).json({ error: "تعذر تحميل الإيجارات" });
+  }
+});
+
+router.patch("/rentals/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const status = req.body?.status;
+    if (!Number.isInteger(id) || id < 1 || !rentalStatuses.includes(status)) {
+      res.status(400).json({ error: "حالة الإيجار أو رقمه غير صحيح" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) {
+      res.status(404).json({ error: "طلب الإيجار غير موجود" });
+      return;
+    }
+    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    if (!items.some((item) => item.fulfillmentType === "rental")) {
+      res.status(400).json({ error: "الطلب لا يحتوي على عناصر إيجار" });
+      return;
+    }
+    await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, id));
+    if (order.status !== status) await appendOrderStatusEvent(id, status, "admin");
+    if (order.status !== status) {
+      const rentalMessages: Record<string, { title: string; message: string }> = {
+        rental_confirmed: { title: "تم قبول حجز الإيجار", message: `تم تأكيد توفر عناصر الإيجار للطلب رقم ${id}.` },
+        rental_rejected: { title: "الإيجار غير متوفر", message: `نعتذر، عناصر الإيجار غير متوفرة للطلب رقم ${id} في التاريخ المطلوب. سيتواصل معك فريق فوشيا.` },
+        rental_preparing: { title: "بدأ تجهيز الإيجار", message: `بدأ تجهيز عناصر الإيجار للطلب رقم ${id}.` },
+        rental_out: { title: "تم تسليم الإيجار", message: `تم تسليم عناصر الإيجار للطلب رقم ${id}.` },
+        rental_return_pending: { title: "حان موعد الاسترجاع", message: `حان موعد ترتيب استرجاع عناصر الإيجار للطلب رقم ${id}.` },
+      };
+      const message = rentalMessages[status];
+      if (message) {
+        const [recipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
+        await createCustomerNotification({ sessionId: order.sessionId, orderId: id, type: "rental_status", ...message, customerName: order.customerName, phone: order.customerPhone, email: recipient?.email });
+      }
+    }
+    const [updated] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!updated) { res.status(404).json({ error: "طلب الإيجار غير موجود" }); return; }
+    res.json({ ...updated, items: items.filter((item) => item.fulfillmentType === "rental"), createdAt: updated.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin rental update failed");
+    res.status(500).json({ error: "تعذر تحديث حالة الإيجار" });
+  }
+});
+
+router.patch("/rentals/:id/deposit", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const damageDeduction = Number(req.body?.damageDeduction ?? 0);
+    const lateFee = Number(req.body?.lateFee ?? 0);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 1000) : "";
+    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(damageDeduction) || !Number.isFinite(lateFee) || damageDeduction < 0 || lateFee < 0 || (!reason && damageDeduction + lateFee > 0)) {
+      res.status(400).json({ error: "بيانات تسوية التأمين غير صحيحة" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) { res.status(404).json({ error: "طلب الإيجار غير موجود" }); return; }
+    if (order.rentalDeposit <= 0) { res.status(400).json({ error: "لا يوجد تأمين قابل للتسوية لهذا الطلب" }); return; }
+    if (order.rentalDepositStatus !== "pending") { res.status(409).json({ error: "تمت تسوية تأمين هذا الطلب مسبقًا" }); return; }
+    const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    if (!items.some((item) => item.fulfillmentType === "rental")) { res.status(400).json({ error: "الطلب لا يحتوي على عناصر إيجار" }); return; }
+    const totalDeduction = damageDeduction + lateFee;
+    if (totalDeduction > order.rentalDeposit) { res.status(400).json({ error: "قيمة الخصم أكبر من مبلغ التأمين" }); return; }
+    const refunded = order.rentalDeposit - totalDeduction;
+    const settlementStatus = totalDeduction === 0 ? "refunded" : refunded === 0 ? "forfeited" : "partially_deducted";
+    const nextOrderStatus = totalDeduction > 0 ? "rental_damaged" : "rental_returned";
+    await db.update(ordersTable).set({
+      status: nextOrderStatus,
+      rentalDepositStatus: settlementStatus,
+      rentalDepositRefunded: refunded,
+      rentalDamageDeduction: damageDeduction,
+      rentalLateFee: lateFee,
+      rentalDepositReason: reason || null,
+      rentalDepositProcessedAt: new Date(),
+    }).where(eq(ordersTable.id, id));
+    await appendOrderStatusEvent(id, nextOrderStatus, "admin");
+    const refund = refunded > 0 ? await requestWalletRefund({
+      orderId: id,
+      walletId: order.paymentWalletId,
+      amount: refunded,
+      reason: reason || "استرداد تأمين الإيجار",
+      idempotencyKey: `rental-deposit:${id}:${refunded.toFixed(2)}`,
+    }) : null;
+    const [recipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];
+    await createCustomerNotification({
+      sessionId: order.sessionId,
+      orderId: id,
+      type: "rental_deposit_settled",
+      title: totalDeduction === 0 ? "تم استرداد تأمين الإيجار" : "تمت تسوية تأمين الإيجار",
+      message: totalDeduction === 0
+        ? `تم اعتماد استرداد تأمين الإيجار للطلب رقم ${id} بمبلغ ${refunded.toLocaleString("ar-YE")} ريال${refund?.status === "manual_required" ? "، وسيتم تنفيذ التحويل يدويًا من المحفظة المحلية." : "، وجارٍ تنفيذ التحويل إلى المحفظة."}`
+        : `تمت تسوية تأمين الإيجار للطلب رقم ${id}. المبلغ المسترد ${refunded.toLocaleString("ar-YE")} ريال. السبب: ${reason}${refund?.status === "manual_required" ? " وسيتم تنفيذ التحويل يدويًا." : ""}`,
+      customerName: order.customerName,
+      phone: order.customerPhone,
+      email: recipient?.email,
+    });
+    const [updated] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    res.json({ ...updated, refund, providerConfigured: isWalletProviderConfigured(), items: items.filter((item) => item.fulfillmentType === "rental"), createdAt: updated!.createdAt.toISOString() });
+  } catch (err) {
+    req.log.error({ err }, "Admin rental deposit settlement failed");
+    res.status(500).json({ error: "تعذر تسوية تأمين الإيجار" });
+  }
+});
+
+router.get("/wallet-transactions", async (_req, res): Promise<void> => {
+  try {
+    const transactions = await db.select().from(walletTransactionsTable).orderBy(desc(walletTransactionsTable.createdAt)).limit(500);
+    res.json({ providerConfigured: isWalletProviderConfigured(), transactions: transactions.map((transaction) => ({ ...transaction, createdAt: transaction.createdAt.toISOString(), processedAt: transaction.processedAt?.toISOString() ?? null })) });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر تحميل معاملات المحافظ" });
   }
 });
 
@@ -306,6 +473,7 @@ router.patch("/orders/:id/payment", async (req, res): Promise<void> => {
       return;
     }
     await db.update(ordersTable).set({ paymentStatus: status }).where(eq(ordersTable.id, id));
+    await db.update(walletTransactionsTable).set({ status: status === "verified" ? "completed" : "failed", processedAt: status === "verified" ? new Date() : null }).where(eq(walletTransactionsTable.orderId, id));
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
     if (!order) { res.status(404).json({ error: "الطلب غير موجود" }); return; }
     const [paymentRecipient] = order.userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, order.userId)) : [];

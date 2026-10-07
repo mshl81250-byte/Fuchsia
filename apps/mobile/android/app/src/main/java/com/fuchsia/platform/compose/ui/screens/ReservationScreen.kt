@@ -383,6 +383,7 @@ private fun formatIsoDate(value: String): String = runCatching {
 private fun reservationStatus(status: String): String = when (status) {
     "pending" -> "بانتظار تأكيد الفرع"
     "confirmed" -> "تم التأكيد"
+    "rejected" -> "غير متاح / مرفوض من القاعة"
     "cancelled" -> "ملغي"
     else -> status
 }

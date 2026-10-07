@@ -47,17 +47,27 @@ router.post("/", async (req, res): Promise<void> => {
     const storeId = Number(body.storeId);
     const partySize = Number(body.partySize);
     const reservationAt = typeof body.reservationAt === "string" ? new Date(body.reservationAt) : new Date(NaN);
+    const isVenueBooking = occasion.includes("قاعة") || body.paymentType === "full" || body.paymentType === "deposit" && body.paymentReceiptUrl != null;
+    const paymentType = body.paymentType === "full" ? "full" : "deposit";
+    const paymentAmount = Number(body.paymentAmount);
+    const paymentWalletId = body.paymentWalletId == null ? null : Number(body.paymentWalletId);
+    const transactionReference = typeof body.transactionReference === "string" ? body.transactionReference.trim().slice(0, 120) : "";
+    const paymentReceiptUrl = typeof body.paymentReceiptUrl === "string" ? body.paymentReceiptUrl.trim() : "";
 
     if (!customerName || customerName.length > 200 || !customerPhone || customerPhone.length > 40) {
       res.status(400).json({ error: "يرجى إدخال الاسم ورقم الهاتف" });
       return;
     }
-    if (!Number.isInteger(storeId) || storeId < 1 || !Number.isInteger(partySize) || partySize < 1 || partySize > 20) {
-      res.status(400).json({ error: "يرجى اختيار الفرع وتحديد عدد الضيوف (من 1 إلى 20)" });
+    if (!Number.isInteger(storeId) || storeId < 1 || !Number.isInteger(partySize) || partySize < 1 || partySize > 1000) {
+      res.status(400).json({ error: "يرجى اختيار القاعة وتحديد عدد الضيوف (من 1 إلى 1000)" });
       return;
     }
     if (Number.isNaN(reservationAt.getTime()) || reservationAt.getTime() < Date.now() + MIN_LEAD_MS || reservationAt.getTime() > Date.now() + MAX_LEAD_MS) {
       res.status(400).json({ error: "يجب اختيار موعد بعد 30 دقيقة وخلال الأشهر الستة القادمة" });
+      return;
+    }
+    if (isVenueBooking && (!Number.isFinite(paymentAmount) || paymentAmount <= 1000 || paymentWalletId == null || !Number.isInteger(paymentWalletId) || paymentWalletId < 1 || !transactionReference || !paymentReceiptUrl)) {
+      res.status(400).json({ error: "اختر المحفظة وأدخل رقم العملية وارفع إيصال التحويل" });
       return;
     }
 
@@ -78,6 +88,13 @@ router.post("/", async (req, res): Promise<void> => {
       occasion: occasion || null,
       notes: notes || null,
       status: "pending",
+      paymentType: isVenueBooking ? paymentType : "deposit",
+      paymentAmount: isVenueBooking ? paymentAmount : 0,
+      platformFee: isVenueBooking ? 1000 : 0,
+      paymentWalletId: isVenueBooking ? paymentWalletId : null,
+      transactionReference: isVenueBooking ? transactionReference : null,
+      paymentReceiptUrl: isVenueBooking ? paymentReceiptUrl : null,
+      paymentStatus: isVenueBooking ? "pending_review" : "not_required",
     });
     const reservationId = Number(insertResult.insertId);
     if (!Number.isInteger(reservationId) || reservationId < 1) {

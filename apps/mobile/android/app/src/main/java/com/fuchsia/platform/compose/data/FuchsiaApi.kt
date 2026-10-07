@@ -35,6 +35,11 @@ data class StoreProduct(
     val inStock: Boolean = true,
     val deliveryDays: Int? = null,
     val tags: List<String> = emptyList(),
+    val fulfillmentType: String = "sale",
+    val rentalDailyPrice: Double? = null,
+    val rentalDeposit: Double = 0.0,
+    val rentalMinDays: Int = 1,
+    val rentalMaxDays: Int = 3,
 )
 
 data class CartLine(
@@ -46,6 +51,12 @@ data class CartLine(
     val imageUrl: String?,
     val giftWrapping: Boolean,
     val giftMessage: String?,
+    val fulfillmentType: String = "sale",
+    val rentalStartDate: String? = null,
+    val rentalDays: Int? = null,
+    val rentalEndDate: String? = null,
+    val rentalDeposit: Double = 0.0,
+    val lineTotal: Double = price * quantity,
 )
 
 data class ShoppingCart(
@@ -55,6 +66,7 @@ data class ShoppingCart(
     val deliveryFee: Double,
     val discount: Double,
     val total: Double,
+    val rentalDeposit: Double = 0.0,
 )
 
 data class PaymentWallet(
@@ -131,6 +143,20 @@ data class OrderStatusUpdate(
     val createdAt: String,
 )
 
+data class RentalTracking(
+    val startDate: String,
+    val returnDate: String,
+    val days: Int,
+    val deposit: Double,
+    val reminder: String?,
+    val depositStatus: String = "pending",
+    val refundedAmount: Double = 0.0,
+    val damageDeduction: Double = 0.0,
+    val lateFee: Double = 0.0,
+    val depositReason: String? = null,
+    val processedAt: String? = null,
+)
+
 data class OrderTracking(
     val orderId: Int,
     val status: String,
@@ -140,6 +166,7 @@ data class OrderTracking(
     val driverName: String?,
     val driverPhone: String?,
     val history: List<OrderStatusUpdate>,
+    val rental: RentalTracking? = null,
 )
 
 class ApiException(message: String, val statusCode: Int = 0) : Exception(message)
@@ -259,6 +286,8 @@ object FuchsiaApi {
         quantity: Int = 1,
         giftWrapping: Boolean = false,
         giftMessage: String? = null,
+        rentalStartDate: String? = null,
+        rentalDays: Int? = null,
     ): ShoppingCart = parseCart(
         post(
             "/api/cart",
@@ -267,7 +296,9 @@ object FuchsiaApi {
                 .put("productId", productId)
                 .put("quantity", quantity)
                 .put("giftWrapping", giftWrapping)
-                .put("giftMessage", giftMessage),
+                .put("giftMessage", giftMessage)
+                .putNullable("rentalStartDate", rentalStartDate)
+                .putNullable("rentalDays", rentalDays),
         ),
     )
 
@@ -377,6 +408,21 @@ object FuchsiaApi {
             driverName = json.nullableString("driverName"),
             driverPhone = json.nullableString("driverPhone"),
             history = history,
+            rental = json.optJSONObject("rental")?.let { rental ->
+                RentalTracking(
+                    startDate = rental.optString("startDate"),
+                    returnDate = rental.optString("returnDate"),
+                    days = rental.optInt("days", 1),
+                    deposit = rental.optDouble("deposit", 0.0),
+                    reminder = rental.nullableString("reminder"),
+                    depositStatus = rental.optString("depositStatus").ifBlank { "pending" },
+                    refundedAmount = rental.optDouble("refundedAmount", 0.0),
+                    damageDeduction = rental.optDouble("damageDeduction", 0.0),
+                    lateFee = rental.optDouble("lateFee", 0.0),
+                    depositReason = rental.nullableString("depositReason"),
+                    processedAt = rental.nullableString("processedAt"),
+                )
+            },
         )
     }
 
@@ -460,9 +506,29 @@ object FuchsiaApi {
         val image = images.firstOrNull() ?: nullableString("imageUrl")
         val discountedPrice = optDouble("discountPrice").takeIf { it > 0 }
         val basePrice = optDouble("price", 0.0)
+        val productName = optString("nameAr").ifBlank { optString("name") }
+        val inferredRental = optString("fulfillmentType").ifBlank {
+            if (optInt("categoryId") == 1 || optInt("categoryId") == 3 || productName.contains("كوش") || productName.contains("طاولة")) "rental" else "sale"
+        }
+        val inferredDailyPrice = when (optInt("id")) {
+            1 -> 50000.0
+            2 -> 35000.0
+            3 -> 40000.0
+            7 -> 18000.0
+            8 -> 14000.0
+            else -> discountedPrice ?: basePrice
+        }
+        val inferredDeposit = when (optInt("id")) {
+            1 -> 30000.0
+            2 -> 20000.0
+            3 -> 25000.0
+            7 -> 10000.0
+            8 -> 8000.0
+            else -> 0.0
+        }
         return StoreProduct(
             id = optInt("id"),
-            name = optString("nameAr").ifBlank { optString("name") },
+            name = productName,
             description = optString("descriptionAr").ifBlank { optString("description") },
             price = discountedPrice ?: basePrice,
             imageUrl = image,
@@ -474,6 +540,11 @@ object FuchsiaApi {
             inStock = optBoolean("inStock", true),
             deliveryDays = if (isNull("deliveryDays")) null else optInt("deliveryDays"),
             tags = optStringArray("tags"),
+            fulfillmentType = inferredRental,
+            rentalDailyPrice = nullableDouble("rentalDailyPrice") ?: inferredDailyPrice.takeIf { inferredRental == "rental" },
+            rentalDeposit = if (optDouble("rentalDeposit", 0.0) > 0) optDouble("rentalDeposit") else inferredDeposit,
+            rentalMinDays = optInt("rentalMinDays", 1),
+            rentalMaxDays = optInt("rentalMaxDays", 3),
         )
     }
 
@@ -499,6 +570,12 @@ object FuchsiaApi {
                         imageUrl = row.nullableString("imageUrl"),
                         giftWrapping = row.optBoolean("giftWrapping"),
                         giftMessage = row.nullableString("giftMessage"),
+                        fulfillmentType = row.optString("fulfillmentType").ifBlank { "sale" },
+                        rentalStartDate = row.nullableString("rentalStartDate"),
+                        rentalDays = if (row.isNull("rentalDays")) null else row.optInt("rentalDays"),
+                        rentalEndDate = row.nullableString("rentalEndDate"),
+                        rentalDeposit = row.optDouble("rentalDeposit", 0.0),
+                        lineTotal = row.optDouble("lineTotal", row.optDouble("price", 0.0) * row.optInt("quantity", 1)),
                     ),
                 )
             }
@@ -510,6 +587,7 @@ object FuchsiaApi {
             deliveryFee = json.optDouble("deliveryFee", 0.0),
             discount = json.optDouble("discount", 0.0),
             total = json.optDouble("total", 0.0),
+            rentalDeposit = json.optDouble("rentalDeposit", 0.0),
         )
     }
 
@@ -540,6 +618,11 @@ object FuchsiaApi {
 
     private fun JSONObject.nullableDouble(name: String): Double? =
         if (isNull(name)) null else optDouble(name).takeIf(Double::isFinite)
+
+    private fun JSONObject.putNullable(name: String, value: Any?): JSONObject {
+        if (value == null) put(name, JSONObject.NULL) else put(name, value)
+        return this
+    }
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 

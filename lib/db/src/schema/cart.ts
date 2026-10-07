@@ -1,4 +1,4 @@
-import { mysqlTable, text, double, int, boolean, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, double, int, boolean, timestamp, date, varchar } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +9,11 @@ export const cartItemsTable = mysqlTable("cart_items", {
   productName: text("product_name").notNull(),
   price: double("price").notNull(),
   quantity: int("quantity").notNull().default(1),
+  fulfillmentType: varchar("fulfillment_type", { length: 16 }).notNull().default("sale"),
+  rentalStartDate: date("rental_start_date", { mode: "string" }),
+  rentalDays: int("rental_days"),
+  rentalEndDate: date("rental_end_date", { mode: "string" }),
+  rentalDeposit: double("rental_deposit").notNull().default(0),
   imageUrl: text("image_url").notNull(),
   giftWrapping: boolean("gift_wrapping").notNull().default(false),
   giftMessage: text("gift_message"),

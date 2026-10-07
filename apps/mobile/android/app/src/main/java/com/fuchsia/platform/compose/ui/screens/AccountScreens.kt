@@ -132,8 +132,8 @@ fun AccountScreen(
             item {
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 19.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (isGuest) "أهلاً بك" else "أهلاً بك، $greeting", color = FuchsiaColors.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                        Text(if (isGuest) "تصفح أجمل الهدايا والمناسبات" else "كل ما تحتاجه من فوشيا في مكان واحد", color = FuchsiaColors.White.copy(alpha = .86f), style = MaterialTheme.typography.bodyMedium)
+                        Text(if (isGuest) "أهلاً بك" else "أهلاً بك، $greeting", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text(if (isGuest) "تصفح أجمل الهدايا والمناسبات" else "كل ما تحتاجه من فوشيا في مكان واحد", color = Color.White.copy(alpha = .86f), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }

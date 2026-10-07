@@ -1,4 +1,4 @@
-import { mysqlTable, text, varchar, double, int, boolean, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, varchar, double, int, boolean, timestamp, date } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -34,6 +34,13 @@ export const ordersTable = mysqlTable("orders", {
   giftCardStyle: text("gift_card_style"),
   hidePrice: boolean("hide_price").notNull().default(false),
   scheduledDelivery: timestamp("scheduled_delivery"),
+  rentalDeposit: double("rental_deposit").notNull().default(0),
+  rentalDepositStatus: varchar("rental_deposit_status", { length: 32 }).notNull().default("pending"),
+  rentalDepositRefunded: double("rental_deposit_refunded").notNull().default(0),
+  rentalDamageDeduction: double("rental_damage_deduction").notNull().default(0),
+  rentalLateFee: double("rental_late_fee").notNull().default(0),
+  rentalDepositReason: text("rental_deposit_reason"),
+  rentalDepositProcessedAt: timestamp("rental_deposit_processed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -44,6 +51,11 @@ export const orderItemsTable = mysqlTable("order_items", {
   productName: text("product_name").notNull(),
   price: double("price").notNull(),
   quantity: int("quantity").notNull(),
+  fulfillmentType: varchar("fulfillment_type", { length: 16 }).notNull().default("sale"),
+  rentalStartDate: date("rental_start_date", { mode: "string" }),
+  rentalDays: int("rental_days"),
+  rentalEndDate: date("rental_end_date", { mode: "string" }),
+  rentalDeposit: double("rental_deposit").notNull().default(0),
   imageUrl: text("image_url").notNull(),
 });
 

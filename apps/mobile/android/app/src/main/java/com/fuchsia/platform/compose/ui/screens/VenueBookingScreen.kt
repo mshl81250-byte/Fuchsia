@@ -1,7 +1,10 @@
 package com.fuchsia.platform.compose.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,11 +65,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.fuchsia.platform.compose.data.FuchsiaApi
+import com.fuchsia.platform.compose.data.PaymentWallet
+import com.fuchsia.platform.compose.data.SessionVault
+import com.fuchsia.platform.compose.data.TableReservation
 import com.fuchsia.platform.compose.data.VenueAvailability
 import com.fuchsia.platform.compose.data.VenueSummary
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -156,18 +164,43 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
 
 @Composable
 private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val bearerToken = remember(context) { SessionVault.token(context) }
+    val user = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
     val month = remember { mutableStateOf(Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1) }) }
     var availability by remember { mutableStateOf<VenueAvailability?>(null) }
     var loading by remember { mutableStateOf(true) }
     var selectedDate by remember { mutableStateOf<String?>(null) }
     var showRules by remember { mutableStateOf(false) }
+    var customerName by remember { mutableStateOf(user?.optString("fullName").orEmpty()) }
+    var customerPhone by remember { mutableStateOf(user?.optString("phone").orEmpty()) }
+    var partySize by remember { mutableStateOf("100") }
+    var submitting by remember { mutableStateOf(false) }
+    var submitted by remember { mutableStateOf<TableReservation?>(null) }
+    var submitError by remember { mutableStateOf("") }
+    var wallets by remember { mutableStateOf<List<PaymentWallet>>(emptyList()) }
+    var paymentType by remember { mutableStateOf("deposit") }
+    var selectedWalletId by remember { mutableStateOf<Int?>(null) }
+    var transactionReference by remember { mutableStateOf("") }
+    var receiptUrl by remember { mutableStateOf("") }
+    var uploading by remember { mutableStateOf(false) }
+    val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            uploading = true
+            runCatching { FuchsiaApi.uploadReceipt(context, uri).optString("url") }
+                .onSuccess { receiptUrl = it }
+                .onFailure { submitError = it.message ?: "تعذر رفع الإيصال." }
+            uploading = false
+        }
+    }
     val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(month.value.time)
     LaunchedEffect(venue.id, monthKey) {
         loading = true
         availability = runCatching { FuchsiaApi.venueAvailability(venue.id, monthKey) }.getOrNull()
         loading = false
     }
+    LaunchedEffect(Unit) { wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList()) }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = insets.calculateTopPadding() + 8.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
             item {
@@ -206,6 +239,56 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
             item {
                 Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                     Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) { Text("بعد اختيار اليوم", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold); Text(if (selectedDate == null) "حدد يومًا متاحًا من التقويم لقراءة الخطوة التالية." else "التاريخ المختار: $selectedDate\nسيتم لاحقًا إضافة بيانات العميل والدفع وتأكيد الحجز.", color = FuchsiaColors.Muted, fontSize = 13.sp) }
+                }
+            }
+            if (selectedDate != null) {
+                item {
+                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("إرسال طلب حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                            Text("سيبقى الطلب بانتظار مراجعة القاعة، وستظهر النتيجة في سجل الحجوزات.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                            OutlinedTextField(value = customerName, onValueChange = { customerName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("اسم العميل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            OutlinedTextField(value = customerPhone, onValueChange = { customerPhone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم الهاتف") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            OutlinedTextField(value = partySize, onValueChange = { partySize = it.filter(Char::isDigit).take(4) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عدد الضيوف المتوقع") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            Text("طريقة الدفع", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { paymentType = "deposit" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "deposit") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("عربون 30%", color = if (paymentType == "deposit") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
+                                Button(onClick = { paymentType = "full" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "full") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("دفع كامل", color = if (paymentType == "full") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
+                            }
+                            val venueAmount = if (paymentType == "full") venue.priceFrom else venue.priceFrom * 0.30
+                            Text("المطلوب: ${formatYemeniRiyal(venueAmount + 1000)} شامل عمولة التطبيق 1,000 ريال", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            Text("اختر المحفظة للتحويل", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            wallets.forEach { wallet ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedWalletId = wallet.id }, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (selectedWalletId == wallet.id) FuchsiaColors.Rose else FuchsiaColors.White), border = BorderStroke(1.dp, if (selectedWalletId == wallet.id) FuchsiaColors.Primary else FuchsiaColors.Line)) {
+                                    Column(Modifier.padding(11.dp)) { Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold); Text("رقم الحساب: ${wallet.accountNumber}", color = FuchsiaColors.TextAccent, fontSize = 12.sp); Text(wallet.instructions, color = FuchsiaColors.Muted, fontSize = 11.sp) }
+                                }
+                            }
+                            OutlinedTextField(value = transactionReference, onValueChange = { transactionReference = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم عملية التحويل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            Button(onClick = { receiptPicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.RoseLight)) { if (uploading) CircularProgressIndicator(color = FuchsiaColors.Primary, modifier = Modifier.size(18.dp)) else Text(if (receiptUrl.isBlank()) "رفع صورة إيصال التحويل" else "تم رفع الإيصال · تغيير الصورة", color = FuchsiaColors.Ink, fontSize = 12.sp) }
+                            if (submitError.isNotBlank()) Text(submitError, color = FuchsiaColors.Error, fontSize = 12.sp)
+                            submitted?.let { reservation ->
+                                Text("تم إرسال طلب حجز ${venue.name} رقم #${reservation.id}", color = FuchsiaColors.Success, fontWeight = FontWeight.Bold)
+                                Text("الحالة: بانتظار مراجعة القاعة والتأكد من التوفر", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                            } ?: Button(onClick = {
+                                val token = bearerToken
+                                val guests = partySize.toIntOrNull() ?: 0
+                                if (token.isNullOrBlank()) submitError = "يرجى تسجيل الدخول لإرسال طلب الحجز."
+                                else if (customerName.isBlank() || customerPhone.isBlank()) submitError = "أدخل الاسم ورقم الهاتف."
+                                else if (guests < 1) submitError = "أدخل عدد الضيوف."
+                                else if (selectedWalletId == null || transactionReference.isBlank() || receiptUrl.isBlank()) submitError = "اختر المحفظة وأدخل رقم العملية وارفع الإيصال."
+                                else scope.launch {
+                                    submitting = true; submitError = ""
+                                    runCatching {
+                                        val venueAmount = if (paymentType == "full") venue.priceFrom else venue.priceFrom * 0.30
+                                        FuchsiaApi.createReservation(JSONObject().put("storeId", venue.id).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("occasion", "حجز قاعة أعراس").put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
+                                    }.onSuccess { submitted = it }.onFailure { submitError = it.message ?: "تعذر إرسال طلب الحجز." }
+                                    submitting = false
+                                }
+                            }, modifier = Modifier.fillMaxWidth().height(52.dp), enabled = !submitting, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                                if (submitting) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("إرسال طلب الحجز", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
             item { Button(onClick = { showRules = true }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Primary)) { Icon(Icons.Rounded.Rule, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(7.dp)); Text("قراءة شروط الحجز", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) } }

@@ -302,14 +302,14 @@ fun HomeScreen(
 
 @Composable
 private fun VenueBookingPromo(onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
+        Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(21.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 17.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(shape = RoundedCornerShape(16.dp), color = FuchsiaColors.White.copy(alpha = .16f), modifier = Modifier.size(52.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(29.dp)) } }
+            Surface(shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = .16f), modifier = Modifier.size(52.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = Color.White, modifier = Modifier.size(29.dp)) } }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("حجز قاعة أعراس", color = FuchsiaColors.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                Text("ابحث عن صالة مناسبة واختر يومك من التقويم", color = FuchsiaColors.White.copy(alpha = .9f), fontSize = 12.sp)
+                Text("حجز قاعة أعراس", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                Text("ابحث عن صالة مناسبة واختر يومك من التقويم", color = Color.White.copy(alpha = .9f), fontSize = 12.sp)
             }
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(21.dp))
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, tint = Color.White, modifier = Modifier.size(21.dp))
         }
     }
 }

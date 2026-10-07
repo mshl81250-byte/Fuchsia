@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "./lib/migrations";
+import { startRentalReturnReminderWorker } from "./lib/rental-reminders";
 
 const rawPort = process.env["PORT"];
 
@@ -19,7 +20,10 @@ if (Number.isNaN(port) || port <= 0) {
 async function start(): Promise<void> {
   try {
     await runMigrations();
-    app.listen(port, () => logger.info({ port }, "Server listening"));
+    app.listen(port, () => {
+      logger.info({ port }, "Server listening");
+      startRentalReturnReminderWorker();
+    });
   } catch (err) {
     logger.error({ err }, "Database preparation or server startup failed");
     process.exit(1);
