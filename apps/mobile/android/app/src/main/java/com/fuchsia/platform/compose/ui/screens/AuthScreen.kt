@@ -314,7 +314,7 @@ private fun AuthField(
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = FuchsiaColors.Primary,
     unfocusedBorderColor = FuchsiaColors.Line,
-    focusedLabelColor = FuchsiaColors.Primary,
+    focusedLabelColor = FuchsiaColors.TextAccent,
     cursorColor = FuchsiaColors.Primary,
     focusedContainerColor = FuchsiaColors.White,
     unfocusedContainerColor = FuchsiaColors.White,

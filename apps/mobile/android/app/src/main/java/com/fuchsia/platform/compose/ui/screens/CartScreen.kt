@@ -270,11 +270,11 @@ private fun CartItemCard(
                     Text("${item.rentalStartDate ?: "-"} · ${item.rentalDays ?: 1} ${if ((item.rentalDays ?: 1) == 1) "يوم" else "أيام"}", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                     Text(if (item.rentalFulfillment == "delivery") "طريقة الاستلام: توصيل إلى العنوان" else "طريقة الاستلام: استلام ذاتي من القاعة", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                     Text(if (item.rentalTimeSlot == "evening") "وقت التجهيز: مساءً" else "وقت التجهيز: صباحًا", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
-                    if (item.rentalDeposit > 0) Text("تأمين مسترد: ${formatYemeniRiyal(item.rentalDeposit)}", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                    if (item.rentalDeposit > 0) Text("تأمين مسترد: ${formatYemeniRiyal(item.rentalDeposit)}", color = FuchsiaColors.Ink, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                 } else {
                     Text("للبيع · ${formatYemeniRiyal(item.price)}", color = FuchsiaColors.TextAccent, style = MaterialTheme.typography.labelLarge)
                 }
-                if (item.giftWrapping) Text("تغليف هدية", color = FuchsiaColors.Gold, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+                if (item.giftWrapping) Text("تغليف هدية", color = FuchsiaColors.Ink, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     QuantityButton(Icons.Rounded.Remove, "تقليل الكمية", enabled = !busy, onClick = onDecrease)
                     Text(item.quantity.toString(), modifier = Modifier.width(27.dp), color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)

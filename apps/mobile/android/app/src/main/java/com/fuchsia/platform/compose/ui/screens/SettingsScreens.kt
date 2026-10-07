@@ -168,7 +168,7 @@ fun SettingsScreen(
                             colors = SwitchDefaults.colors(checkedTrackColor = FuchsiaColors.Primary),
                         )
                     }
-                    if (securityMessage.isNotBlank()) Text(securityMessage, color = if (biometricEnabled) FuchsiaColors.Success else FuchsiaColors.Primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                    if (securityMessage.isNotBlank()) Text(securityMessage, color = if (biometricEnabled) FuchsiaColors.Success else FuchsiaColors.TextAccent, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 }
             }
             item {

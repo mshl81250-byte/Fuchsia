@@ -249,6 +249,12 @@ fun CheckoutScreen(
     }
 
     fun submitOrder() {
+        if (directRental?.previewOnly == true) {
+            val message = "هذه معاينة فقط؛ لم يُرسل طلب الإيجار ولم يُسجل حجز أو دفع. يلزم نشر خدمة الحجز أولًا."
+            error = message
+            scope.launch { snackbar.showSnackbar(message) }
+            return
+        }
         val currentSession = sessionId
         val currentCart = cart
         if (currentSession == null || currentCart == null || currentCart.items.isEmpty()) {
@@ -342,6 +348,7 @@ fun CheckoutScreen(
 
     val outsideSanaa = latitude != null && longitude != null && !isSanaaLocation(latitude!!, longitude!!)
     val isRentalCheckout = cart?.items?.any { it.fulfillmentType == "rental" } == true
+    val isPreviewOnlyRental = directRental?.previewOnly == true
     val rentalNeedsDelivery = cart?.items?.any { it.fulfillmentType == "rental" && it.rentalFulfillment == "delivery" } == true
     val needsDelivery = !isRentalCheckout || rentalNeedsDelivery
 
@@ -355,7 +362,7 @@ fun CheckoutScreen(
                     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         CommerceMoneyRow("المطلوب", total, bold = true, accent = true)
                         CommercePrimaryButton(
-                                text = "${if (isRentalCheckout) "إرسال طلب الحجز" else "تأكيد الطلب"} · ${formatYemeniRiyal(total)}",
+                                text = "${if (isPreviewOnlyRental) "معاينة فقط · لا يُرسل الحجز" else if (isRentalCheckout) "إرسال طلب الحجز" else "تأكيد الطلب"} · ${formatYemeniRiyal(total)}",
                             busy = submitting,
                             enabled = !loading && !uploading && !outsideSanaa,
                             onClick = ::submitOrder,
@@ -376,6 +383,9 @@ fun CheckoutScreen(
                     subtitle = if (isRentalCheckout) "راجع الموعد والتوصيل والعربون والضمان قبل الإرسال" else "خطوة آمنة لتأكيد الطلب مع فوشيا",
                     onBack = onBack,
                 )
+            }
+            if (isPreviewOnlyRental) item {
+                CommerceNotice("تم فتح هذا المسار للمعاينة لأن خدمة الإيجار على الخادم تعيد 404. لن نرسل أي طلب أو بيانات دفع.", isError = false)
             }
             if (loading) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
@@ -645,7 +655,7 @@ private fun PaymentChoice(label: String, selected: Boolean, modifier: Modifier =
         border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) FuchsiaColors.Primary else FuchsiaColors.Line),
     ) {
         Box(Modifier.fillMaxSize().padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
-            Text(label, color = if (selected) FuchsiaColors.Primary else FuchsiaColors.Ink, fontWeight = FontWeight.Bold, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
+            Text(label, color = if (selected) FuchsiaColors.TextAccent else FuchsiaColors.Ink, fontWeight = FontWeight.Bold, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp))
         }
     }
 }

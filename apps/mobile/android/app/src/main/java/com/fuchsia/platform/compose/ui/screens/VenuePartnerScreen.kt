@@ -394,7 +394,7 @@ private fun RentalOwnerPanel(token: String, context: android.content.Context) {
                 Text("اختيار ورفع صور القطعة", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
             }
             PartnerField(imageLinks, { imageLinks = it }, "أو روابط صور مستضافة (مفصولة بفاصلة)", singleLine = false)
-            Text(if (matchingCategory == null) "لا توجد فئة كتالوج مطابقة لـ${if (rentalCategory == "kosh") "الكوش" else "الطاولات"}؛ أضفها الإدارة أولًا." else "سيُدرج المنتج ضمن فئة: ${matchingCategory.name}" , color = if (matchingCategory == null) FuchsiaColors.Primary else FuchsiaColors.Muted, fontSize = 11.sp)
+            Text(if (matchingCategory == null) "لا توجد فئة كتالوج مطابقة لـ${if (rentalCategory == "kosh") "الكوش" else "الطاولات"}؛ أضفها الإدارة أولًا." else "سيُدرج المنتج ضمن فئة: ${matchingCategory.name}" , color = if (matchingCategory == null) FuchsiaColors.TextAccent else FuchsiaColors.Muted, fontSize = 11.sp)
             PartnerSubmitButton("حفظ قطعة التأجير كمسودة", busy) {
                 val daily = dailyPrice.toDoubleOrNull() ?: 0.0
                 val count = quantity.toIntOrNull() ?: 0

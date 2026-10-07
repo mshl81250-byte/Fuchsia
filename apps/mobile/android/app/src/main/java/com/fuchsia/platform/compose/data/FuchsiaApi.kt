@@ -10,6 +10,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 import java.util.UUID
 
@@ -56,6 +58,7 @@ data class RentalBookingDraft(
     val fulfillment: String,
     val timeSlot: String,
     val idempotencyKey: String,
+    val previewOnly: Boolean = false,
 )
 
 data class RentalAvailability(
@@ -63,6 +66,7 @@ data class RentalAvailability(
     val stockQuantity: Int,
     val reservedQuantity: Int,
     val endDate: String,
+    val previewOnly: Boolean = false,
 )
 
 data class CartLine(
@@ -133,6 +137,47 @@ data class VenueAvailability(
     val booked: Set<String>,
     val closed: Set<String> = emptySet(),
 )
+
+private val demoVenueFixtures = listOf(
+    VenueSummary(-1001, "[معاينة] قاعة النخبة للأعراس", "قاعة مناسبات تجريبية لعرض تفاصيل الحجز والتقويم. ليست عرضًا حقيقيًا.", "https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=1200&h=800&fit=crop", address = "شارع الستين — صنعاء (عنوان معاينة)", city = "صنعاء", capacity = 260, priceFrom = 250000.0, rating = 0.0, reviewCount = 0, audience = "both", amenities = listOf("مواقف سيارات", "قاعة نسائية", "قاعة رجالية", "تكييف"), rules = "بيانات معاينة فقط. لا تتواصل أو تحوّل مبالغ."),
+    VenueSummary(-1002, "[معاينة] قصر اللؤلؤة — قسم النساء", "مثال لقاعة نسائية مع منصة عروس وغرفة تجهيز. ليست عرضًا حقيقيًا.", "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=1200&h=800&fit=crop", address = "حي حدة — صنعاء (عنوان معاينة)", city = "صنعاء", capacity = 340, priceFrom = 380000.0, rating = 0.0, reviewCount = 0, audience = "women", amenities = listOf("قاعة نسائية", "منصة عروس", "غرفة تجهيز", "تكييف"), rules = "بيانات معاينة فقط. لا تتواصل أو تحوّل مبالغ."),
+    VenueSummary(-1003, "[معاينة] قاعة السمو — قسم الرجال", "مثال لقاعة رجالية مع مجلس استقبال. ليست عرضًا حقيقيًا.", "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200&h=800&fit=crop", address = "شارع حدة — صنعاء (عنوان معاينة)", city = "صنعاء", capacity = 300, priceFrom = 220000.0, rating = 0.0, reviewCount = 0, audience = "men", amenities = listOf("قاعة رجالية", "مجلس استقبال", "مواقف سيارات"), rules = "بيانات معاينة فقط. لا تتواصل أو تحوّل مبالغ."),
+    VenueSummary(-1004, "[معاينة] قاعة ليالي صنعاء", "مثال لقاعة بقسمين لاختيار النساء أو الرجال عند الحجز. ليست عرضًا حقيقيًا.", "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=1200&h=800&fit=crop", address = "شارع الخمسين — صنعاء (عنوان معاينة)", city = "صنعاء", capacity = 420, priceFrom = 450000.0, rating = 0.0, reviewCount = 0, audience = "both", amenities = listOf("قسم نساء", "قسم رجال", "مسرح", "مواقف سيارات"), rules = "بيانات معاينة فقط. لا تتواصل أو تحوّل مبالغ."),
+    VenueSummary(-1005, "[معاينة] قاعة وردة صنعاء — نسائية", "مثال لقاعة نسائية بتجهيزات حفلات متكاملة. ليست عرضًا حقيقيًا.", "https://images.unsplash.com/photo-1465495976277-4387d4b0e4a6?w=1200&h=800&fit=crop", address = "حي الروضة — صنعاء (عنوان معاينة)", city = "صنعاء", capacity = 180, priceFrom = 195000.0, rating = 0.0, reviewCount = 0, audience = "women", amenities = listOf("قاعة نسائية", "منصة", "غرفة تجهيز"), rules = "بيانات معاينة فقط. لا تتواصل أو تحوّل مبالغ."),
+)
+
+private data class DemoVenueBooking(val venueIndex: Int, val daysAhead: Int, val days: Int, val audience: String)
+
+private val demoVenueBookings = listOf(
+    DemoVenueBooking(0, 14, 1, "women"),
+    DemoVenueBooking(1, 21, 2, "women"),
+    DemoVenueBooking(2, 28, 1, "men"),
+    DemoVenueBooking(3, 36, 2, "men"),
+)
+
+private fun demoAvailability(venueId: Int, month: String, audience: String): VenueAvailability {
+    val venueIndex = -venueId - 1001
+    val monthNumber = month.substringAfter('-').toIntOrNull() ?: 1
+    val year = month.substringBefore('-').toIntOrNull() ?: Calendar.getInstance().get(Calendar.YEAR)
+    val nextMonthDate = Calendar.getInstance().apply { set(year, monthNumber - 1, 1); add(Calendar.MONTH, 1) }
+    val nextMonthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(nextMonthDate.time)
+    val prefixes = setOf(month, nextMonthKey)
+    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val booked = buildSet {
+        demoVenueBookings.filter { it.venueIndex == venueIndex && it.audience == audience }.forEach { event ->
+            val start = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                add(Calendar.DAY_OF_YEAR, event.daysAhead)
+            }
+            repeat(event.days) {
+                val key = formatter.format(start.time)
+                if (prefixes.any { prefix -> key.startsWith(prefix) }) add(key)
+                start.add(Calendar.DAY_OF_YEAR, 1)
+            }
+        }
+    }
+    return VenueAvailability(venueId, month, booked)
+}
 
 data class TableReservation(
     val id: Int,
@@ -389,7 +434,16 @@ object FuchsiaApi {
             audience?.takeIf(String::isNotBlank)?.let { "audience=${urlEncode(it)}" },
         )
         val suffix = if (params.isEmpty()) "" else "?${params.joinToString("&")}"
-        parseVenues(JSONArray(getText("/api/venues$suffix")))
+        try {
+            parseVenues(JSONArray(getText("/api/venues$suffix")))
+        } catch (failure: ApiException) {
+            if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
+            val term = search.trim().lowercase(Locale.forLanguageTag("ar"))
+            demoVenueFixtures.filter { venue ->
+                (audience.isNullOrBlank() || venue.audience == "both" || venue.audience == audience) &&
+                    (term.isBlank() || listOf(venue.name, venue.description, venue.address).any { it.lowercase(Locale.forLanguageTag("ar")).contains(term) })
+            }
+        }
     }
 
     suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
@@ -452,6 +506,7 @@ object FuchsiaApi {
     }
 
     suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
+        if (BuildConfig.DEBUG && venueId in -1005..-1001) return@withContext demoAvailability(venueId, month, audience)
         val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
         val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }
             ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
@@ -476,10 +531,17 @@ object FuchsiaApi {
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
 
-    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int): RentalAvailability = withContext(Dispatchers.IO) {
-        val response = getJson(
-            "/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days",
-        )
+    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
+        val response = try {
+            getJson("/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days")
+        } catch (failure: ApiException) {
+            if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
+            val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+            val end = runCatching { parser.parse(startDate) }.getOrNull()?.let { date ->
+                Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, days.coerceAtLeast(1) - 1) }.let(parser::format)
+            }.orEmpty()
+            return@withContext RentalAvailability(stockQuantity.coerceAtLeast(1), stockQuantity.coerceAtLeast(1), 0, end, previewOnly = true)
+        }
         RentalAvailability(
             availableQuantity = response.optInt("availableQuantity"),
             stockQuantity = response.optInt("stockQuantity"),

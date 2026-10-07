@@ -164,6 +164,9 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
                 }
                 CommerceSectionTitle("القاعات المتاحة", resultLabel)
             }
+            if (venues.any { it.id in -1005..-1001 }) item {
+                CommerceNotice("تعرض هذه النسخة خمس قاعات وبيانات تقويم للمعاينة فقط. لا تمثل عروضًا فعلية ولا تُسجّل حجوزات أو مدفوعات.", isError = false)
+            }
             if (loading && venues.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(38.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             else if (error.isNotBlank() && venues.isEmpty()) item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -195,7 +198,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
                     Text(venue.address, color = FuchsiaColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (venue.rating > 0) "★ ${venue.rating}" else "جديدة", color = FuchsiaColors.Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("· ${venue.capacity} شخص", color = FuchsiaColors.Muted, fontSize = 12.sp) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) { Text(if (venue.rating > 0) "★ ${venue.rating}" else "جديدة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text("· ${venue.capacity} شخص", color = FuchsiaColors.Muted, fontSize = 12.sp) }
                     Text("من ${formatYemeniRiyal(venue.priceFrom)}", color = FuchsiaColors.TextAccent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
@@ -230,6 +233,8 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     var receiptUrl by remember { mutableStateOf("") }
     var idempotencyKey by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
     var uploading by remember { mutableStateOf(false) }
+    var demoBookingPreviewed by remember(venue.id) { mutableStateOf(false) }
+    val isDemoVenue = venue.id in -1005..-1001
     val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             uploading = true
@@ -255,6 +260,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
         loading = false
     }
     LaunchedEffect(selectedDate, selectedAudience, bookingDays, paymentType, selectedWalletId, transactionReference, receiptUrl, customerName, customerPhone) {
+        demoBookingPreviewed = false
         idempotencyKey = java.util.UUID.randomUUID().toString()
     }
     LaunchedEffect(Unit) { wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList()) }
@@ -270,6 +276,9 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                     IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Ink) }
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) { Text("تفاصيل القاعة", color = FuchsiaColors.Ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold); Text("اختر اليوم المناسب لمناسبتك", color = FuchsiaColors.Muted, fontSize = 12.sp) }
                 }
+            }
+            if (isDemoVenue) item {
+                CommerceNotice("معاينة فقط — التقويم والأيام محلية للاختبار. لا يوجد مالك حقيقي ولا يُحفظ أي طلب.", isError = false)
             }
             item {
                 Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
@@ -342,11 +351,11 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                 item {
                     Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                         Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("إرسال طلب حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
-                            Text("يُحتجز الموعد مؤقتًا 30 دقيقة أثناء مراجعة الطلب، وتظهر النتيجة في سجل الحجوزات.", color = FuchsiaColors.Muted, fontSize = 12.sp)
-                            OutlinedTextField(value = customerName, onValueChange = { customerName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("اسم العميل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
-                            OutlinedTextField(value = customerPhone, onValueChange = { customerPhone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم الهاتف") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
-                            OutlinedTextField(value = partySize, onValueChange = { partySize = it.filter(Char::isDigit).take(4) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عدد الضيوف المتوقع") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            Text(if (isDemoVenue) "معاينة نموذج الحجز" else "إرسال طلب حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                            Text(if (isDemoVenue) "استعرض نموذج التاريخ والمدة والتكلفة فقط؛ لن تُرسل بيانات أو يُسجل حجز." else "يُحتجز الموعد مؤقتًا 30 دقيقة أثناء مراجعة الطلب، وتظهر النتيجة في سجل الحجوزات.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                            OutlinedTextField(value = customerName, onValueChange = { customerName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("اسم العميل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.TextAccent))
+                            OutlinedTextField(value = customerPhone, onValueChange = { customerPhone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم الهاتف") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.TextAccent))
+                            OutlinedTextField(value = partySize, onValueChange = { partySize = it.filter(Char::isDigit).take(4) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عدد الضيوف المتوقع") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.TextAccent))
                             Text("مدة حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(FuchsiaColors.RoseLight).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                 IconButton(onClick = { bookingDays = (bookingDays - 1).coerceAtLeast(1) }, enabled = bookingDays > 1) { Icon(Icons.Rounded.Remove, contentDescription = "تقليل مدة الحجز", tint = if (bookingDays > 1) FuchsiaColors.Primary else FuchsiaColors.Muted) }
@@ -356,6 +365,21 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                 }
                                 IconButton(onClick = { bookingDays = (bookingDays + 1).coerceAtMost(7) }, enabled = bookingDays < 7) { Icon(Icons.Rounded.Add, contentDescription = "زيادة مدة الحجز", tint = if (bookingDays < 7) FuchsiaColors.Primary else FuchsiaColors.Muted) }
                             }
+                            if (isDemoVenue) {
+                                Text("طريقة الدفع (للمعاينة فقط)", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { paymentType = "deposit" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "deposit") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("عربون 30%", color = if (paymentType == "deposit") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
+                                    Button(onClick = { paymentType = "full" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "full") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("المبلغ كاملًا", color = if (paymentType == "full") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
+                                }
+                                val previewTotal = venue.priceFrom * bookingDays
+                                val previewAmount = if (paymentType == "full") previewTotal else previewTotal * 0.30
+                                Text("${formatYemeniRiyal(venue.priceFrom)} لليوم × $bookingDays ${if (bookingDays == 1) "يوم" else "أيام"} = ${formatYemeniRiyal(previewTotal)}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("مبلغ الدفع للعرض: ${formatYemeniRiyal(previewAmount + 1000)} شامل عمولة المعاينة 1,000 ريال", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                                Button(onClick = { demoBookingPreviewed = true }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                                    Text("عرض تأكيد المعاينة فقط", fontWeight = FontWeight.Bold)
+                                }
+                                if (demoBookingPreviewed) Text("للتوضيح فقط: لم يُسجّل حجز ولم يحدث دفع. يلزم ربط الخادم قبل تفعيل الحجز الفعلي.", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            } else {
                             Text("طريقة الدفع", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { paymentType = "deposit" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "deposit") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("عربون 30%", color = if (paymentType == "deposit") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
@@ -371,7 +395,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                     Column(Modifier.padding(11.dp)) { Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold); Text("رقم الحساب: ${wallet.accountNumber}", color = FuchsiaColors.TextAccent, fontSize = 12.sp); Text(wallet.instructions, color = FuchsiaColors.Muted, fontSize = 11.sp) }
                                 }
                             }
-                            OutlinedTextField(value = transactionReference, onValueChange = { transactionReference = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم عملية التحويل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            OutlinedTextField(value = transactionReference, onValueChange = { transactionReference = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم عملية التحويل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.TextAccent))
                             Button(onClick = { receiptPicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.RoseLight)) { if (uploading) CircularProgressIndicator(color = FuchsiaColors.Primary, modifier = Modifier.size(18.dp)) else Text(if (receiptUrl.isBlank()) "رفع صورة إيصال التحويل" else "تم رفع الإيصال · تغيير الصورة", color = FuchsiaColors.Ink, fontSize = 12.sp) }
                             if (submitError.isNotBlank()) Text(submitError, color = FuchsiaColors.Error, fontSize = 12.sp)
                             submitted?.let { reservation ->
@@ -395,6 +419,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                 }
                             }, modifier = Modifier.fillMaxWidth().height(52.dp), enabled = !submitting, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                                 if (submitting) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp)) else Text("إرسال طلب الحجز", fontWeight = FontWeight.Bold)
+                            }
                             }
                         }
                     }

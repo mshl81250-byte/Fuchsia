@@ -100,7 +100,7 @@ internal fun CommerceField(
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = FuchsiaColors.Primary,
             unfocusedBorderColor = FuchsiaColors.Line,
-            focusedLabelColor = FuchsiaColors.Primary,
+            focusedLabelColor = FuchsiaColors.TextAccent,
             cursorColor = FuchsiaColors.Primary,
             focusedContainerColor = FuchsiaColors.White,
             unfocusedContainerColor = FuchsiaColors.White,
@@ -139,10 +139,10 @@ internal fun CommerceMoneyRow(label: String, amount: Double, bold: Boolean = fal
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, color = if (accent) FuchsiaColors.Primary else FuchsiaColors.Ink, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
+        Text(label, color = if (accent) FuchsiaColors.TextAccent else FuchsiaColors.Ink, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal)
         Text(
             formatYemeniRiyal(amount),
-            color = if (accent) FuchsiaColors.Primary else FuchsiaColors.Ink,
+            color = if (accent) FuchsiaColors.TextAccent else FuchsiaColors.Ink,
             fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Medium,
         )
     }

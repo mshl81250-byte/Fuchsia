@@ -21,8 +21,8 @@ android {
         applicationId = "com.fuchsia.platform"
         minSdk = 24
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.3.1"
+        versionCode = 7
+        versionName = "1.3.2"
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
         buildConfigField("String", "API_BASE_URL", "\"https://fuchsia-x7dwxpzd.manus.space\"")
         // The user explicitly requested on-screen OTP visibility as the sole test exception.

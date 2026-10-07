@@ -438,7 +438,7 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
                 Text(product.name.ifBlank { "هدية فوشيا" }, color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium.copy(fontSize = 13.sp), maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
                 if (product.fulfillmentType == "rental") RentalAudienceBadge(product.eventAudience, compact = true)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    if (product.rating > 0) Text("★ ${String.format(Locale.US, "%.1f", product.rating)}", color = FuchsiaColors.Gold, fontSize = 10.sp)
+                    if (product.rating > 0) Text("★ ${String.format(Locale.US, "%.1f", product.rating)}", color = FuchsiaColors.Ink, fontSize = 10.sp)
                     else Text("جديد", color = FuchsiaColors.Muted, fontSize = 10.sp)
                     if (product.reviewCount > 0) Text("(${product.reviewCount})", color = FuchsiaColors.Muted, fontSize = 9.sp)
                 }

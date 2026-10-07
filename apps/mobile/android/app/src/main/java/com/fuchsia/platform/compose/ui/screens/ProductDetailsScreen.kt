@@ -72,6 +72,7 @@ import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.UUID
 
@@ -90,6 +91,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
     var rentalFulfillment by remember(productId) { mutableStateOf("pickup") }
     var rentalTimeSlot by remember(productId) { mutableStateOf("morning") }
     var availableQuantity by remember(productId) { mutableIntStateOf(-1) }
+    var availabilityPreviewOnly by remember(productId) { mutableStateOf(false) }
     var availabilityLoading by remember(productId) { mutableStateOf(false) }
     var availabilityError by remember(productId) { mutableStateOf("") }
     var checkedAvailabilityKey by remember(productId) { mutableStateOf<String?>(null) }
@@ -112,6 +114,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
         val selectedDate = rentalStartDate
         if (selectedProduct?.fulfillmentType != "rental" || selectedDate == null) {
             availableQuantity = -1
+            availabilityPreviewOnly = false
             availabilityLoading = false
             availabilityError = ""
             checkedAvailabilityKey = null
@@ -120,9 +123,10 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
         availabilityLoading = true
         availableQuantity = -1
         availabilityError = ""
-        runCatching { FuchsiaApi.rentalAvailability(selectedProduct.id, selectedDate, rentalDays) }
+        runCatching { FuchsiaApi.rentalAvailability(selectedProduct.id, selectedDate, rentalDays, selectedProduct.stockQuantity ?: 1) }
             .onSuccess {
                 availableQuantity = it.availableQuantity
+                availabilityPreviewOnly = it.previewOnly
                 checkedAvailabilityKey = "$selectedDate|$rentalDays|$quantity"
             }
             .onFailure {
@@ -160,6 +164,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                                             fulfillment = rentalFulfillment,
                                             timeSlot = rentalTimeSlot,
                                             idempotencyKey = UUID.randomUUID().toString(),
+                                            previewOnly = availabilityPreviewOnly,
                                         ),
                                     )
                                 } else {
@@ -228,7 +233,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                             RentalAudienceBadge(current.eventAudience)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("★", color = FuchsiaColors.Gold, fontSize = 18.sp)
+                            Text("★", color = FuchsiaColors.Ink, fontSize = 18.sp)
                             Text(if (current.rating > 0) String.format("%.1f", current.rating) else "جديد", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             Text("(${current.reviewCount} تقييم)", color = FuchsiaColors.Muted, fontSize = 12.sp)
                         }
@@ -242,6 +247,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                                 dailyPrice = current.rentalDailyPrice ?: current.price,
                                 deposit = current.rentalDeposit,
                                 quantity = quantity,
+                                previewOnly = availabilityPreviewOnly,
                                 minDays = current.rentalMinDays,
                                 maxDays = current.rentalMaxDays,
                                 days = rentalDays,
@@ -263,7 +269,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                             when {
                                 availabilityLoading || (rentalStartDate != null && checkedAvailabilityKey != "$rentalStartDate|$rentalDays|$quantity" && availabilityError.isBlank()) -> Text("نتحقق من التوفر الفعلي للكمية في هذه المدة…", color = FuchsiaColors.Muted, fontSize = 12.sp)
                                 availabilityError.isNotBlank() -> Text(availabilityError, color = FuchsiaColors.Error, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                rentalStartDate != null && checkedAvailabilityKey == "$rentalStartDate|$rentalDays|$quantity" && availableQuantity >= quantity -> Text("متاح للحجز: $availableQuantity من ${current.stockQuantity ?: 1}", color = FuchsiaColors.Success, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                rentalStartDate != null && checkedAvailabilityKey == "$rentalStartDate|$rentalDays|$quantity" && availableQuantity >= quantity -> Text(if (availabilityPreviewOnly) "متاح للمعاينة: $availableQuantity قطعة — ليس مخزونًا فعليًا" else "متاح للحجز: $availableQuantity من ${current.stockQuantity ?: 1}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 rentalStartDate != null && checkedAvailabilityKey == "$rentalStartDate|$rentalDays|$quantity" -> Text("الكمية المطلوبة غير متاحة في هذه المدة. المتاح: $availableQuantity", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                             if (current.rentalCategory == "table") {
@@ -305,6 +311,7 @@ private fun RentalSelection(
     dailyPrice: Double,
     deposit: Double,
     quantity: Int,
+    previewOnly: Boolean,
     minDays: Int,
     maxDays: Int,
     days: Int,
@@ -324,12 +331,13 @@ private fun RentalSelection(
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("تفاصيل الإيجار", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
             Text("اختر تاريخ البداية والمدة وطريقة الاستلام أو التوصيل.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+            if (previewOnly) CommerceNotice("التوفر المعروض للمعاينة فقط؛ لا يمثل مخزونًا مؤكدًا ولا يثبت حجزًا.", isError = false)
             Button(
                 onClick = onDateClick,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White, contentColor = FuchsiaColors.Primary),
+                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.White, contentColor = FuchsiaColors.Ink),
             ) {
-                Text(startDate?.let { "تاريخ البداية: $it" } ?: "اختر تاريخ بداية الإيجار")
+                Text(startDate?.let { "تاريخ البداية: ${formatArabicRentalDate(it)}" } ?: "اختر تاريخ بداية الإيجار")
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text("مدة الإيجار: $days ${if (days == 1) "يوم" else "أيام"}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
@@ -340,8 +348,13 @@ private fun RentalSelection(
                 )
             }
             Text("يسمح بالإيجار من $minDays إلى $maxDays أيام.", color = FuchsiaColors.Muted, fontSize = 11.sp)
-            Text("${formatRiyal(dailyPrice)} لليوم × $days أيام × $quantity قطع: ${formatRiyal(dailyPrice * days * quantity)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
-            if (deposit > 0) Text("التأمين المسترد: ${formatRiyal(deposit * quantity)}", color = FuchsiaColors.Gold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text("ملخص التكلفة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text("${formatRiyal(dailyPrice)} لليوم × $days أيام × $quantity قطع = ${formatRiyal(dailyPrice * days * quantity)}", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                    if (deposit > 0) Text("التأمين المسترد: ${formatRiyal(deposit * quantity)}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
             Text("طريقة الحصول على الكوشة أو الطاولات", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Button(onClick = { onFulfillmentChange("pickup") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (fulfillment == "pickup") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("سأستلمها بنفسي", color = if (fulfillment == "pickup") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }
@@ -349,12 +362,18 @@ private fun RentalSelection(
             }
             Text("متى تحتاجها؟", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Button(onClick = { onTimeSlotChange("morning") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "morning") FuchsiaColors.Gold else FuchsiaColors.White)) { Text("صباحًا", color = FuchsiaColors.Ink, fontSize = 11.sp) }
-                Button(onClick = { onTimeSlotChange("evening") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "evening") FuchsiaColors.Gold else FuchsiaColors.White)) { Text("مساءً", color = FuchsiaColors.Ink, fontSize = 11.sp) }
+                Button(onClick = { onTimeSlotChange("morning") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "morning") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("صباحًا", color = if (timeSlot == "morning") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }
+                Button(onClick = { onTimeSlotChange("evening") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (timeSlot == "evening") FuchsiaColors.Primary else FuchsiaColors.White)) { Text("مساءً", color = if (timeSlot == "evening") Color.White else FuchsiaColors.Ink, fontSize = 11.sp) }
             }
             Text(if (fulfillment == "delivery") "سيتم تحديد عنوان التوصيل والرسوم في الخطوة التالية." else "عند الاستلام: تدفع العربون للحجز، والمتبقي والضمان عند استلام القطعة.", color = FuchsiaColors.TextAccent, fontSize = 11.sp)
         }
     }
+}
+
+private fun formatArabicRentalDate(value: String): String {
+    val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+    val date = runCatching { parser.parse(value) }.getOrNull() ?: return value
+    return SimpleDateFormat("d MMMM yyyy", Locale.forLanguageTag("ar-YE")).format(date)
 }
 
 @Composable
