@@ -45,6 +45,7 @@ router.post("/", async (req, res): Promise<void> => {
     const occasion = typeof body.occasion === "string" ? body.occasion.trim().slice(0, 120) : "";
     const notes = typeof body.notes === "string" ? body.notes.trim().slice(0, 1000) : "";
     const storeId = Number(body.storeId);
+    const bookingDays = Number(body.bookingDays ?? 1);
     const partySize = Number(body.partySize);
     const reservationAt = typeof body.reservationAt === "string" ? new Date(body.reservationAt) : new Date(NaN);
     const isVenueBooking = occasion.includes("قاعة") || body.paymentType === "full" || body.paymentType === "deposit" && body.paymentReceiptUrl != null;
@@ -58,8 +59,8 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(400).json({ error: "يرجى إدخال الاسم ورقم الهاتف" });
       return;
     }
-    if (!Number.isInteger(storeId) || storeId < 1 || !Number.isInteger(partySize) || partySize < 1 || partySize > 1000) {
-      res.status(400).json({ error: "يرجى اختيار القاعة وتحديد عدد الضيوف (من 1 إلى 1000)" });
+    if (!Number.isInteger(storeId) || storeId < 1 || !Number.isInteger(bookingDays) || bookingDays < 1 || bookingDays > 7 || !Number.isInteger(partySize) || partySize < 1 || partySize > 1000) {
+      res.status(400).json({ error: "يرجى اختيار القاعة وتحديد مدة الحجز من يوم إلى 7 أيام وعدد الضيوف من 1 إلى 1000" });
       return;
     }
     if (Number.isNaN(reservationAt.getTime()) || reservationAt.getTime() < Date.now() + MIN_LEAD_MS || reservationAt.getTime() > Date.now() + MAX_LEAD_MS) {
@@ -82,6 +83,7 @@ router.post("/", async (req, res): Promise<void> => {
       userId,
       storeId,
       reservationAt,
+      bookingDays,
       partySize,
       customerName,
       customerPhone,

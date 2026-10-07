@@ -7,6 +7,7 @@ const RENTAL_MIGRATION_ID = "20261007_sale_and_rental_products_v1";
 const RENTAL_DEPOSIT_MIGRATION_ID = "20261007_rental_deposit_settlement_v1";
 const WALLET_TRANSACTIONS_MIGRATION_ID = "20261007_wallet_transactions_v1";
 const VENUE_PAYMENT_MIGRATION_ID = "20261007_venue_reservation_payments_v1";
+const VENUE_DURATION_MIGRATION_ID = "20261007_venue_booking_duration_v1";
 const RENTAL_HANDOVER_MIGRATION_ID = "20261007_rental_handover_plan_v1";
 
 /** Additive, idempotent schema preparation. Existing customer and commerce data is preserved. */
@@ -119,6 +120,12 @@ export async function runMigrations(): Promise<void> {
     ];
     for (const statement of paymentColumns) { try { await pool.query(statement); } catch (error) { logger.warn({ error, statement }, "Venue payment column may already exist"); } }
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [VENUE_PAYMENT_MIGRATION_ID]);
+  }
+
+  const [venueDurationRows] = await pool.query("SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1", [VENUE_DURATION_MIGRATION_ID]);
+  if ((venueDurationRows as Array<{ migration_id: string }>).length === 0) {
+    try { await pool.query("ALTER TABLE table_reservations ADD COLUMN booking_days INT NOT NULL DEFAULT 1 AFTER reservation_at"); } catch (error) { logger.warn({ error }, "Venue booking duration column may already exist"); }
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [VENUE_DURATION_MIGRATION_ID]);
   }
 
   const [handoverRows] = await pool.query("SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1", [RENTAL_HANDOVER_MIGRATION_ID]);

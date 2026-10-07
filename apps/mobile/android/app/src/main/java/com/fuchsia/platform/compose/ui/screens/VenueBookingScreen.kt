@@ -177,6 +177,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     var customerName by remember { mutableStateOf(user?.optString("fullName").orEmpty()) }
     var customerPhone by remember { mutableStateOf(user?.optString("phone").orEmpty()) }
     var partySize by remember { mutableStateOf("100") }
+    var bookingDays by remember { mutableStateOf(1) }
     var submitting by remember { mutableStateOf(false) }
     var submitted by remember { mutableStateOf<TableReservation?>(null) }
     var submitError by remember { mutableStateOf("") }
@@ -217,6 +218,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Text(venue.name, color = FuchsiaColors.Ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                             Text(venue.description, color = FuchsiaColors.Muted, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            Text("سعر حجز اليوم: ${formatYemeniRiyal(venue.priceFrom)}", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(17.dp)); Text(venue.address, color = FuchsiaColors.Ink, fontSize = 12.sp) }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { InfoPill("${venue.capacity} شخص", Icons.Rounded.PeopleAlt); InfoPill("★ ${venue.rating}", Icons.Rounded.EventAvailable) }
                         }
@@ -228,7 +230,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                     Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { month.value = (month.value.clone() as Calendar).apply { add(Calendar.MONTH, -1) } }) { Icon(Icons.Rounded.ChevronRight, contentDescription = "الشهر السابق", tint = FuchsiaColors.Primary) }
-                            Text(SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("ar-YE")).format(month.value.time), color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                            Text(SimpleDateFormat("MMMM yyyy", Locale.forLanguageTag("ar-YE")).format(month.value.time), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold)
                             IconButton(onClick = { month.value = (month.value.clone() as Calendar).apply { add(Calendar.MONTH, 1) } }) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "الشهر التالي", tint = FuchsiaColors.Primary) }
                         }
                         if (loading) Box(Modifier.fillMaxWidth().height(190.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) }
@@ -251,13 +253,23 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                             OutlinedTextField(value = customerName, onValueChange = { customerName = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("اسم العميل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
                             OutlinedTextField(value = customerPhone, onValueChange = { customerPhone = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم الهاتف") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
                             OutlinedTextField(value = partySize, onValueChange = { partySize = it.filter(Char::isDigit).take(4) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("عدد الضيوف المتوقع") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, focusedLabelColor = FuchsiaColors.Primary))
+                            Text("مدة حجز القاعة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                (1..3).forEach { days ->
+                                    Button(onClick = { bookingDays = days }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (bookingDays == days) FuchsiaColors.Primary else FuchsiaColors.RoseLight)) {
+                                        Text("$days ${if (days == 1) "يوم" else "أيام"}", color = if (bookingDays == days) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                                    }
+                                }
+                            }
                             Text("طريقة الدفع", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { paymentType = "deposit" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "deposit") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("عربون 30%", color = if (paymentType == "deposit") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
                                 Button(onClick = { paymentType = "full" }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (paymentType == "full") FuchsiaColors.Primary else FuchsiaColors.RoseLight)) { Text("دفع كامل", color = if (paymentType == "full") Color.White else FuchsiaColors.Ink, fontSize = 12.sp) }
                             }
-                            val venueAmount = if (paymentType == "full") venue.priceFrom else venue.priceFrom * 0.30
-                            Text("المطلوب: ${formatYemeniRiyal(venueAmount + 1000)} شامل عمولة التطبيق 1,000 ريال", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            val bookingTotal = venue.priceFrom * bookingDays
+                            val venueAmount = if (paymentType == "full") bookingTotal else bookingTotal * 0.30
+                            Text("سعر اليوم: ${formatYemeniRiyal(venue.priceFrom)} · الإجمالي لـ $bookingDays ${if (bookingDays == 1) "يوم" else "أيام"}: ${formatYemeniRiyal(bookingTotal)}", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("المطلوب الآن: ${formatYemeniRiyal(venueAmount + 1000)} شامل عمولة التطبيق 1,000 ريال", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                             Text("اختر المحفظة للتحويل", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             wallets.forEach { wallet ->
                                 Card(Modifier.fillMaxWidth().clickable { selectedWalletId = wallet.id }, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (selectedWalletId == wallet.id) FuchsiaColors.Rose else FuchsiaColors.White), border = BorderStroke(1.dp, if (selectedWalletId == wallet.id) FuchsiaColors.Primary else FuchsiaColors.Line)) {
@@ -280,8 +292,9 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                                 else scope.launch {
                                     submitting = true; submitError = ""
                                     runCatching {
-                                        val venueAmount = if (paymentType == "full") venue.priceFrom else venue.priceFrom * 0.30
-                                        FuchsiaApi.createReservation(JSONObject().put("storeId", venue.id).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("occasion", "حجز قاعة أعراس").put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
+                                        val bookingTotal = venue.priceFrom * bookingDays
+                                        val venueAmount = if (paymentType == "full") bookingTotal else bookingTotal * 0.30
+                                        FuchsiaApi.createReservation(JSONObject().put("storeId", venue.id).put("reservationAt", "${selectedDate}T18:00:00+03:00").put("bookingDays", bookingDays).put("partySize", guests).put("customerName", customerName.trim()).put("customerPhone", customerPhone.trim()).put("occasion", "حجز قاعة أعراس").put("paymentType", paymentType).put("paymentAmount", venueAmount + 1000).put("paymentWalletId", selectedWalletId).put("transactionReference", transactionReference.trim()).put("paymentReceiptUrl", receiptUrl), token)
                                     }.onSuccess { submitted = it }.onFailure { submitError = it.message ?: "تعذر إرسال طلب الحجز." }
                                     submitting = false
                                 }
@@ -318,7 +331,7 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
             }
             Surface(shape = RoundedCornerShape(12.dp), color = FuchsiaColors.RoseLight) { Text("$availableCount يوم متاح", Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = FuchsiaColors.Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         }
-        Row(Modifier.fillMaxWidth().background(FuchsiaColors.Cream, RoundedCornerShape(12.dp)).padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة").forEach { Text(it.take(2), Modifier.weight(1f), textAlign = TextAlign.Center, color = FuchsiaColors.Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold) } }
+        Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)).padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) { listOf("السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false) } }
         val cells = List(offset) { null } + (1..days).map { it }
         cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -334,7 +347,7 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
                             val statusColor = when { isSelected -> Color.White; isBooked -> FuchsiaColors.Error; isPast -> FuchsiaColors.Muted; else -> FuchsiaColors.Success }
                             Surface(onClick = { if (!isBooked && !isPast) onDate(key) }, modifier = Modifier.fillMaxWidth().height(61.dp), shape = RoundedCornerShape(12.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked -> Color(0xFFFFEBEE); isPast -> FuchsiaColors.Cream; else -> Color(0xFFEAF8F0) }, border = when { isSelected -> null; isBooked -> BorderStroke(1.dp, Color(0xFFE57373)); isPast -> BorderStroke(1.dp, FuchsiaColors.Line); key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); else -> BorderStroke(1.dp, Color(0xFF9AD8B2)) }, enabled = !isBooked && !isPast) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                    Text(day.toString(), color = if (isSelected) Color.White else FuchsiaColors.Ink, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                                    Text(day.toString(), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                                     if (isPast) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = statusColor, modifier = Modifier.size(13.dp))
                                     Text(statusLabel, color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                                 }

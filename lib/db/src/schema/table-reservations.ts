@@ -9,6 +9,7 @@ export const tableReservationsTable = mysqlTable("table_reservations", {
   userId: int("user_id"),
   storeId: int("store_id").notNull(),
   reservationAt: timestamp("reservation_at").notNull(),
+  bookingDays: int("booking_days").notNull().default(1),
   partySize: int("party_size").notNull(),
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
