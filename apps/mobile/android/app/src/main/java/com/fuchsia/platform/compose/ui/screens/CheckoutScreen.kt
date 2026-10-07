@@ -67,6 +67,8 @@ import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.DeliveryAddress
 import com.fuchsia.platform.compose.data.PaymentWallet
+import com.fuchsia.platform.compose.data.CartLine
+import com.fuchsia.platform.compose.data.RentalBookingDraft
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.ShoppingCart
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -78,6 +80,7 @@ import kotlin.math.ceil
 @Composable
 fun CheckoutScreen(
     initialGift: Boolean,
+    directRental: RentalBookingDraft? = null,
     onBack: () -> Unit,
     onOrderPlaced: (Int) -> Unit,
     onManageAddresses: () -> Unit = {},
@@ -114,7 +117,7 @@ fun CheckoutScreen(
     var giftMessage by remember { mutableStateOf("") }
     var hidePrice by remember { mutableStateOf(true) }
 
-    LaunchedEffect(sessionId, userToken) {
+    LaunchedEffect(sessionId, userToken, directRental) {
         if (sessionId == null) {
             error = "انتهت الجلسة. يرجى تسجيل الدخول أو بدء التصفح دون حساب من جديد."
             loading = false
@@ -145,11 +148,44 @@ fun CheckoutScreen(
                     longitude = saved.longitude
                 }
             }
-            cart = FuchsiaApi.getCart(sessionId).also { loadedCart ->
+            cart = if (directRental != null) {
+                val dailyPrice = directRental.product.rentalDailyPrice ?: directRental.product.price
+                val subtotal = dailyPrice * directRental.days * directRental.quantity
+                val depositTotal = directRental.product.rentalDeposit * directRental.quantity
+                val deliveryFee = if (directRental.fulfillment == "delivery") 500.0 else 0.0
+                paymentType = "partial"
+                ShoppingCart(
+                    sessionId = sessionId,
+                    items = listOf(
+                        CartLine(
+                            id = 0,
+                            productId = directRental.product.id,
+                            productName = directRental.product.name,
+                            price = dailyPrice,
+                            quantity = directRental.quantity,
+                            imageUrl = directRental.product.imageUrl,
+                            giftWrapping = false,
+                            giftMessage = null,
+                            fulfillmentType = "rental",
+                            rentalStartDate = directRental.startDate,
+                            rentalDays = directRental.days,
+                            rentalDeposit = directRental.product.rentalDeposit,
+                            rentalFulfillment = directRental.fulfillment,
+                            rentalTimeSlot = directRental.timeSlot,
+                            lineTotal = subtotal,
+                        ),
+                    ),
+                    subtotal = subtotal,
+                    deliveryFee = deliveryFee,
+                    discount = 0.0,
+                    total = subtotal + depositTotal + deliveryFee,
+                    rentalDeposit = depositTotal,
+                )
+            } else FuchsiaApi.getCart(sessionId).also { loadedCart ->
                 if (loadedCart.items.any { it.fulfillmentType == "rental" } && paymentType == "cash_on_delivery") paymentType = "partial"
             }
             wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList())
-            if (cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
+            if (directRental == null && cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
         } catch (failure: Throwable) {
             error = failure.message ?: "تعذر تحميل بيانات الطلب."
         } finally {
@@ -237,7 +273,7 @@ fun CheckoutScreen(
             snackbarShown(scope, snackbar, "حجز الإيجار يحتاج دفع العربون أو المبلغ الكامل مقدمًا لتثبيت الموعد.")
             return
         }
-        if (isGift && (recipientName.isBlank() || giftMessage.isBlank())) {
+        if (isGift && directRental == null && (recipientName.isBlank() || giftMessage.isBlank())) {
             snackbarShown(scope, snackbar, "يرجى إضافة اسم الشخص المستلم ورسالة الهدية.")
             return
         }
@@ -276,7 +312,17 @@ fun CheckoutScreen(
             submitting = true
             error = ""
             try {
-                val order = FuchsiaApi.createOrder(payload)
+            val order = if (directRental != null) {
+                payload
+                    .put("productId", directRental.product.id)
+                    .put("rentalStartDate", directRental.startDate)
+                    .put("rentalDays", directRental.days)
+                    .put("quantity", directRental.quantity)
+                    .put("rentalFulfillment", directRental.fulfillment)
+                    .put("rentalTimeSlot", directRental.timeSlot)
+                    .put("idempotencyKey", directRental.idempotencyKey)
+                FuchsiaApi.createRentalBooking(payload, userToken)
+            } else FuchsiaApi.createOrder(payload)
                 val orderId = order.optInt("id")
                 if (orderId <= 0) throw IllegalStateException("لم يرجع الخادم رقم الطلب")
                 onOrderPlaced(orderId)
@@ -304,7 +350,7 @@ fun CheckoutScreen(
                     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         CommerceMoneyRow("المطلوب", total, bold = true, accent = true)
                         CommercePrimaryButton(
-                            text = "تأكيد الطلب · ${formatYemeniRiyal(total)}",
+                                text = "${if (isRentalCheckout) "إرسال طلب الحجز" else "تأكيد الطلب"} · ${formatYemeniRiyal(total)}",
                             busy = submitting,
                             enabled = !loading && !uploading && !outsideSanaa,
                             onClick = ::submitOrder,
@@ -403,7 +449,7 @@ fun CheckoutScreen(
                         }
                     }
                 }
-                item {
+                if (!isRentalCheckout) item {
                     Card(
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
@@ -423,7 +469,7 @@ fun CheckoutScreen(
                         }
                     }
                 }
-                if (isGift) {
+                if (isGift && !isRentalCheckout) {
                     item {
                         CommerceField(recipientName, { recipientName = it }, "اسم مستلم الهدية")
                         CommerceField(giftMessage, { giftMessage = it }, "رسالة الهدية", minLines = 2, maxLines = 4, placeholder = "رسالة تهنئة أو أمنية جميلة")
@@ -445,7 +491,11 @@ fun CheckoutScreen(
                     item {
                         CommerceSectionTitle("المحفظة", "حسابات فعالة من الخادم")
                         if (wallets.isEmpty()) {
-                            CommerceNotice("لا توجد محافظ دفع مفعّلة حاليًا. يرجى اختيار الدفع عند التوصيل.", isError = true)
+                            CommerceNotice(
+                                if (isRentalCheckout) "لا توجد محافظ دفع مفعّلة حاليًا؛ لا يمكن تثبيت حجز الإيجار قبل تفعيل الدفع الإلكتروني ومراجعة الإيصال."
+                                else "لا توجد محافظ دفع مفعّلة حاليًا. يمكنك اختيار الدفع عند التوصيل.",
+                                isError = true,
+                            )
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 wallets.forEach { wallet ->

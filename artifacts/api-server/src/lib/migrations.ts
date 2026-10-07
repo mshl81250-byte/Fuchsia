@@ -10,6 +10,7 @@ const VENUE_PAYMENT_MIGRATION_ID = "20261007_venue_reservation_payments_v1";
 const VENUE_DURATION_MIGRATION_ID = "20261007_venue_booking_duration_v1";
 const RENTAL_HANDOVER_MIGRATION_ID = "20261007_rental_handover_plan_v1";
 const REAL_VENUE_CATALOG_MIGRATION_ID = "20261007_real_venue_owner_catalog_v1";
+const DIRECT_RENTAL_BOOKING_MIGRATION_ID = "20261007_direct_rental_booking_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -373,5 +374,21 @@ export async function runMigrations(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [REAL_VENUE_CATALOG_MIGRATION_ID]);
     logger.info({ migrationId: REAL_VENUE_CATALOG_MIGRATION_ID }, "Real venue owner catalog migration completed");
+  }
+
+  const [directRentalRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [DIRECT_RENTAL_BOOKING_MIGRATION_ID],
+  );
+  if ((directRentalRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("orders", "rental_booking_key", "VARCHAR(128) NULL");
+    const [indexRows] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'orders_rental_booking_key_uq' LIMIT 1",
+    );
+    if ((indexRows as Array<{ INDEX_NAME: string }>).length === 0) {
+      await pool.query("CREATE UNIQUE INDEX orders_rental_booking_key_uq ON orders (rental_booking_key)");
+    }
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DIRECT_RENTAL_BOOKING_MIGRATION_ID]);
+    logger.info({ migrationId: DIRECT_RENTAL_BOOKING_MIGRATION_ID }, "Direct rental booking migration completed");
   }
 }

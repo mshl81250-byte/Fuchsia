@@ -1,51 +1,27 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cartItemsTable, productsTable, orderItemsTable, ordersTable } from "@workspace/db";
+import { cartItemsTable, productsTable } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 
 const router = Router();
 const DELIVERY_FEE = 500;
 
-function isRental(product: typeof productsTable.$inferSelect): boolean {
-  return product.fulfillmentType === "rental";
-}
-
-function validDate(value: unknown): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
-}
-
-function endDate(start: string, days: number): string {
-  const date = new Date(`${start}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days - 1);
-  return date.toISOString().slice(0, 10);
-}
-
 function lineTotal(item: typeof cartItemsTable.$inferSelect): number {
-  const days = item.fulfillmentType === "rental" ? Math.max(1, item.rentalDays ?? 1) : 1;
-  return item.price * item.quantity * days;
-}
-
-async function rentalQuantityInUse(productId: number, startDate: string, endDate: string): Promise<number> {
-  const rows = await db.select({ item: orderItemsTable, order: ordersTable })
-    .from(orderItemsTable)
-    .innerJoin(ordersTable, eq(orderItemsTable.orderId, ordersTable.id))
-    .where(and(eq(orderItemsTable.productId, productId), eq(orderItemsTable.fulfillmentType, "rental")));
-  const ignoredStatuses = new Set(["cancelled", "canceled", "refunded", "rejected", "expired"]);
-  return rows.reduce((total, row) => {
-    const itemStart = row.item.rentalStartDate;
-    const itemEnd = row.item.rentalEndDate;
-    if (!itemStart || !itemEnd || ignoredStatuses.has(row.order.status)) return total;
-    return itemStart <= endDate && itemEnd >= startDate ? total + row.item.quantity : total;
-  }, 0);
+  return item.price * item.quantity;
 }
 
 async function buildCart(sessionId: string) {
-  const items = await db.select().from(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
+  const savedItems = await db.select().from(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
+  const legacyRentalItems = savedItems.filter((item) => item.fulfillmentType === "rental");
+  for (const item of legacyRentalItems) {
+    await db.delete(cartItemsTable).where(eq(cartItemsTable.id, item.id));
+  }
+  const items = savedItems.filter((item) => item.fulfillmentType !== "rental");
   const normalizedItems = items.map((item) => ({ ...item, lineTotal: lineTotal(item) }));
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const rentalDeposit = items.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
-  const deliveryFee = items.some((item) => item.fulfillmentType !== "rental" || item.rentalFulfillment === "delivery") ? DELIVERY_FEE : 0;
-  const total = subtotal + rentalDeposit + deliveryFee;
+  const rentalDeposit = 0;
+  const deliveryFee = items.length > 0 ? DELIVERY_FEE : 0;
+  const total = subtotal + deliveryFee;
   return {
     sessionId,
     items: normalizedItems,
@@ -74,7 +50,7 @@ router.get("/", async (req, res): Promise<void> => {
 
 router.post("/", async (req, res): Promise<void> => {
   try {
-    const { sessionId, productId, quantity, giftWrapping, giftMessage, rentalStartDate, rentalDays, rentalFulfillment, rentalTimeSlot } = req.body;
+    const { sessionId, productId, quantity, giftWrapping, giftMessage } = req.body;
     if (!sessionId || !productId || !Number.isInteger(quantity) || quantity < 1) {
       res.status(400).json({ error: "بيانات المنتج أو الكمية غير صحيحة" });
       return;
@@ -85,41 +61,22 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Product not found" });
       return;
     }
+    if (product.fulfillmentType === "rental") {
+      res.status(409).json({ error: "تأجير الكوش والطاولات يتم بحجز مباشر، ولا يُضاف إلى السلة" });
+      return;
+    }
     if (!product.inStock || (product.stockQuantity != null && product.stockQuantity < quantity)) {
       res.status(400).json({ error: "الكمية المطلوبة غير متوفرة حاليًا" });
       return;
     }
 
-    const rental = isRental(product);
-    const fulfillment = rental ? (rentalFulfillment === "delivery" ? "delivery" : "pickup") : null;
-    const timeSlot = rental ? (rentalTimeSlot === "evening" ? "evening" : "morning") : null;
-    const days = rental ? Number(rentalDays) : null;
-    if (rental) {
-      if (!validDate(rentalStartDate) || !Number.isInteger(days) || days! < product.rentalMinDays || days! > product.rentalMaxDays) {
-        res.status(400).json({ error: `اختر تاريخ بداية ومدة بين ${product.rentalMinDays} و${product.rentalMaxDays} أيام` });
-        return;
-      }
-      if (!product.rentalDailyPrice || product.rentalDailyPrice <= 0) {
-        res.status(400).json({ error: "سعر الإيجار غير مهيأ لهذا العنصر" });
-        return;
-      }
-      const requestedEndDate = endDate(rentalStartDate, days!);
-      const reserved = await rentalQuantityInUse(Number(productId), rentalStartDate, requestedEndDate);
-      const availableQuantity = product.stockQuantity ?? 1;
-      if (reserved + quantity > availableQuantity) {
-        res.status(409).json({ error: "العنصر محجوز في جزء من هذه المدة؛ اختر تاريخًا أو كمية أخرى" });
-        return;
-      }
-    }
-
-    const price = rental ? product.rentalDailyPrice! : (product.discountPrice ?? product.price);
-    const rentalEndDate = rental ? endDate(rentalStartDate, days!) : null;
+    const price = product.discountPrice ?? product.price;
     const existing = await db.select().from(cartItemsTable).where(
       and(
         eq(cartItemsTable.sessionId, sessionId),
         eq(cartItemsTable.productId, Number(productId)),
-        rental ? eq(cartItemsTable.rentalStartDate, rentalStartDate) : isNull(cartItemsTable.rentalStartDate),
-        rental ? eq(cartItemsTable.rentalDays, days!) : isNull(cartItemsTable.rentalDays),
+        isNull(cartItemsTable.rentalStartDate),
+        isNull(cartItemsTable.rentalDays),
       ),
     );
 
@@ -132,13 +89,13 @@ router.post("/", async (req, res): Promise<void> => {
         productName: product.nameAr,
         price,
         quantity,
-        fulfillmentType: rental ? "rental" : "sale",
-        rentalStartDate: rental ? rentalStartDate : null,
-        rentalDays: rental ? days : null,
-        rentalEndDate,
-        rentalDeposit: rental ? product.rentalDeposit : 0,
-        rentalFulfillment: fulfillment,
-        rentalTimeSlot: timeSlot,
+        fulfillmentType: "sale",
+        rentalStartDate: null,
+        rentalDays: null,
+        rentalEndDate: null,
+        rentalDeposit: 0,
+        rentalFulfillment: null,
+        rentalTimeSlot: null,
         imageUrl: product.imageUrl,
         giftWrapping: giftWrapping ?? false,
         giftMessage: giftMessage ?? null,

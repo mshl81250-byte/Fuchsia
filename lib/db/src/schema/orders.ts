@@ -1,4 +1,4 @@
-import { mysqlTable, text, varchar, double, int, boolean, timestamp, date } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, varchar, double, int, boolean, timestamp, date, uniqueIndex } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -41,8 +41,9 @@ export const ordersTable = mysqlTable("orders", {
   rentalLateFee: double("rental_late_fee").notNull().default(0),
   rentalDepositReason: text("rental_deposit_reason"),
   rentalDepositProcessedAt: timestamp("rental_deposit_processed_at"),
+  rentalBookingKey: varchar("rental_booking_key", { length: 128 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [uniqueIndex("orders_rental_booking_key_uq").on(table.rentalBookingKey)]);
 
 export const orderItemsTable = mysqlTable("order_items", {
   id: int("id").autoincrement().primaryKey(),

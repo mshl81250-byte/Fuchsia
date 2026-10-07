@@ -106,9 +106,12 @@ fun CategoryScreen(categoryId: Int, onBack: () -> Unit, onCart: () -> Unit, onPr
             else if (products.isNotEmpty()) {
                 items(products, key = { it.id }) { product ->
                     CategoryProductRow(product, onOpen = { onProduct(product.id) }) {
-                        val id = sessionId
-                        if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل الإضافة.") }
-                        else scope.launch { runCatching { FuchsiaApi.addToCart(id, product.id) }.onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }.onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") } }
+                        if (product.fulfillmentType == "rental") onProduct(product.id)
+                        else {
+                            val id = sessionId
+                            if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل الإضافة.") }
+                            else scope.launch { runCatching { FuchsiaApi.addToCart(id, product.id) }.onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }.onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") } }
+                        }
                     }
                 }
             } else if (error.isNotBlank()) {

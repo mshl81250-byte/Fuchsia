@@ -151,6 +151,10 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Cart is empty" });
       return;
     }
+    if (cartItems.some((item) => item.fulfillmentType === "rental")) {
+      res.status(409).json({ error: "حجوزات القاعات وتأجير الكوش والطاولات لها مسار حجز مباشر ولا تمر عبر السلة" });
+      return;
+    }
     const hasRentalItems = cartItems.some((item) => item.fulfillmentType === "rental");
     const needsDelivery = !hasRentalItems || cartItems.some((item) => item.rentalFulfillment === "delivery");
     if (needsDelivery && (!deliveryAddress || typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6)) {

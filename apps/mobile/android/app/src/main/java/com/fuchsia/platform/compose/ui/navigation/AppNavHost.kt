@@ -51,6 +51,7 @@ import androidx.navigation.navArgument
 import com.fuchsia.platform.compose.R
 import com.fuchsia.platform.compose.data.AppPreferences
 import com.fuchsia.platform.compose.data.FuchsiaApi
+import com.fuchsia.platform.compose.data.RentalBookingDraft
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.ui.screens.AboutScreen
 import com.fuchsia.platform.compose.ui.screens.AccountScreen
@@ -138,6 +139,7 @@ fun FuchsiaAppNavHost(
     }
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    var directRentalDraft by remember { mutableStateOf<RentalBookingDraft?>(null) }
     val currentEntry by navController.currentBackStackEntryAsState()
     val routeNow = currentEntry?.destination?.route
     var previousRoute by remember { mutableStateOf<String?>(null) }
@@ -308,7 +310,10 @@ fun FuchsiaAppNavHost(
                     productId = entry.arguments?.getInt("id") ?: 0,
                     onBack = { navController.popBackStack() },
                     onCart = { navController.navigate(AppRoutes.Cart) },
-                    onRentalCheckout = { navController.navigate(AppRoutes.checkout(gift = false)) },
+                    onRentalCheckout = { draft ->
+                        directRentalDraft = draft
+                        navController.navigate(AppRoutes.checkout(gift = false))
+                    },
                 )
             }
             composable(AppRoutes.Cart) {
@@ -325,8 +330,10 @@ fun FuchsiaAppNavHost(
             ) { entry ->
                 CheckoutScreen(
                     initialGift = entry.arguments?.getBoolean("gift") ?: false,
+                    directRental = directRentalDraft,
                     onBack = { navController.popBackStack() },
                     onOrderPlaced = { orderId ->
+                        directRentalDraft = null
                         navController.navigate(AppRoutes.orderSuccess(orderId)) {
                             popUpTo(AppRoutes.Home) { inclusive = false }
                             launchSingleTop = true

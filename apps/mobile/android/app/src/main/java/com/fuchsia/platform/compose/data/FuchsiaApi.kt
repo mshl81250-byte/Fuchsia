@@ -47,6 +47,23 @@ data class StoreProduct(
     val stockQuantity: Int? = null,
 )
 
+data class RentalBookingDraft(
+    val product: StoreProduct,
+    val startDate: String,
+    val days: Int,
+    val quantity: Int,
+    val fulfillment: String,
+    val timeSlot: String,
+    val idempotencyKey: String,
+)
+
+data class RentalAvailability(
+    val availableQuantity: Int,
+    val stockQuantity: Int,
+    val reservedQuantity: Int,
+    val endDate: String,
+)
+
 data class CartLine(
     val id: Int,
     val productId: Int,
@@ -457,6 +474,21 @@ object FuchsiaApi {
     }
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
+
+    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int): RentalAvailability = withContext(Dispatchers.IO) {
+        val response = getJson(
+            "/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days",
+        )
+        RentalAvailability(
+            availableQuantity = response.optInt("availableQuantity"),
+            stockQuantity = response.optInt("stockQuantity"),
+            reservedQuantity = response.optInt("reservedQuantity"),
+            endDate = response.optString("endDate"),
+        )
+    }
+
+    suspend fun createRentalBooking(payload: JSONObject, bearerToken: String? = null): JSONObject =
+        sendJson("/api/rental-bookings", "POST", payload, bearerToken = bearerToken)
 
     suspend fun customerOrders(token: String): List<CustomerOrder> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/orders/mine", token))

@@ -124,12 +124,15 @@ fun WishlistScreen(
                                     }
                                 },
                             ) {
-                                val session = sessionId
-                                if (session == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
-                                else scope.launch {
-                                    runCatching { FuchsiaApi.addToCart(session, product.id) }
-                                        .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
-                                        .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                if (product.fulfillmentType == "rental") onProduct(product.id)
+                                else {
+                                    val session = sessionId
+                                    if (session == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                    else scope.launch {
+                                        runCatching { FuchsiaApi.addToCart(session, product.id) }
+                                            .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
+                                            .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                    }
                                 }
                             }
                         }

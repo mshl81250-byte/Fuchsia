@@ -226,12 +226,15 @@ fun HomeScreen(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             rowProducts.forEach { product ->
                                 ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }, isFavorite = product.id in favoriteIds, onFavorite = { toggleFavorite(product.id) }) {
-                                    val id = sessionId
-                                    if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
-                                    else scope.launch {
-                                        runCatching { FuchsiaApi.addToCart(id, product.id) }
-                                            .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
-                                            .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                    if (product.fulfillmentType == "rental") onProduct(product.id)
+                                    else {
+                                        val id = sessionId
+                                        if (id == null) scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                        else scope.launch {
+                                            runCatching { FuchsiaApi.addToCart(id, product.id) }
+                                                .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
+                                                .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                        }
                                     }
                                 }
                             }
@@ -272,14 +275,17 @@ fun HomeScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowProducts.forEach { product ->
                             ProductCard(product, Modifier.weight(1f), onOpen = { onProduct(product.id) }, isFavorite = product.id in favoriteIds, onFavorite = { toggleFavorite(product.id) }) {
-                                val id = sessionId
-                                if (id == null) {
-                                    scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
-                                } else {
-                                    scope.launch {
-                                        runCatching { FuchsiaApi.addToCart(id, product.id) }
-                                            .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
-                                            .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                if (product.fulfillmentType == "rental") onProduct(product.id)
+                                else {
+                                    val id = sessionId
+                                    if (id == null) {
+                                        scope.launch { snackbar.showSnackbar("يرجى بدء التصفح قبل إضافة المنتجات.") }
+                                    } else {
+                                        scope.launch {
+                                            runCatching { FuchsiaApi.addToCart(id, product.id) }
+                                                .onSuccess { snackbar.showSnackbar("تمت إضافة ${product.name} إلى السلة") }
+                                                .onFailure { snackbar.showSnackbar(it.message ?: "تعذر إضافة المنتج.") }
+                                        }
                                     }
                                 }
                             }
