@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -176,8 +177,9 @@ private fun PartnerRoot() {
         else -> {
             val owner = profile?.optJSONObject("owner")
             val status = owner?.optString("status").orEmpty()
+            val hasRentalStore = (profile?.optJSONArray("rentalStores")?.length() ?: 0) > 0
             when {
-                owner == null -> PartnerRequestScreen(
+                owner == null && !hasRentalStore -> PartnerRequestScreen(
                     onSubmit = { business, phone ->
                         scope.launch {
                             loading = true
@@ -190,12 +192,12 @@ private fun PartnerRoot() {
                     onLogout = { PartnerSession.clear(context); token = null; profile = null },
                     error = profileError,
                 )
-                status == "pending" -> PendingApprovalScreen(
-                    businessName = owner.optString("businessName"),
+                status == "pending" && !hasRentalStore -> PendingApprovalScreen(
+                    businessName = owner?.optString("businessName").orEmpty(),
                     onRefresh = { reloadKey++ },
                     onLogout = { PartnerSession.clear(context); token = null; profile = null },
                 )
-                status != "active" -> InactivePartnerScreen(
+                status.isNotBlank() && status != "active" && !hasRentalStore -> InactivePartnerScreen(
                     status = status,
                     onLogout = { PartnerSession.clear(context); token = null; profile = null },
                 )
@@ -305,9 +307,10 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val venueRows = remember(profile, preview) { if (preview) demoVenues() else parseVenues(profile?.optJSONArray("venues")) }
+    val rentalStores = remember(profile, preview) { if (preview) demoRentalStores() else parseRentalStores(profile?.optJSONArray("rentalStores")) }
     var selectedVenueId by remember(venueRows) { mutableStateOf(venueRows.firstOrNull()?.id ?: 0) }
     val selectedVenue = venueRows.firstOrNull { it.id == selectedVenueId } ?: venueRows.firstOrNull()
-    var activeTab by remember { mutableStateOf(0) }
+    var activeTab by remember(venueRows, rentalStores) { mutableStateOf(if (venueRows.isEmpty() && rentalStores.isNotEmpty()) 2 else 0) }
     var bookings by remember(preview) { mutableStateOf(if (preview) demoBookings() else emptyList()) }
     var loadingBookings by remember { mutableStateOf(!preview) }
     var bookingsError by remember { mutableStateOf("") }
@@ -329,10 +332,12 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     var showCloseDialog by remember { mutableStateOf(false) }
     var closeReason by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    val businessName = profile?.optJSONObject("owner")?.optString("businessName").orEmpty()
+    val businessName = profile?.optJSONObject("owner")?.optString("businessName")?.takeIf(String::isNotBlank)
+        ?: rentalStores.firstOrNull()?.name.orEmpty()
 
     suspend fun reloadBookings() {
         if (preview) { bookings = demoBookings(); return }
+        if (venueRows.isEmpty()) { bookings = emptyList(); loadingBookings = false; return }
         val auth = token ?: return
         loadingBookings = true
         bookingsError = ""
@@ -342,7 +347,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
         loadingBookings = false
     }
 
-    LaunchedEffect(token, preview) { reloadBookings() }
+    LaunchedEffect(token, preview, venueRows.size) { reloadBookings() }
 
     LaunchedEffect(token, selectedVenueId, monthKey, audience, preview) {
         selectedStart = null; selectedEnd = null
@@ -380,8 +385,11 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
             }
             if (preview) Notice("وضع معاينة محلي — البيانات والأزرار لا تنشئ حجوزات أو تغييرات حقيقية.")
             if (venueRows.isEmpty()) {
-                EmptyVenues()
+                if (rentalStores.isNotEmpty()) {
+                    RentalPartnerHub(token = token, stores = rentalStores, preview = preview, onMessage = { message -> scope.launch { snackbar.showSnackbar(message) } }, modifier = Modifier.weight(1f))
+                } else EmptyVenues()
             } else {
+                if (activeTab != 2) {
                 VenuePicker(venueRows, selectedVenueId) { venue ->
                     selectedVenueId = venue.id
                     audience = if (venue.audienceScope == "men") "men" else "women"
@@ -390,9 +398,11 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                     StatCard("طلبات جديدة", bookings.count { it.venueId == selectedVenue?.id && it.status == "pending" && !isBookingExpired(it) }.toString(), Modifier.weight(1f), Fuchsia)
                     StatCard("حجوزات مؤكدة", bookings.count { it.venueId == selectedVenue?.id && it.status == "confirmed" }.toString(), Modifier.weight(1f), Green)
                 }
-                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = activeTab == 0, onClick = { activeTab = 0 }, label = { Text("التقويم وإدارة الأيام") }, leadingIcon = { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(18.dp)) })
-                    FilterChip(selected = activeTab == 1, onClick = { activeTab = 1 }, label = { Text("طلبات الحجز") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
+                }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = activeTab == 0, onClick = { activeTab = 0 }, label = { Text("تقويم القاعات") }, leadingIcon = { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(18.dp)) })
+                    FilterChip(selected = activeTab == 1, onClick = { activeTab = 1 }, label = { Text("طلبات القاعات") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
+                    if (rentalStores.isNotEmpty()) FilterChip(selected = activeTab == 2, onClick = { activeTab = 2 }, label = { Text("إدارة الإيجارات") }, leadingIcon = { Icon(Icons.Rounded.Business, null, Modifier.size(18.dp)) })
                 }
                 if (activeTab == 0) {
                     CalendarContent(
@@ -434,7 +444,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                         onCloseRequest = { showCloseDialog = true },
                         busy = busy,
                     )
-                } else {
+                } else if (activeTab == 1) {
                     BookingsContent(
                         bookings = bookings.filter { it.venueId == selectedVenue?.id },
                         loading = loadingBookings,
@@ -442,6 +452,8 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                         onRefresh = { scope.launch { reloadBookings() } },
                         onOpen = { selectedBooking = it },
                     )
+                } else if (activeTab == 2) {
+                    RentalPartnerHub(token = token, stores = rentalStores, preview = preview, onMessage = { message -> scope.launch { snackbar.showSnackbar(message) } }, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -878,6 +890,19 @@ private fun parseVenues(rows: org.json.JSONArray?): List<PartnerVenue> {
         }
     }
 }
+
+private fun parseRentalStores(rows: org.json.JSONArray?): List<PartnerStore> {
+    if (rows == null) return emptyList()
+    return buildList {
+        for (index in 0 until rows.length()) {
+            val row = rows.optJSONObject(index) ?: continue
+            val id = row.optInt("id")
+            if (id > 0) add(PartnerStore(id, row.optString("nameAr", "متجر تأجير"), row.optString("logoUrl"), row.optBoolean("isOpen", true)))
+        }
+    }
+}
+
+private fun demoRentalStores() = listOf(PartnerStore(-901, "[معاينة] كوش وطاولات فوشيا", "", true))
 
 private fun demoVenues() = listOf(
     PartnerVenue(-501, "[معاينة] قاعة ليالي صنعاء", "both", "صنعاء", 320, 350000.0),

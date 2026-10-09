@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { and, desc, eq, gt, gte, inArray, lt, or } from "drizzle-orm";
-import { db, pool, venueOwnersTable, venuesTable, venueBookingsTable, venueBookingEventsTable, venueBlackoutsTable, venueAvailabilityTable } from "@workspace/db";
+import { db, pool, storesTable, venueOwnersTable, venuesTable, venueBookingsTable, venueBookingEventsTable, venueBlackoutsTable, venueAvailabilityTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
 import { createCustomerNotification } from "../lib/notifications";
 
@@ -73,10 +73,12 @@ router.get("/me", async (req, res): Promise<void> => {
     const userId = await authenticatedUserId(req);
     if (!userId) { res.status(401).json({ error: "سجّل الدخول أولًا" }); return; }
     const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.userId, userId));
-    if (!owner) { if (!res.headersSent) res.json({ owner: null, venues: [] }); return; }
+    const rentalStores = await db.select({ id: storesTable.id, nameAr: storesTable.nameAr, logoUrl: storesTable.logoUrl, isOpen: storesTable.isOpen })
+      .from(storesTable).where(eq(storesTable.ownerUserId, userId));
+    if (!owner) { res.setHeader("Cache-Control", "no-store"); res.json({ owner: null, venues: [], rentalStores }); return; }
     const venues = owner.status === "active" ? await db.select().from(venuesTable).where(eq(venuesTable.ownerId, owner.id)) : [];
     res.setHeader("Cache-Control", "no-store");
-    res.json({ owner, venues });
+    res.json({ owner, venues, rentalStores });
   } catch (error) {
     req.log.error({ error }, "Venue partner profile failed");
     res.status(500).json({ error: "تعذر تحميل حساب الشريك" });

@@ -8,7 +8,7 @@ import { createCustomerNotification } from "../lib/notifications";
 const router = Router();
 const DELIVERY_FEE = 500;
 const MAX_LEAD_DAYS = 180;
-const IGNORED_ORDER_STATUSES = ["cancelled", "canceled", "refunded", "rejected", "expired"];
+const IGNORED_ORDER_STATUSES = ["cancelled", "canceled", "refunded", "rejected", "expired", "rental_rejected"];
 
 class RequestError extends Error {
   constructor(readonly status: number, message: string) { super(message); }

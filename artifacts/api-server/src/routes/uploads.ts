@@ -3,7 +3,7 @@ import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, storesTable, venueOwnersTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
 import { uploadPublicImage } from "../lib/object-storage";
@@ -59,7 +59,15 @@ router.post("/image", imageUpload.single("image"), async (req, res): Promise<voi
       if (!owner || owner.status !== "active") { res.status(403).json({ error: "رفع صور القاعات متاح لصاحب قاعة معتمد فقط" }); return; }
       prefix = `venues/${owner.id}`;
     } else {
-      const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(eq(storesTable.ownerUserId, userId));
+      const storeIdValue = req.body?.storeId;
+      const requestedStoreId = storeIdValue == null || String(storeIdValue).trim() === "" ? null : Number(storeIdValue);
+      if (requestedStoreId !== null && (!Number.isInteger(requestedStoreId) || requestedStoreId < 1)) {
+        res.status(400).json({ error: "معرّف المتجر غير صحيح" }); return;
+      }
+      const condition = requestedStoreId === null
+        ? eq(storesTable.ownerUserId, userId)
+        : and(eq(storesTable.id, requestedStoreId), eq(storesTable.ownerUserId, userId));
+      const [store] = await db.select({ id: storesTable.id }).from(storesTable).where(condition);
       if (!store) { res.status(403).json({ error: "رفع صور التأجير متاح لصاحب متجر مرتبط بالحساب فقط" }); return; }
       prefix = `rental-products/${store.id}`;
     }

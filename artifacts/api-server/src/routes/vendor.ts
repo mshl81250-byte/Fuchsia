@@ -1,7 +1,9 @@
 import { Router, type Request, type Response } from "express";
+import type { RowDataPacket } from "mysql2";
 import { and, desc, eq, inArray, count } from "drizzle-orm";
-import { db, storesTable, productsTable, ordersTable, orderItemsTable, insertProductSchema } from "@workspace/db";
+import { db, pool, storesTable, productsTable, ordersTable, orderItemsTable, insertProductSchema } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
+import { createCustomerNotification } from "../lib/notifications";
 
 const router = Router();
 const OWNER_PRODUCT_FIELDS = [
@@ -152,6 +154,120 @@ router.get("/orders", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Vendor list orders failed");
     res.status(500).json({ error: "تعذر تحميل الطلبات" });
+  }
+});
+
+router.get("/rental-bookings", async (req, res): Promise<void> => {
+  try {
+    const storeId = await authorizeStore(req, res);
+    if (!storeId) return;
+    const rentalProducts = await db.select({ id: productsTable.id }).from(productsTable)
+      .where(and(eq(productsTable.storeId, storeId), eq(productsTable.fulfillmentType, "rental")));
+    const productIds = rentalProducts.map((item) => item.id);
+    if (!productIds.length) { res.json([]); return; }
+    const ownedItems = await db.select().from(orderItemsTable)
+      .where(and(inArray(orderItemsTable.productId, productIds), eq(orderItemsTable.fulfillmentType, "rental")));
+    const orderIds = [...new Set(ownedItems.map((item) => item.orderId))];
+    if (!orderIds.length) { res.json([]); return; }
+    const orders = await db.select().from(ordersTable).where(inArray(ordersTable.id, orderIds)).orderBy(desc(ordersTable.createdAt));
+    res.setHeader("Cache-Control", "no-store");
+    res.json(orders.map((order) => ({
+      ...order,
+      createdAt: order.createdAt.toISOString(),
+      items: ownedItems.filter((item) => item.orderId === order.id),
+      vendorSubtotal: ownedItems.filter((item) => item.orderId === order.id).reduce((sum, item) => sum + item.price * item.quantity, 0),
+    })));
+  } catch (error) {
+    req.log.error({ error }, "Vendor list rental bookings failed");
+    res.status(500).json({ error: "تعذر تحميل حجوزات الإيجار" });
+  }
+});
+
+router.patch("/rental-bookings/:id", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  if (!userId) { res.status(401).json({ error: "سجّل الدخول بحسابك المسجل" }); return; }
+  const id = Number.parseInt(req.params.id, 10);
+  const storeId = Number(req.body?.storeId);
+  const decision = String(req.body?.decision || "");
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+  if (!Number.isInteger(id) || id < 1 || !Number.isInteger(storeId) || storeId < 1
+    || !["confirmed", "rejected", "preparing", "out", "returned"].includes(decision) || (decision === "rejected" && !reason)) {
+    res.status(400).json({ error: "اختر خطوة صحيحة، وأدخل سبب الرفض عند رفض الطلب" }); return;
+  }
+  const connection = await pool.getConnection();
+  let customer: { sessionId: string; orderId: number; customerName: string | null; customerPhone: string | null } | null = null;
+  try {
+    await connection.beginTransaction();
+    const [storeRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id FROM stores WHERE id = ? AND owner_user_id = ? FOR UPDATE", [storeId, userId],
+    );
+    if (!storeRows[0]) { await connection.rollback(); res.status(403).json({ error: "لا تملك صلاحية إدارة هذا المتجر" }); return; }
+    const [orderRows] = await connection.query<RowDataPacket[]>(
+      "SELECT id, status, session_id, customer_name, customer_phone FROM orders WHERE id = ? FOR UPDATE", [id],
+    );
+    const order = orderRows[0];
+    if (!order) { await connection.rollback(); res.status(404).json({ error: "طلب الإيجار غير موجود" }); return; }
+    const [items] = await connection.query<RowDataPacket[]>(
+      "SELECT oi.product_id, oi.fulfillment_type, p.store_id FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ?", [id],
+    );
+    if (!items.length || items.some((item) => item.fulfillment_type !== "rental" || Number(item.store_id) !== storeId)) {
+      await connection.rollback(); res.status(403).json({ error: "لا تملك هذا الحجز أو أنه لا يخص منتجات تأجير متجرك فقط" }); return;
+    }
+    const currentStatus = String(order.status);
+    const transitions: Record<string, string[]> = {
+      rental_pending_confirmation: ["confirmed", "rejected"],
+      rental_confirmed: ["preparing"],
+      rental_preparing: ["out"],
+      rental_out: ["returned"],
+    };
+    if (!transitions[currentStatus]?.includes(decision)) {
+      await connection.rollback(); res.status(409).json({ error: "لا يمكن تنفيذ هذه الخطوة على حالة الحجز الحالية" }); return;
+    }
+    const statusByDecision: Record<string, string> = {
+      confirmed: "rental_confirmed", rejected: "rental_rejected", preparing: "rental_preparing", out: "rental_out", returned: "rental_returned",
+    };
+    const status = statusByDecision[decision];
+    const messages: Record<string, string> = {
+      confirmed: "أكد صاحب المتجر توفر عنصر الإيجار.",
+      rejected: `رفض صاحب المتجر طلب الإيجار. السبب: ${reason}`,
+      preparing: "بدأ صاحب المتجر تجهيز عناصر الإيجار.",
+      out: "سلّم صاحب المتجر عناصر الإيجار للعميل.",
+      returned: "أكد صاحب المتجر استرجاع عناصر الإيجار.",
+    };
+    const message = messages[decision];
+    await connection.query("UPDATE orders SET status = ? WHERE id = ?", [status, id]);
+    await connection.query(
+      "INSERT INTO order_status_events (order_id, status, message, actor_type) VALUES (?, ?, ?, 'store')", [id, status, message],
+    );
+    customer = { sessionId: String(order.session_id), orderId: id, customerName: order.customer_name ?? null, customerPhone: order.customer_phone ?? null };
+    await connection.commit();
+    res.json({ id, status, decision, reason: decision === "rejected" ? reason : null });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    req.log.error({ error, orderId: id, storeId }, "Vendor rental booking decision failed");
+    res.status(500).json({ error: "تعذر تحديث حالة حجز الإيجار" });
+  } finally {
+    connection.release();
+  }
+  if (customer) {
+    const decision = String(req.body?.decision || "");
+    const notificationMessages: Record<string, { title: string; message: string }> = {
+      confirmed: { title: "أكد المتجر توفر الإيجار", message: `تم تأكيد توفر عناصر الإيجار لطلبك رقم ${customer.orderId}.` },
+      rejected: { title: "تعذر قبول حجز الإيجار", message: `تم رفض طلب الإيجار رقم ${customer.orderId}. السبب: ${reason}` },
+      preparing: { title: "بدأ تجهيز الإيجار", message: `بدأ المتجر تجهيز عناصر الإيجار لطلبك رقم ${customer.orderId}.` },
+      out: { title: "تم تسليم عنصر الإيجار", message: `سلّم المتجر عناصر الإيجار المرتبطة بطلبك رقم ${customer.orderId}.` },
+      returned: { title: "تم استرجاع الإيجار", message: `أكد المتجر استرجاع عناصر الإيجار لطلبك رقم ${customer.orderId}.` },
+    };
+    const notification = notificationMessages[decision];
+    if (!notification) return;
+    await createCustomerNotification({
+      sessionId: customer.sessionId,
+      orderId: customer.orderId,
+      type: "rental_booking_status",
+      ...notification,
+      customerName: customer.customerName ?? undefined,
+      phone: customer.customerPhone ?? undefined,
+    }).catch((error) => req.log.warn({ error, orderId: customer?.orderId }, "Rental decision notification failed"));
   }
 });
 
