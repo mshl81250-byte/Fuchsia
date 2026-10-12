@@ -539,7 +539,7 @@ object FuchsiaApi {
             if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
             val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
             val end = runCatching { parser.parse(startDate) }.getOrNull()?.let { date ->
-                Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, days.coerceAtLeast(1)) }.let(parser::format)
+                Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, days.coerceAtLeast(1) - 1) }.let(parser::format)
             }.orEmpty()
             return@withContext RentalAvailability(stockQuantity.coerceAtLeast(1), stockQuantity.coerceAtLeast(1), 0, end, canBook = quantity <= stockQuantity.coerceAtLeast(1), previewOnly = true)
         }

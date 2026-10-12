@@ -424,7 +424,7 @@ router.patch("/rental-bookings/:id/change-requests/:requestId", async (req, res)
       const newStart = String(request.requested_start_date).slice(0, 10);
       for (const item of items) {
         const rentalDays = Math.max(1, Number(item.rental_days || 1));
-        const newEnd = addDateDays(newStart, rentalDays);
+        const newEnd = addDateDays(newStart, rentalDays - 1);
         const stock = Math.max(1, Number(item.stock_quantity || 1));
         const buffer = Math.max(0, Math.min(14, Number(item.rental_buffer_days || 0)));
         const occupancy = await getRentalOccupancy(connection, Number(item.product_id), newStart, newEnd, buffer, orderId);
@@ -443,7 +443,7 @@ router.patch("/rental-bookings/:id/change-requests/:requestId", async (req, res)
     } else if (requestType === "reschedule" && decision === "approve") {
       const newStart = String(request.requested_start_date).slice(0, 10);
       for (const item of items) {
-        const newEnd = addDateDays(newStart, Math.max(1, Number(item.rental_days || 1)));
+        const newEnd = addDateDays(newStart, Math.max(1, Number(item.rental_days || 1)) - 1);
         await connection.query("UPDATE order_items SET rental_start_date = ?, rental_end_date = ? WHERE id = ?", [newStart, newEnd, item.item_id]);
       }
       outcome = currentStatus;
