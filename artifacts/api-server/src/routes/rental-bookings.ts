@@ -1,14 +1,14 @@
 import { Router } from "express";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { and, eq } from "drizzle-orm";
-import { db, paymentWalletsTable, pool, usersTable } from "@workspace/db";
+import { db, paymentWalletsTable, pool, usersTable, storesTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
-import { createCustomerNotification } from "../lib/notifications";
+import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
+import { addDateDays, getRentalOccupancy } from "../lib/rental-availability";
 
 const router = Router();
 const DELIVERY_FEE = 500;
 const MAX_LEAD_DAYS = 180;
-const IGNORED_ORDER_STATUSES = ["cancelled", "canceled", "refunded", "rejected", "expired", "rental_rejected"];
 
 class RequestError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
@@ -34,27 +34,6 @@ function validateReceiptUrl(value: unknown): string {
     throw new RequestError(400, "يجب رفع صورة الإيصال من داخل التطبيق");
   }
   return value;
-}
-
-async function reservedQuantity(
-  queryable: { query: (sql: string, values?: unknown[]) => Promise<[RowDataPacket[], unknown]> },
-  productId: number,
-  startDate: string,
-  endDate: string,
-): Promise<number> {
-  const placeholders = IGNORED_ORDER_STATUSES.map(() => "?").join(",");
-  const [rows] = await queryable.query(
-    `SELECT COALESCE(SUM(oi.quantity), 0) AS reserved_quantity
-     FROM order_items oi
-     INNER JOIN orders o ON o.id = oi.order_id
-     WHERE oi.product_id = ?
-       AND oi.fulfillment_type = 'rental'
-       AND oi.rental_start_date <= ?
-       AND oi.rental_end_date >= ?
-       AND o.status NOT IN (${placeholders})`,
-    [productId, endDate, startDate, ...IGNORED_ORDER_STATUSES],
-  );
-  return Number(rows[0]?.reserved_quantity ?? 0);
 }
 
 function serializeOrder(row: RowDataPacket) {
@@ -91,7 +70,7 @@ router.get("/availability", async (req, res): Promise<void> => {
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(
-      "SELECT id, fulfillment_type, is_published, in_stock, stock_quantity, rental_daily_price, rental_min_days, rental_max_days FROM products WHERE id = ? LIMIT 1",
+      "SELECT id, fulfillment_type, is_published, in_stock, stock_quantity, rental_daily_price, rental_min_days, rental_max_days, rental_buffer_days FROM products WHERE id = ? LIMIT 1",
       [productId],
     );
     const product = rows[0];
@@ -107,9 +86,17 @@ router.get("/availability", async (req, res): Promise<void> => {
 
     const endDate = addDays(startDate, days);
     const stockQuantity = Math.max(1, Number(product.stock_quantity ?? 1));
-    const reserved = await reservedQuantity(pool, productId, startDate, endDate);
+    const bufferDays = Math.max(0, Math.min(14, Number(product.rental_buffer_days || 0)));
+    const occupancy = await getRentalOccupancy(pool, productId, startDate, endDate, bufferDays);
+    const reserved = occupancy.maxReservedQuantity;
+    const maintenance = occupancy.maxMaintenanceQuantity;
+    const available = Math.max(0, stockQuantity - occupancy.maxOccupiedQuantity);
+    const requestedQuantity = req.query.quantity == null ? null : Number(req.query.quantity);
+    if (requestedQuantity != null && (!Number.isInteger(requestedQuantity) || requestedQuantity < 1 || requestedQuantity > 1000)) {
+      res.status(400).json({ error: "الكمية المطلوبة غير صحيحة" }); return;
+    }
     res.setHeader("Cache-Control", "no-store");
-    res.json({ productId, startDate, endDate, stockQuantity, reservedQuantity: reserved, availableQuantity: Math.max(0, stockQuantity - reserved) });
+    res.json({ productId, startDate, endDate, blockedThrough: occupancy.blockedThrough, bufferDays, stockQuantity, reservedQuantity: reserved, maintenanceQuantity: maintenance, availableQuantity: available, canBook: requestedQuantity == null ? available > 0 : available >= requestedQuantity, busiestDate: occupancy.busiestDate });
   } catch (error) {
     req.log.error({ error }, "Failed to check rental availability");
     res.status(500).json({ error: "تعذر التحقق من توفر الإيجار" });
@@ -216,8 +203,12 @@ router.post("/", async (req, res): Promise<void> => {
       throw new RequestError(400, "اختر تاريخًا من اليوم وحتى الأشهر الستة القادمة");
     }
     const endDate = addDays(startDate, days);
-    const reserved = await reservedQuantity(connection, productId, startDate, endDate);
-    if (reserved + quantity > stockQuantity) throw new RequestError(409, "الكمية محجوزة في جزء من المدة؛ اختر موعدًا أو عددًا آخر");
+    const bufferDays = Math.max(0, Math.min(14, Number(product.rental_buffer_days || 0)));
+    const occupancy = await getRentalOccupancy(connection, productId, startDate, endDate, bufferDays);
+    if (occupancy.maxOccupiedQuantity + quantity > stockQuantity) {
+      const occupiedDate = occupancy.busiestDate ? ` في ${occupancy.busiestDate}` : "";
+      throw new RequestError(409, `الكمية المطلوبة غير متاحة${occupiedDate} بعد احتساب الحجوزات والصيانة ومهلة التجهيز`);
+    }
 
     const subtotal = dailyPrice * days * quantity;
     const rentalDeposit = Number(product.rental_deposit || 0) * quantity;
@@ -272,6 +263,17 @@ router.post("/", async (req, res): Promise<void> => {
         email: recipient?.email,
       }).catch((error) => req.log.warn({ error, orderId }, "Rental booking notification failed"));
     }
+    const [store] = await db.select({ ownerUserId: storesTable.ownerUserId }).from(storesTable).where(eq(storesTable.id, Number(product.store_id)));
+    if (store?.ownerUserId) {
+      await createPartnerNotification({
+        recipientUserId: store.ownerUserId,
+        bookingType: "rental",
+        bookingId: orderId,
+        type: "rental_booking_created",
+        title: "طلب إيجار جديد",
+        message: `وصل طلب إيجار جديد رقم ${orderId} لمنتج ${String(product.name_ar)}؛ راجع التوفر وإيصال الدفع.`,
+      }).catch((error) => req.log.warn({ error, orderId }, "Partner rental booking notification failed"));
+    }
     res.status(201).json(serializeOrder(savedRows[0]));
   } catch (error) {
     await connection.rollback().catch(() => undefined);
@@ -284,6 +286,94 @@ router.post("/", async (req, res): Promise<void> => {
   } finally {
     connection.release();
   }
+});
+
+router.post("/:id/change-requests", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  if (!userId) { res.status(401).json({ error: "سجّل الدخول بحسابك لإرسال طلب تغيير الإيجار" }); return; }
+  const orderId = Number.parseInt(req.params.id, 10);
+  const requestType = String(req.body?.type || "");
+  const requestedStartDate = req.body?.newStartDate;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+  if (!Number.isInteger(orderId) || orderId < 1 || !["cancel", "reschedule"].includes(requestType)) {
+    res.status(400).json({ error: "اختر طلبًا ونوع تغيير صحيحًا" }); return;
+  }
+  if (requestType === "reschedule" && !isDateOnly(requestedStartDate)) {
+    res.status(400).json({ error: "اختر تاريخ بداية جديدًا بصيغة صحيحة" }); return;
+  }
+  if (requestType === "reschedule") {
+    const today = new Date().toISOString().slice(0, 10);
+    const latest = new Date(); latest.setUTCDate(latest.getUTCDate() + MAX_LEAD_DAYS);
+    if (requestedStartDate < today || requestedStartDate > latest.toISOString().slice(0, 10)) {
+      res.status(400).json({ error: "اختر تاريخًا من اليوم وحتى الأشهر الستة القادمة" }); return;
+    }
+  }
+  const connection = await pool.getConnection();
+  let requestId = 0;
+  let storeOwnerId = 0;
+  let customer: { name: string; phone: string; sessionId: string; status: string } | null = null;
+  try {
+    await connection.beginTransaction();
+    const [orders] = await connection.query<RowDataPacket[]>(
+      "SELECT id, user_id, session_id, status, customer_name, customer_phone FROM orders WHERE id = ? AND user_id = ? FOR UPDATE", [orderId, userId],
+    );
+    const order = orders[0];
+    if (!order) { await connection.rollback(); res.status(404).json({ error: "طلب الإيجار غير موجود لهذا الحساب" }); return; }
+    const currentStatus = String(order.status);
+    if (!["rental_pending_confirmation", "rental_confirmed", "rental_preparing"].includes(currentStatus)) {
+      await connection.rollback(); res.status(409).json({ error: "لا يمكن طلب الإلغاء أو تغيير التاريخ بعد تسليم الإيجار أو انتهاء الطلب" }); return;
+    }
+    const [items] = await connection.query<RowDataPacket[]>(
+      `SELECT oi.product_id, oi.fulfillment_type, oi.rental_start_date, oi.rental_days, p.store_id, s.owner_user_id
+       FROM order_items oi INNER JOIN products p ON p.id = oi.product_id INNER JOIN stores s ON s.id = p.store_id
+       WHERE oi.order_id = ?`, [orderId],
+    );
+    if (!items.length || items.some((item) => item.fulfillment_type !== "rental") || new Set(items.map((item) => Number(item.store_id))).size !== 1) {
+      await connection.rollback(); res.status(409).json({ error: "لا يمكن تقديم طلب موحد لهذا الطلب؛ تواصل مع الدعم" }); return;
+    }
+    if (requestType === "reschedule" && items.every((item) => String(item.rental_start_date).slice(0, 10) === requestedStartDate)) {
+      await connection.rollback(); res.status(400).json({ error: "التاريخ الجديد مطابق للتاريخ الحالي" }); return;
+    }
+    const [pending] = await connection.query<RowDataPacket[]>(
+      "SELECT id FROM booking_change_requests WHERE booking_type = 'rental' AND booking_id = ? AND status = 'pending' LIMIT 1 FOR UPDATE", [orderId],
+    );
+    if (pending[0]) { await connection.rollback(); res.status(409).json({ error: "يوجد طلب قيد المراجعة لهذا الإيجار بالفعل" }); return; }
+    const [inserted] = await connection.query<ResultSetHeader>(
+      "INSERT INTO booking_change_requests (booking_type, booking_id, customer_user_id, request_type, requested_start_date, reason) VALUES ('rental', ?, ?, ?, ?, ?)",
+      [orderId, userId, requestType, requestType === "reschedule" ? requestedStartDate : null, reason || null],
+    );
+    requestId = Number(inserted.insertId);
+    const eventMessage = requestType === "cancel"
+      ? `طلب العميل إلغاء الإيجار رقم ${orderId}؛ الحجز قائم حتى قرار المتجر ولا يوجد استرداد تلقائي.`
+      : `طلب العميل تغيير تاريخ الإيجار رقم ${orderId} إلى ${requestedStartDate}؛ يبقى الموعد الأصلي قائمًا حتى موافقة المتجر.`;
+    await connection.query("INSERT INTO order_status_events (order_id, status, message, actor_type) VALUES (?, ?, ?, 'customer')", [orderId, currentStatus, `${eventMessage}${reason ? ` السبب: ${reason}` : ""}`]);
+    storeOwnerId = Number(items[0].owner_user_id || 0);
+    customer = { name: String(order.customer_name || ""), phone: String(order.customer_phone || ""), sessionId: String(order.session_id), status: currentStatus };
+    await connection.commit();
+    if (storeOwnerId > 0) await createPartnerNotification({
+      recipientUserId: storeOwnerId, bookingType: "rental", bookingId: orderId, requestId,
+      type: requestType === "cancel" ? "rental_cancellation_request" : "rental_reschedule_request",
+      title: requestType === "cancel" ? "طلب إلغاء إيجار" : "طلب تغيير موعد إيجار",
+      message: requestType === "cancel"
+        ? `طلب العميل إلغاء الإيجار رقم ${orderId}.${reason ? ` السبب: ${reason}` : ""}`
+        : `طلب العميل تغيير موعد الإيجار رقم ${orderId} إلى ${requestedStartDate}.${reason ? ` السبب: ${reason}` : ""}`,
+    }).catch((error) => req.log.warn({ error, orderId }, "Partner rental change request notification failed"));
+    await createCustomerNotification({
+      sessionId: customer.sessionId, orderId,
+      type: requestType === "cancel" ? "rental_cancellation_requested" : "rental_reschedule_requested",
+      title: "طلبك بانتظار موافقة المتجر",
+      message: requestType === "cancel"
+        ? `أُرسل طلب إلغاء الإيجار رقم ${orderId}. يبقى الحجز كما هو حتى قرار المتجر، ولا يتم استرداد مبلغ تلقائيًا.`
+        : `أُرسل طلب تغيير موعد الإيجار رقم ${orderId}. يبقى الموعد الأصلي قائمًا حتى موافقة المتجر ولا يُعدّل المبلغ تلقائيًا.`,
+      customerName: customer.name,
+      phone: customer.phone,
+    }).catch((error) => req.log.warn({ error, orderId }, "Customer rental change request notification failed"));
+    res.status(201).json({ id: requestId, orderId, type: requestType, status: "pending", originalBookingKept: true, automaticPaymentAdjustment: false });
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    req.log.error({ error, orderId }, "Rental change request failed");
+    res.status(500).json({ error: "تعذر إرسال طلب التغيير" });
+  } finally { connection.release(); }
 });
 
 export default router;

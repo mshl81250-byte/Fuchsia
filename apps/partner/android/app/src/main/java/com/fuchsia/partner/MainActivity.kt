@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 private val Fuchsia = Color(0xFFB20A4B)
@@ -90,6 +91,8 @@ private val Green = Color(0xFF24835F)
 private val Amber = Color(0xFFAE7619)
 private val Red = Color(0xFFB83A48)
 private val Weekdays = listOf("الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
+
+private data class UnifiedCalendarEvent(val id: String, val startDate: String, val endDate: String, val title: String, val details: String, val status: String, val kind: String)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -312,6 +315,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     val selectedVenue = venueRows.firstOrNull { it.id == selectedVenueId } ?: venueRows.firstOrNull()
     var activeTab by remember(venueRows, rentalStores) { mutableStateOf(if (venueRows.isEmpty() && rentalStores.isNotEmpty()) 2 else 0) }
     var bookings by remember(preview) { mutableStateOf(if (preview) demoBookings() else emptyList()) }
+    var unifiedEvents by remember(preview) { mutableStateOf(emptyList<UnifiedCalendarEvent>()) }
     var loadingBookings by remember { mutableStateOf(!preview) }
     var bookingsError by remember { mutableStateOf("") }
     var monthAnchor by remember { mutableStateOf(Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1) }) }
@@ -336,18 +340,41 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
         ?: rentalStores.firstOrNull()?.name.orEmpty()
 
     suspend fun reloadBookings() {
-        if (preview) { bookings = demoBookings(); return }
-        if (venueRows.isEmpty()) { bookings = emptyList(); loadingBookings = false; return }
+        if (preview) {
+            bookings = demoBookings()
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.DAY_OF_MONTH, 7)
+            val first = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+            cal.add(Calendar.DAY_OF_MONTH, 7)
+            val second = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+            unifiedEvents = listOf(
+                UnifiedCalendarEvent("demo-rental-1", first, first, "إيجار كوش ملكية", "طلب معاينة · كمية 1", "rental_confirmed", "rental"),
+                UnifiedCalendarEvent("demo-rental-2", second, second, "إيجار طاولات مناسبات", "طلب معاينة · كمية 8", "rental_pending_confirmation", "rental"),
+            ) + demoBookings().filter { it.status in setOf("pending", "confirmed") }.map { booking ->
+                val end = (Calendar.getInstance().apply { time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(booking.dateOnly) ?: Date(); add(Calendar.DAY_OF_MONTH, booking.bookingDays - 1) }).time
+                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.partySize} ضيف · ${booking.bookingDays} يوم", booking.status, "venue")
+            }
+            return
+        }
         val auth = token ?: return
         loadingBookings = true
         bookingsError = ""
-        runCatching { PartnerApi.bookings(auth) }
-            .onSuccess { bookings = it }
-            .onFailure { bookingsError = it.message ?: "تعذر تحميل الحجوزات" }
+        val venueResult = runCatching { PartnerApi.bookings(auth) }
+        venueResult.onSuccess { bookings = it }.onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات القاعات" }
+        val rentalResult = runCatching { rentalStores.flatMap { store -> PartnerRentalApi.bookings(auth, store.id).flatMap { booking ->
+            booking.items.map { item -> UnifiedCalendarEvent("rental-${booking.id}-${item.name}", item.startDate.take(10), item.endDate.take(10), "إيجار · ${item.name}", "${store.name} · ${booking.customerName} · كمية ${item.quantity}", booking.status, "rental") }
+        } } }
+        rentalResult.onSuccess { rentalEvents ->
+            val venueEvents = (venueResult.getOrNull() ?: bookings).filter { it.status in setOf("pending", "confirmed") && !isBookingExpired(it) }.map { booking ->
+                val end = Calendar.getInstance().apply { time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(booking.dateOnly) ?: Date(); add(Calendar.DAY_OF_MONTH, booking.bookingDays.coerceAtLeast(1) - 1) }
+                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end.time), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.partySize} ضيف · ${booking.bookingDays} يوم", booking.status, "venue")
+            }
+            unifiedEvents = venueEvents + rentalEvents.filter { it.status !in setOf("rental_rejected", "rental_cancelled", "rental_returned") }
+        }.onFailure { if (bookingsError.isBlank()) bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار للتقويم الموحد" }
         loadingBookings = false
     }
 
-    LaunchedEffect(token, preview, venueRows.size) { reloadBookings() }
+    LaunchedEffect(token, preview, venueRows.size, rentalStores.size) { reloadBookings() }
 
     LaunchedEffect(token, selectedVenueId, monthKey, audience, preview) {
         selectedStart = null; selectedEnd = null
@@ -389,7 +416,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                     RentalPartnerHub(token = token, stores = rentalStores, preview = preview, onMessage = { message -> scope.launch { snackbar.showSnackbar(message) } }, modifier = Modifier.weight(1f))
                 } else EmptyVenues()
             } else {
-                if (activeTab != 2) {
+                if (activeTab !in setOf(2, 3)) {
                 VenuePicker(venueRows, selectedVenueId) { venue ->
                     selectedVenueId = venue.id
                     audience = if (venue.audienceScope == "men") "men" else "women"
@@ -403,6 +430,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                     FilterChip(selected = activeTab == 0, onClick = { activeTab = 0 }, label = { Text("تقويم القاعات") }, leadingIcon = { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(18.dp)) })
                     FilterChip(selected = activeTab == 1, onClick = { activeTab = 1 }, label = { Text("طلبات القاعات") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
                     if (rentalStores.isNotEmpty()) FilterChip(selected = activeTab == 2, onClick = { activeTab = 2 }, label = { Text("إدارة الإيجارات") }, leadingIcon = { Icon(Icons.Rounded.Business, null, Modifier.size(18.dp)) })
+                    if (rentalStores.isNotEmpty() && venueRows.isNotEmpty()) FilterChip(selected = activeTab == 3, onClick = { activeTab = 3 }, label = { Text("التقويم الموحد") }, leadingIcon = { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(18.dp)) })
                 }
                 if (activeTab == 0) {
                     CalendarContent(
@@ -454,6 +482,16 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                     )
                 } else if (activeTab == 2) {
                     RentalPartnerHub(token = token, stores = rentalStores, preview = preview, onMessage = { message -> scope.launch { snackbar.showSnackbar(message) } }, modifier = Modifier.weight(1f))
+                } else if (activeTab == 3) {
+                    UnifiedPartnerCalendar(
+                        modifier = Modifier.weight(1f),
+                        events = unifiedEvents,
+                        monthAnchor = monthAnchor,
+                        onMonth = { delta -> monthAnchor = (monthAnchor.clone() as Calendar).apply { add(Calendar.MONTH, delta) } },
+                        loading = loadingBookings,
+                        error = bookingsError,
+                        onRefresh = { scope.launch { reloadBookings() } },
+                    )
                 }
             }
         }
@@ -954,4 +992,87 @@ private fun isBookingExpired(booking: PartnerBooking): Boolean {
         .recoverCatching { SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX", Locale.US).parse(expiresAt) }
         .getOrNull() ?: return false
     return parsed.time <= System.currentTimeMillis()
+}
+
+@Composable
+private fun UnifiedPartnerCalendar(
+    modifier: Modifier = Modifier,
+    events: List<UnifiedCalendarEvent>,
+    monthAnchor: Calendar,
+    onMonth: (Int) -> Unit,
+    loading: Boolean,
+    error: String,
+    onRefresh: () -> Unit,
+) {
+    val year = monthAnchor.get(Calendar.YEAR)
+    val month = monthAnchor.get(Calendar.MONTH)
+    var selectedDate by remember(year, month) { mutableStateOf(todayKey().takeIf { it.substring(0, 7) == String.format(Locale.US, "%04d-%02d", year, month + 1) } ?: dateKey(year, month, 1)) }
+    val cells = buildMonthCells(monthAnchor)
+    val monthEvents = events.filter { it.startDate.take(7) <= String.format(Locale.US, "%04d-%02d", year, month + 1) && it.endDate.take(7) >= String.format(Locale.US, "%04d-%02d", year, month + 1) }
+    val selectedEvents = monthEvents.filter { selectedDate >= it.startDate && selectedDate <= it.endDate }
+    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Card(shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { onMonth(-1) }) { Text("‹", fontSize = 22.sp) }
+                Text(SimpleDateFormat("MMMM yyyy", Locale("ar", "YE")).format(monthAnchor.time), modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+                TextButton(onClick = { onMonth(1) }) { Text("›", fontSize = 22.sp) }
+                TextButton(onClick = onRefresh, enabled = !loading) { if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Refresh, "تحديث") }
+            }
+        }
+        Text("اليوم: ${prettyDate(todayKey())} · ${Weekdays[Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1]}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        Card(shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    Weekdays.forEach { day -> Text(day.take(2), modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                }
+                cells.chunked(7).forEach { week ->
+                    Row(Modifier.fillMaxWidth()) {
+                        week.forEach { day ->
+                            if (day == null) Spacer(Modifier.weight(1f).aspectRatio(0.95f))
+                            else {
+                                val key = dateKey(year, month, day)
+                                val dayEvents = monthEvents.filter { key >= it.startDate && key <= it.endDate }
+                                val isToday = key == todayKey()
+                                val isSelected = key == selectedDate
+                                Box(Modifier.weight(1f).aspectRatio(0.95f).padding(2.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(when { isSelected -> MaterialTheme.colorScheme.primary; isToday -> MaterialTheme.colorScheme.primaryContainer; else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f) })
+                                    .clickable { selectedDate = key }, contentAlignment = Alignment.Center) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(day.toString(), color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, fontWeight = if (isToday || isSelected) FontWeight.ExtraBold else FontWeight.Medium, fontSize = 12.sp)
+                                        if (dayEvents.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            dayEvents.take(3).forEach { event -> Box(Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) MaterialTheme.colorScheme.onPrimary else if (event.kind == "venue") Fuchsia else Green)) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("● القاعات", color = Fuchsia, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("● الإيجارات", color = Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("${monthEvents.size} حجز هذا الشهر", modifier = Modifier.weight(1f), textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        Text("${prettyDate(selectedDate)} · ${Weekdays[(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(selectedDate)?.let { Calendar.getInstance().apply { time = it }.get(Calendar.DAY_OF_WEEK) } ?: Calendar.SUNDAY) - 1]}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+        if (selectedEvents.isEmpty()) {
+            Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Text("لا توجد حجوزات في هذا اليوم", Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+        } else selectedEvents.forEach { event ->
+            Card(shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth().padding(13.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (event.kind == "venue") Fuchsia else Green))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(event.title, fontWeight = FontWeight.Bold)
+                        Text(event.details, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        if (event.endDate > event.startDate) Text("${prettyDate(event.startDate)} – ${prettyDate(event.endDate)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                    }
+                    Text(if (event.status == "pending" || event.status == "rental_pending_confirmation") "بانتظار الرد" else "مؤكد", color = if (event.status == "pending" || event.status == "rental_pending_confirmation") Amber else Green, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                }
+            }
+        }
+    }
 }

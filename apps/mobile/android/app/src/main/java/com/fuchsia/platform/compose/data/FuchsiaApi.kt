@@ -553,6 +553,13 @@ object FuchsiaApi {
     suspend fun createRentalBooking(payload: JSONObject, bearerToken: String? = null): JSONObject =
         sendJson("/api/rental-bookings", "POST", payload, bearerToken = bearerToken)
 
+    suspend fun requestRentalChange(orderId: Int, type: String, newStartDate: String? = null, reason: String = "", token: String): JSONObject =
+        sendJson("/api/rental-bookings/$orderId/change-requests", "POST", JSONObject().apply {
+            put("type", type)
+            if (!newStartDate.isNullOrBlank()) put("newStartDate", newStartDate)
+            if (reason.isNotBlank()) put("reason", reason)
+        }, bearerToken = token)
+
     suspend fun customerOrders(token: String): List<CustomerOrder> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/orders/mine", token))
         buildList {

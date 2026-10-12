@@ -15,3 +15,4 @@ export * from "./wallet-transactions";
 export * from "./notifications";
 export * from "./notification-channels";
 export * from "./venues";
+export * from "./partner-phase3";

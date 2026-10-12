@@ -18,6 +18,7 @@ export const productsTable = mysqlTable("products", {
   rentalDeposit: double("rental_deposit").notNull().default(0),
   rentalMinDays: int("rental_min_days").notNull().default(1),
   rentalMaxDays: int("rental_max_days").notNull().default(3),
+  rentalBufferDays: int("rental_buffer_days").notNull().default(0),
   categoryId: int("category_id").notNull(),
   storeId: int("store_id").notNull(),
   imageUrl: text("image_url").notNull(),

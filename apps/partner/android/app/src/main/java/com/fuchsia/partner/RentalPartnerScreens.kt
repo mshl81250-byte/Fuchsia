@@ -48,6 +48,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -100,10 +101,12 @@ internal fun RentalPartnerHub(
     var activeTab by remember { mutableIntStateOf(0) }
     var products by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerRentalProduct>()) }
     var bookings by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerRentalBooking>()) }
+    var maintenance by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerMaintenanceBlock>()) }
     var categories by remember { mutableStateOf(emptyList<PartnerCategory>()) }
     var loading by remember { mutableStateOf(false) }
     var productsError by remember { mutableStateOf("") }
     var bookingsError by remember { mutableStateOf("") }
+    var maintenanceError by remember { mutableStateOf("") }
     var refreshKey by remember { mutableIntStateOf(0) }
     var editorVisible by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<PartnerRentalProduct?>(null) }
@@ -119,6 +122,7 @@ internal fun RentalPartnerHub(
             loading = false
             productsError = ""
             bookingsError = ""
+            maintenanceError = ""
         } else {
             val auth = token
             val storeId = selectedStore?.id
@@ -131,12 +135,16 @@ internal fun RentalPartnerHub(
             loading = true
             productsError = ""
             bookingsError = ""
+            maintenanceError = ""
             runCatching { PartnerRentalApi.products(auth, storeId) }
                 .onSuccess { products = it }
                 .onFailure { productsError = it.message ?: "تعذر تحميل كتالوج الإيجار" }
             runCatching { PartnerRentalApi.bookings(auth, storeId) }
                 .onSuccess { bookings = it }
                 .onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار" }
+            runCatching { PartnerRentalApi.maintenance(auth, storeId, SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)) }
+                .onSuccess { maintenance = it }
+                .onFailure { maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة" }
             runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it }.onFailure { categories = emptyList() }
             loading = false
         }
@@ -169,13 +177,14 @@ internal fun RentalPartnerHub(
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = activeTab == 0, onClick = { activeTab = 0 }, label = { Text("الكوش والطاولات") }, leadingIcon = { Icon(Icons.Rounded.Inventory2, null, Modifier.size(18.dp)) })
             FilterChip(selected = activeTab == 1, onClick = { activeTab = 1 }, label = { Text("طلبات الإيجار ${bookings.count { it.status == "rental_pending_confirmation" }}") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
+            FilterChip(selected = activeTab == 2, onClick = { activeTab = 2 }, label = { Text("الصيانة ${maintenance.size}") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
             IconButton(onClick = { refreshKey++ }, enabled = !loading) {
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Rounded.Refresh, contentDescription = "تحديث")
             }
         }
 
-        val activeError = if (activeTab == 0) productsError else bookingsError
+        val activeError = when (activeTab) { 0 -> productsError; 1 -> bookingsError; else -> maintenanceError }
         if (activeError.isNotBlank()) {
             RentalNotice(activeError, isError = true)
             OutlinedButton(onClick = { refreshKey++ }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Refresh, null); Text("إعادة المحاولة", modifier = Modifier.padding(start = 6.dp)) }
@@ -201,8 +210,31 @@ internal fun RentalPartnerHub(
                 },
                 busyProductId = workingOrderId,
             )
-        } else {
+        } else if (activeTab == 1) {
             RentalBookingsList(bookings, modifier = Modifier.weight(1f), onOpen = { selectedBooking = it })
+        } else {
+            RentalMaintenanceManager(
+                products = products, blocks = maintenance, modifier = Modifier.weight(1f),
+                onAdd = { productId, startDate, endDate, quantity, reason ->
+                    if (preview) onMessage("المعاينة لا تحفظ فترات الصيانة")
+                    else scope.launch {
+                        val auth = token ?: return@launch
+                        val storeId = selectedStore?.id ?: return@launch
+                        runCatching { PartnerRentalApi.addMaintenance(auth, storeId, productId, startDate, endDate, quantity, reason) }
+                            .onSuccess { onMessage("تم تسجيل فترة الصيانة وإعادة حساب التوفر"); refreshKey++ }
+                            .onFailure { onMessage(it.message ?: "تعذر تسجيل الصيانة") }
+                    }
+                },
+                onDelete = { blockId ->
+                    if (preview) onMessage("المعاينة لا تحذف فترات الصيانة")
+                    else scope.launch {
+                        val auth = token ?: return@launch
+                        runCatching { PartnerRentalApi.deleteMaintenance(auth, blockId) }
+                            .onSuccess { onMessage("تم حذف فترة الصيانة"); refreshKey++ }
+                            .onFailure { onMessage(it.message ?: "تعذر حذف الصيانة") }
+                    }
+                },
+            )
         }
     }
 
@@ -244,6 +276,21 @@ internal fun RentalPartnerHub(
                             refreshKey++
                         }
                         .onFailure { onMessage(it.message ?: "تعذر تحديث الحجز") }
+                    workingOrderId = 0
+                }
+            },
+            onChangeRequestDecision = { requestId, decision, note ->
+                if (preview) onMessage("المعاينة لا ترسل قرارًا حقيقيًا")
+                else scope.launch {
+                    val auth = token ?: return@launch
+                    val storeId = selectedStore?.id ?: return@launch
+                    workingOrderId = booking.id
+                    runCatching { PartnerRentalApi.decideChangeRequest(auth, storeId, booking.id, requestId, decision, note) }
+                        .onSuccess {
+                            onMessage(if (decision == "approve") "تمت الموافقة على طلب العميل وتحديث الحجز" else "تم رفض طلب العميل وإشعاره بالسبب")
+                            refreshKey++
+                        }
+                        .onFailure { onMessage(it.message ?: "تعذر حفظ قرار طلب التغيير") }
                     workingOrderId = 0
                 }
             },
@@ -304,6 +351,7 @@ private fun RentalProductCard(product: PartnerRentalProduct, busy: Boolean, onCl
                 Text("${rentMoney(product.dailyPrice)} ر.ي / يوم", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                 val specification = buildList {
                     add("الكمية ${product.stockQuantity}")
+                    if (product.bufferDays > 0) add("مهلة تجهيز ${product.bufferDays} يوم")
                     if (product.tableHeightCm != null) add("الارتفاع ${rentNumber(product.tableHeightCm)} سم")
                     if (product.colors.isNotEmpty()) add(product.colors.take(3).joinToString("، "))
                 }.joinToString(" · ")
@@ -344,6 +392,7 @@ private fun RentalProductEditor(
     var height by remember(existing?.id) { mutableStateOf(existing?.tableHeightCm?.let(::rentNumber).orEmpty()) }
     var minDays by remember(existing?.id) { mutableStateOf(existing?.minDays?.coerceAtLeast(1)?.toString() ?: "1") }
     var maxDays by remember(existing?.id) { mutableStateOf(existing?.maxDays?.coerceAtLeast(1)?.toString() ?: "3") }
+    var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
     var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(6)) }
     var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
@@ -415,6 +464,7 @@ private fun RentalProductEditor(
                         OutlinedTextField(minDays, { minDays = it }, Modifier.weight(1f), label = { Text("أقل مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         OutlinedTextField(maxDays, { maxDays = it }, Modifier.weight(1f), label = { Text("أقصى مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
+                    OutlinedTextField(bufferDays, { bufferDays = it }, Modifier.fillMaxWidth(), label = { Text("مهلة التجهيز بعد الحجز (أيام، 0–14)") }, supportingText = { Text("تمنع حجز المنتج خلال فترة التنظيف/التجهيز التالية.") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     Text("صور المنتج · ${imageUrls.size}/6", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         imageUrls.forEachIndexed { index, url ->
@@ -442,6 +492,7 @@ private fun RentalProductEditor(
                         val stock = rentParseInt(quantity)
                         val min = rentParseInt(minDays)
                         val max = rentParseInt(maxDays)
+                        val buffer = rentParseInt(bufferDays)
                         val tableHeight = rentParseNumber(height)
                         val colors = colorsText.split(',', '،', ';').map(String::trim).filter(String::isNotBlank).distinct().take(20)
                         formError = when {
@@ -450,6 +501,7 @@ private fun RentalProductEditor(
                             dailyPrice <= 0 -> "أدخل سعر إيجار يومي صحيح"
                             stock < 1 -> "أدخل كمية متاحة واحدة على الأقل"
                             min < 1 || max < min -> "تحقق من أقل وأقصى مدة للإيجار"
+                            buffer !in 0..14 -> "مهلة التجهيز يجب أن تكون بين 0 و14 يومًا"
                             rentalCategory == "table" && tableHeight <= 0 -> "أدخل ارتفاع الطاولة بالسنتيمتر"
                             rentalCategory == "table" && colors.isEmpty() -> "أدخل لونًا واحدًا على الأقل للطاولات"
                             published && imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل النشر"
@@ -476,6 +528,7 @@ private fun RentalProductEditor(
                                 .put("rentalDeposit", depositAmount)
                                 .put("rentalMinDays", min)
                                 .put("rentalMaxDays", max)
+                                .put("rentalBufferDays", buffer)
                                 .put("tableHeightCm", if (rentalCategory == "table") tableHeight else JSONObject.NULL)
                                 .put("availableColors", JSONArray(colors).toString())
                                 .put("stockQuantity", stock)
@@ -547,12 +600,15 @@ private fun RentalBookingDialog(
     busy: Boolean,
     onDismiss: () -> Unit,
     onDecision: (String, String) -> Unit,
+    onChangeRequestDecision: (Int, String, String) -> Unit,
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val item = booking.items.firstOrNull()
     var rejectMode by remember(booking.id) { mutableStateOf(false) }
     var reason by remember(booking.id) { mutableStateOf("") }
+    var changeRequestReason by remember(booking.id) { mutableStateOf("") }
+    val pendingChangeRequest = booking.changeRequests.firstOrNull()
     val nextDecision = when (booking.status) {
         "rental_pending_confirmation" -> "confirmed"
         "rental_confirmed" -> "preparing"
@@ -586,6 +642,18 @@ private fun RentalBookingDialog(
                 Text("الدفعة: ${rentMoney(booking.paymentAmount)} ر.ي · ${rentPaymentStatus(booking.paymentStatus)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 if (!booking.transactionReference.isNullOrBlank()) Text("رقم العملية: ${booking.transactionReference}")
                 if (booking.notes?.isNotBlank() == true) Text("ملاحظات العميل: ${booking.notes}")
+                pendingChangeRequest?.let { changeRequest ->
+                    HorizontalDivider()
+                    Text(if (changeRequest.type == "cancel") "طلب العميل: إلغاء الإيجار" else "طلب العميل: تغيير موعد الإيجار", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    if (changeRequest.type == "reschedule") Text("التاريخ المطلوب: ${changeRequest.requestedStartDate.orEmpty()}")
+                    if (!changeRequest.reason.isNullOrBlank()) Text("السبب: ${changeRequest.reason}")
+                    Text("يبقى الموعد الأصلي كما هو حتى قبول الطلب. لا يوجد تعديل أو استرداد مالي تلقائي.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    OutlinedTextField(changeRequestReason, { changeRequestReason = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("ملاحظة للعميل عند القرار") }, minLines = 2, maxLines = 3)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { onChangeRequestDecision(changeRequest.id, "approve", changeRequestReason.trim()) }, enabled = !busy, modifier = Modifier.weight(1f)) { Text("قبول الطلب") }
+                        Button(onClick = { if (changeRequestReason.isNotBlank()) onChangeRequestDecision(changeRequest.id, "reject", changeRequestReason.trim()) }, enabled = !busy && changeRequestReason.isNotBlank(), modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("رفض الطلب") }
+                    }
+                }
                 booking.paymentReceiptUrl?.let { url -> TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Icon(Icons.Rounded.OpenInNew, null); Text("فتح إيصال الدفع", modifier = Modifier.padding(start = 5.dp)) } }
                 RentalNotice("قرارك يؤكد توفر المنتج فقط. مراجعة الإيصال واعتماد الدفعة مسؤولية الإدارة.")
                 Text("الحالة: ${rentBookingStatus(booking.status)}", fontWeight = FontWeight.Bold)
@@ -608,6 +676,80 @@ private fun RentalBookingDialog(
                 TextButton(onClick = onDismiss, enabled = !busy) { Text("إغلاق") }
             }
         },
+    )
+}
+
+@Composable
+private fun RentalMaintenanceManager(
+    products: List<PartnerRentalProduct>,
+    blocks: List<PartnerMaintenanceBlock>,
+    modifier: Modifier = Modifier,
+    onAdd: (Int, String, String, Int, String) -> Unit,
+    onDelete: (Int) -> Unit,
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    var productId by remember(products) { mutableIntStateOf(products.firstOrNull()?.id ?: 0) }
+    var productMenu by remember { mutableStateOf(false) }
+    var startDate by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("1") }
+    var reason by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    Column(modifier.fillMaxWidth()) {
+        RentalNotice("سجّل أيام الصيانة أو الإغلاق على المنتج والكمية المطلوبة. تُحتسب الصيانة ومهلة التجهيز والحجوزات معًا قبل قبول أي موعد.")
+        Button(onClick = { error = ""; showDialog = true }, enabled = products.isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), shape = RoundedCornerShape(13.dp)) {
+            Icon(Icons.Rounded.Add, null); Text("إضافة فترة صيانة", modifier = Modifier.padding(start = 6.dp))
+        }
+        if (products.isEmpty()) EmptyRentalState("لا توجد منتجات إيجار", "أضف منتج كوش أو طاولات أولًا لتسجيل صيانته.", Icons.Rounded.Inventory2)
+        else if (blocks.isEmpty()) EmptyRentalState("لا توجد فترات صيانة قادمة", "ستظهر هنا فترات صيانة المنتجات المسجلة للشهر الحالي.", Icons.Rounded.Event)
+        else LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(blocks, key = { it.id }) { block ->
+                Card(shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(block.productName, fontWeight = FontWeight.Bold)
+                            Text("${rentDate(block.startDate)} – ${rentDate(block.endDate)} · كمية محجوبة ${block.quantity}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                            if (!block.reason.isNullOrBlank()) Text(block.reason, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { onDelete(block.id) }) { Text("حذف", color = MaterialTheme.colorScheme.error) }
+                    }
+                }
+            }
+        }
+    }
+    if (showDialog) AlertDialog(
+        onDismissRequest = { showDialog = false },
+        title = { Text("تسجيل صيانة المنتج", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Box {
+                    OutlinedButton(onClick = { productMenu = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                        Text(products.firstOrNull { it.id == productId }?.name ?: "اختر المنتج", modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    DropdownMenu(expanded = productMenu, onDismissRequest = { productMenu = false }) {
+                        products.forEach { product -> DropdownMenuItem(text = { Text(product.name) }, onClick = { productId = product.id; productMenu = false }) }
+                    }
+                }
+                OutlinedTextField(startDate, { startDate = it.take(10) }, Modifier.fillMaxWidth(), label = { Text("من تاريخ (YYYY-MM-DD)") }, singleLine = true)
+                OutlinedTextField(endDate, { endDate = it.take(10) }, Modifier.fillMaxWidth(), label = { Text("إلى تاريخ (YYYY-MM-DD)") }, singleLine = true)
+                OutlinedTextField(quantity, { quantity = it.filter(Char::isDigit).take(5) }, Modifier.fillMaxWidth(), label = { Text("الكمية المطلوب إغلاقها") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(reason, { reason = it.take(500) }, Modifier.fillMaxWidth(), label = { Text("سبب الصيانة (اختياري)") }, minLines = 2, maxLines = 3)
+                if (error.isNotBlank()) RentalNotice(error, isError = true)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val count = quantity.toIntOrNull() ?: 0
+                error = when {
+                    productId <= 0 -> "اختر منتجًا"
+                    !startDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) || !endDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) || endDate < startDate -> "تحقق من تاريخ البداية والنهاية بصيغة YYYY-MM-DD"
+                    count <= 0 -> "أدخل كمية صحيحة"
+                    else -> ""
+                }
+                if (error.isBlank()) { onAdd(productId, startDate, endDate, count, reason); showDialog = false }
+            }) { Text("تسجيل") }
+        },
+        dismissButton = { TextButton(onClick = { showDialog = false }) { Text("إلغاء") } },
     )
 }
 

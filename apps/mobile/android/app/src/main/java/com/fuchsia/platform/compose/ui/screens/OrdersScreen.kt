@@ -34,9 +34,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +47,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +63,7 @@ import com.fuchsia.platform.compose.data.OrderTracking
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,6 +85,7 @@ private val orderStatusLabels = mapOf(
     "rental_returned" to "تم استرجاع الإيجار",
     "rental_late" to "تأخر الاسترجاع",
     "rental_damaged" to "مراجعة التأمين",
+    "rental_cancelled" to "تم إلغاء الإيجار",
 )
 
 @Composable
@@ -99,6 +105,12 @@ fun OrdersScreen(
     var error by remember { mutableStateOf("") }
     var updatedAt by remember { mutableLongStateOf(0L) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    var changeDialogType by remember { mutableStateOf<String?>(null) }
+    var requestedDate by remember { mutableStateOf("") }
+    var requestReason by remember { mutableStateOf("") }
+    var requestFeedback by remember { mutableStateOf("") }
+    var submittingRequest by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(userToken, selectedOrderId, refreshKey) {
         if (userToken.isNullOrBlank()) {
@@ -220,6 +232,24 @@ fun OrdersScreen(
                     item { TrackingDetails(tracking = tracking!!, updatedAt = updatedAt, onCallDriver = { phone ->
                         runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))) }
                     }) }
+                    val selectedOrder = orders.firstOrNull { it.id == selectedOrderId }
+                    if (tracking?.rental != null && selectedOrder?.status in setOf("rental_pending_confirmation", "rental_confirmed", "rental_preparing")) {
+                        item {
+                            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text("إدارة موعد الإيجار", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text("يمكنك طلب تغيير التاريخ أو الإلغاء، ويظل الموعد الحالي قائمًا حتى موافقة المتجر. لا ينفّذ التطبيق استردادًا أو تعديلًا ماليًا تلقائيًا.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(onClick = { changeDialogType = "reschedule"; requestedDate = ""; requestReason = ""; requestFeedback = "" }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary), shape = RoundedCornerShape(12.dp)) {
+                                            Icon(Icons.Rounded.CalendarToday, null, Modifier.size(16.dp)); Spacer(Modifier.width(5.dp)); Text("طلب تغيير التاريخ")
+                                        }
+                                        TextButton(onClick = { changeDialogType = "cancel"; requestReason = ""; requestFeedback = "" }) { Text("طلب الإلغاء", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold) }
+                                    }
+                                    if (requestFeedback.isNotBlank()) Text(requestFeedback, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (error.isNotBlank()) {
@@ -247,6 +277,42 @@ fun OrdersScreen(
                 }
             }
         }
+    }
+    changeDialogType?.let { type ->
+        AlertDialog(
+            onDismissRequest = { if (!submittingRequest) changeDialogType = null },
+            title = { Text(if (type == "cancel") "طلب إلغاء الإيجار" else "طلب تغيير تاريخ الإيجار", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (type == "reschedule") OutlinedTextField(
+                        value = requestedDate, onValueChange = { requestedDate = it.trim().take(10) },
+                        label = { Text("التاريخ الجديد (YYYY-MM-DD)") }, placeholder = { Text("2026-11-25") }, singleLine = true,
+                    )
+                    OutlinedTextField(value = requestReason, onValueChange = { requestReason = it.take(500) }, label = { Text("ملاحظة للمتجر (اختياري)") }, minLines = 2, maxLines = 4)
+                    Text("لن يتغير الحجز أو المبلغ إلا بعد مراجعة المتجر. لا يوجد استرداد تلقائي.", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !submittingRequest, onClick = {
+                    val auth = userToken ?: return@TextButton
+                    if (type == "reschedule" && !requestedDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+                        requestFeedback = "أدخل التاريخ بصيغة YYYY-MM-DD"; return@TextButton
+                    }
+                    submittingRequest = true
+                    scope.launch {
+                        runCatching { FuchsiaApi.requestRentalChange(selectedOrderId, type, requestedDate.takeIf { type == "reschedule" }, requestReason, auth) }
+                            .onSuccess {
+                                changeDialogType = null
+                                requestFeedback = "تم إرسال طلبك للمتجر؛ الحجز الحالي باقٍ حتى صدور القرار."
+                                refreshKey++
+                            }
+                            .onFailure { requestFeedback = it.message ?: "تعذر إرسال الطلب" }
+                        submittingRequest = false
+                    }
+                }) { Text(if (submittingRequest) "جارٍ الإرسال…" else "إرسال الطلب") }
+            },
+            dismissButton = { TextButton(enabled = !submittingRequest, onClick = { changeDialogType = null }) { Text("رجوع") } },
+        )
     }
 }
 

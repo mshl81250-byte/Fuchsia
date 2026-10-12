@@ -1,8 +1,9 @@
 import { Router } from "express";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
-import { db, pool, paymentWalletsTable, venueBookingsTable, venueBookingEventsTable } from "@workspace/db";
-import { and, desc, eq } from "drizzle-orm";
+import { db, pool, paymentWalletsTable, venueBookingsTable, venueBookingEventsTable, bookingChangeRequestsTable } from "@workspace/db";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { authenticatedUserId } from "../lib/user-session";
+import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 
 const router = Router();
 const MIN_LEAD_MS = 30 * 60 * 1000;
@@ -54,7 +55,21 @@ router.get("/", async (req, res): Promise<void> => {
       .where(eq(venueBookingsTable.customerUserId, userId))
       .orderBy(desc(venueBookingsTable.reservationAt));
     res.setHeader("Cache-Control", "no-store");
-    res.json(rows.map(serializeBooking));
+    const result = await Promise.all(rows.map(async (booking) => {
+      const [events, requests] = await Promise.all([
+        db.select().from(venueBookingEventsTable).where(eq(venueBookingEventsTable.bookingId, booking.id))
+          .orderBy(asc(venueBookingEventsTable.createdAt), asc(venueBookingEventsTable.id)),
+        db.select().from(bookingChangeRequestsTable)
+          .where(and(eq(bookingChangeRequestsTable.bookingType, "venue"), eq(bookingChangeRequestsTable.bookingId, booking.id)))
+          .orderBy(desc(bookingChangeRequestsTable.createdAt)),
+      ]);
+      return {
+        ...serializeBooking(booking),
+        history: events.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
+        changeRequests: requests.map((request) => ({ ...request, createdAt: request.createdAt.toISOString(), reviewedAt: request.reviewedAt?.toISOString() ?? null })),
+      };
+    }));
+    res.json(result);
   } catch (error) {
     req.log.error({ error }, "Failed to list venue bookings");
     res.status(500).json({ error: "تعذر تحميل حجوزات القاعات" });
@@ -192,8 +207,28 @@ router.post("/", async (req, res): Promise<void> => {
       [bookingId, userId, `طلب حجز ${bookingDays} يوم للقسم ${audience}`],
     );
     const [savedRows] = await connection.query<RowDataPacket[]>("SELECT * FROM venue_bookings WHERE id = ?", [bookingId]);
-    await connection.commit();
     const row = savedRows[0];
+    await connection.commit();
+    const [ownerRows] = await pool.query<RowDataPacket[]>(
+      "SELECT vo.user_id FROM venues v INNER JOIN venue_owners vo ON vo.id = v.owner_id WHERE v.id = ? LIMIT 1", [venueId],
+    );
+    const ownerUserId = Number(ownerRows[0]?.user_id || 0);
+    if (ownerUserId > 0) await createPartnerNotification({
+      recipientUserId: ownerUserId,
+      bookingType: "venue",
+      bookingId,
+      type: "venue_booking_created",
+      title: "طلب حجز قاعة جديد",
+      message: `وصل طلب حجز جديد رقم ${bookingId}، راجع المدة والقسم وإيصال الدفع.`,
+    }).catch((error) => req.log.warn({ error, bookingId }, "Partner venue booking notification failed"));
+    await createCustomerNotification({
+      sessionId: String(userId),
+      type: "venue_booking_received",
+      title: "تم استلام طلب حجز القاعة",
+      message: `تم استلام طلب حجز القاعة رقم ${bookingId}، وسيصلك إشعار عند تحديثه.`,
+      customerName,
+      phone: customerPhone,
+    }).catch((error) => req.log.warn({ error, bookingId }, "Customer venue booking notification failed"));
     res.status(201).json(serializeRawBooking(row));
   } catch (error) {
     await connection.rollback().catch(() => undefined);
@@ -202,6 +237,12 @@ router.post("/", async (req, res): Promise<void> => {
   } finally {
     connection.release();
   }
+});
+
+router.post("/:id/cancellation-requests", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  if (!userId) { res.status(401).json({ error: "سجّل الدخول أولًا" }); return; }
+  res.status(403).json({ error: "طلبات إلغاء القاعات غير متاحة حاليًا؛ ستُعتمد شروطها لاحقًا من لوحة التحكم." });
 });
 
 export default router;

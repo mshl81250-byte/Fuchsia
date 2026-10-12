@@ -11,6 +11,7 @@ const VENUE_DURATION_MIGRATION_ID = "20261007_venue_booking_duration_v1";
 const RENTAL_HANDOVER_MIGRATION_ID = "20261007_rental_handover_plan_v1";
 const REAL_VENUE_CATALOG_MIGRATION_ID = "20261007_real_venue_owner_catalog_v1";
 const DIRECT_RENTAL_BOOKING_MIGRATION_ID = "20261007_direct_rental_booking_v1";
+const PARTNER_OPERATIONS_PHASE3_MIGRATION_ID = "20261009_partner_operations_phase3_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -390,5 +391,57 @@ export async function runMigrations(): Promise<void> {
     }
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DIRECT_RENTAL_BOOKING_MIGRATION_ID]);
     logger.info({ migrationId: DIRECT_RENTAL_BOOKING_MIGRATION_ID }, "Direct rental booking migration completed");
+  }
+
+  const [phase3Rows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PARTNER_OPERATIONS_PHASE3_MIGRATION_ID],
+  );
+  if ((phase3Rows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("products", "rental_buffer_days", "INT NOT NULL DEFAULT 0");
+    await pool.query(`CREATE TABLE IF NOT EXISTS rental_maintenance_blocks (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      product_id INT NOT NULL,
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      quantity INT NOT NULL DEFAULT 1,
+      reason TEXT NULL,
+      created_by_user_id INT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX rental_maintenance_product_range_idx (product_id, start_date, end_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS booking_change_requests (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      booking_type VARCHAR(16) NOT NULL,
+      booking_id INT NOT NULL,
+      customer_user_id INT NOT NULL,
+      request_type VARCHAR(24) NOT NULL,
+      requested_start_date DATE NULL,
+      requested_days INT NULL,
+      reason TEXT NULL,
+      status VARCHAR(24) NOT NULL DEFAULT 'pending',
+      reviewed_by_user_id INT NULL,
+      response_note TEXT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TIMESTAMP NULL,
+      INDEX booking_change_request_booking_status_idx (booking_type, booking_id, status),
+      INDEX booking_change_request_customer_created_idx (customer_user_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS partner_notifications (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      recipient_user_id INT NOT NULL,
+      booking_type VARCHAR(16) NULL,
+      booking_id INT NULL,
+      request_id INT NULL,
+      type VARCHAR(40) NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX partner_notifications_user_created_idx (recipient_user_id, created_at),
+      INDEX partner_notifications_user_read_idx (recipient_user_id, is_read)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_OPERATIONS_PHASE3_MIGRATION_ID]);
+    logger.info({ migrationId: PARTNER_OPERATIONS_PHASE3_MIGRATION_ID }, "Partner operations phase 3 migration completed");
   }
 }

@@ -31,6 +31,7 @@ internal data class PartnerRentalProduct(
     val isPublished: Boolean,
     val imageUrl: String,
     val images: List<String>,
+    val bufferDays: Int = 0,
 )
 internal data class PartnerRentalItem(
     val name: String,
@@ -55,7 +56,10 @@ internal data class PartnerRentalBooking(
     val transactionReference: String?,
     val notes: String?,
     val items: List<PartnerRentalItem>,
+    val changeRequests: List<PartnerRentalChangeRequest> = emptyList(),
 )
+internal data class PartnerRentalChangeRequest(val id: Int, val type: String, val requestedStartDate: String?, val reason: String?)
+internal data class PartnerMaintenanceBlock(val id: Int, val productId: Int, val productName: String, val startDate: String, val endDate: String, val quantity: Int, val reason: String?)
 
 internal object PartnerRentalApi {
     private val baseUrl get() = BuildConfig.API_BASE_URL.trimEnd('/')
@@ -91,6 +95,28 @@ internal object PartnerRentalApi {
     suspend fun decideBooking(token: String, storeId: Int, orderId: Int, decision: String, reason: String = "") = withContext(Dispatchers.IO) {
         request("/api/vendor/rental-bookings/$orderId", "PATCH", JSONObject()
             .put("storeId", storeId).put("decision", decision).put("reason", reason), token)
+        Unit
+    }
+
+    suspend fun decideChangeRequest(token: String, storeId: Int, orderId: Int, requestId: Int, decision: String, responseNote: String = "") = withContext(Dispatchers.IO) {
+        request("/api/vendor/rental-bookings/$orderId/change-requests/$requestId", "PATCH", JSONObject()
+            .put("storeId", storeId).put("decision", decision).put("responseNote", responseNote), token)
+        Unit
+    }
+
+    suspend fun maintenance(token: String, storeId: Int, month: String): List<PartnerMaintenanceBlock> = withContext(Dispatchers.IO) {
+        JSONArray(request("/api/vendor/rental-maintenance?storeId=$storeId&month=$month", "GET", token = token)).objects { row ->
+            PartnerMaintenanceBlock(row.optInt("id"), row.optInt("productId"), row.optString("productName"), row.optString("startDate").take(10), row.optString("endDate").take(10), row.optInt("quantity", 1), row.optString("reason").takeIf(String::isNotBlank))
+        }
+    }
+
+    suspend fun addMaintenance(token: String, storeId: Int, productId: Int, startDate: String, endDate: String, quantity: Int, reason: String) = withContext(Dispatchers.IO) {
+        request("/api/vendor/rental-maintenance", "POST", JSONObject().put("storeId", storeId).put("productId", productId).put("startDate", startDate).put("endDate", endDate).put("quantity", quantity).put("reason", reason), token)
+        Unit
+    }
+
+    suspend fun deleteMaintenance(token: String, blockId: Int) = withContext(Dispatchers.IO) {
+        request("/api/vendor/rental-maintenance/$blockId", "DELETE", token = token)
         Unit
     }
 
@@ -173,7 +199,7 @@ internal object PartnerRentalApi {
         tableHeightCm = if (row.isNull("tableHeightCm")) null else row.optDouble("tableHeightCm"),
         colors = row.strings("availableColors"), stockQuantity = row.optInt("stockQuantity"),
         inStock = row.optBoolean("inStock", true), isPublished = row.optBoolean("isPublished"),
-        imageUrl = row.optString("imageUrl"), images = row.strings("images"),
+        imageUrl = row.optString("imageUrl"), images = row.strings("images"), bufferDays = row.optInt("rentalBufferDays", 0),
     )
 
     private fun booking(row: JSONObject): PartnerRentalBooking {
@@ -185,11 +211,14 @@ internal object PartnerRentalApi {
                 fulfillment = item.optString("rentalFulfillment"), timeSlot = item.optString("rentalTimeSlot"), imageUrl = item.optString("imageUrl"),
             )
         }.filterIndexed { index, _ -> itemRows.optJSONObject(index)?.optString("fulfillmentType") == "rental" }
+        val requests = (row.optJSONArray("changeRequests") ?: JSONArray()).objects { request ->
+            PartnerRentalChangeRequest(request.optInt("id"), request.optString("requestType"), request.optString("requestedStartDate").takeIf(String::isNotBlank), request.optString("reason").takeIf(String::isNotBlank))
+        }
         return PartnerRentalBooking(
             id = row.optInt("id"), status = row.optString("status"), customerName = row.optString("customerName"),
             customerPhone = row.optString("customerPhone"), total = row.optDouble("total"), paymentAmount = row.optDouble("paymentAmount"),
             paymentStatus = row.optString("paymentStatus"), paymentReceiptUrl = row.optString("paymentReceiptUrl").takeIf(String::isNotBlank),
-            transactionReference = row.optString("transactionReference").takeIf(String::isNotBlank), notes = row.optString("notes").takeIf(String::isNotBlank), items = items,
+            transactionReference = row.optString("transactionReference").takeIf(String::isNotBlank), notes = row.optString("notes").takeIf(String::isNotBlank), items = items, changeRequests = requests,
         )
     }
 }

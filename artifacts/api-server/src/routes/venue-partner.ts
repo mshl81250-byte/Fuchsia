@@ -3,7 +3,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { and, desc, eq, gt, gte, inArray, lt, or } from "drizzle-orm";
 import { db, pool, storesTable, venueOwnersTable, venuesTable, venueBookingsTable, venueBookingEventsTable, venueBlackoutsTable, venueAvailabilityTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
-import { createCustomerNotification } from "../lib/notifications";
+import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 
 const router = Router();
 const AUDIENCES = ["women", "men", "both"] as const;
@@ -349,7 +349,12 @@ router.get("/bookings", async (req, res): Promise<void> => {
     const ids = ownedVenues.map((venue) => venue.id);
     const bookings = await db.select().from(venueBookingsTable).where(inArray(venueBookingsTable.venueId, ids)).orderBy(desc(venueBookingsTable.reservationAt));
     res.setHeader("Cache-Control", "no-store");
-    res.json(bookings.map((row) => ({ ...row, reservationAt: row.reservationAt.toISOString(), expiresAt: row.expiresAt?.toISOString() ?? null, createdAt: row.createdAt.toISOString() })));
+    res.json(bookings.map((row) => ({
+      ...row,
+      reservationAt: row.reservationAt.toISOString(),
+      expiresAt: row.expiresAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+    })));
   } catch (error) {
     req.log.error({ error }, "Partner list bookings failed");
     res.status(500).json({ error: "تعذر تحميل الحجوزات" });
@@ -363,8 +368,8 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
     const id = Number.parseInt(req.params.id, 10);
     const status = req.body?.status;
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
-    if (!Number.isInteger(id) || id < 1 || !["confirmed", "rejected", "cancelled"].includes(status)) {
-      res.status(400).json({ error: "حالة الحجز غير صحيحة" }); return;
+    if (!Number.isInteger(id) || id < 1 || !["confirmed", "rejected"].includes(status)) {
+      res.status(400).json({ error: "حالة الحجز غير صحيحة؛ لا يمكن إلغاء القاعة قبل اعتماد سياسة الإلغاء" }); return;
     }
     const [row] = await db.select({ booking: venueBookingsTable, venueOwnerId: venuesTable.ownerId, venueName: venuesTable.nameAr })
       .from(venueBookingsTable).innerJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
@@ -376,15 +381,15 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
     await db.update(venueBookingsTable).set({
       status,
       expiresAt: null,
-      paymentStatus: status === "confirmed" ? "approved" : status === "rejected" ? "rejected" : row.booking.paymentStatus,
+      paymentStatus: status === "confirmed" ? "approved" : "rejected",
     }).where(eq(venueBookingsTable.id, id));
     await db.insert(venueBookingEventsTable).values({ bookingId: id, actorUserId: owner.userId, actorType: "venue_owner", eventType: "status_changed", fromStatus: row.booking.status, toStatus: status, notes: reason || null });
-    if (["confirmed", "rejected", "cancelled"].includes(status)) {
+    if (["confirmed", "rejected"].includes(status)) {
       await createCustomerNotification({
         sessionId: String(row.booking.customerUserId),
         type: "venue_reservation_status",
-        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "تم إلغاء حجز القاعة",
-        message: status === "confirmed" ? `تم قبول حجز ${row.venueName}.` : status === "rejected" ? `لم يتم قبول حجز ${row.venueName}.${reason ? ` السبب: ${reason}` : ""}` : `تم إلغاء حجز ${row.venueName}.`,
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : "تم رفض حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.venueName}.` : `لم يتم قبول حجز ${row.venueName}.${reason ? ` السبب: ${reason}` : ""}`,
         customerName: row.booking.customerName,
         phone: row.booking.customerPhone,
       });

@@ -179,9 +179,9 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     const status = req.body?.status;
-    const allowedStatuses = ["pending", "confirmed", "rejected", "cancelled", "completed"];
+    const allowedStatuses = ["pending", "confirmed", "rejected", "completed"];
     if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
-      res.status(400).json({ error: "حالة الحجز أو رقمه غير صحيح" });
+      res.status(400).json({ error: status === "cancelled" ? "إلغاء حجز القاعة متوقف حتى اعتماد سياسة وشروط الإلغاء في لوحة التحكم." : "حالة الحجز أو رقمه غير صحيح" });
       return;
     }
     const [existing] = await db.select().from(venueBookingsTable).where(eq(venueBookingsTable.id, id));
