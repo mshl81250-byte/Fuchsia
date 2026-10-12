@@ -84,12 +84,17 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import com.fuchsia.designsystem.FuchsiaColors
+import com.fuchsia.designsystem.FuchsiaPrimaryButton
+import com.fuchsia.designsystem.FuchsiaSurfaceCard
+import com.fuchsia.designsystem.FuchsiaStatusChip
+import com.fuchsia.designsystem.FuchsiaStatusTone
+import com.fuchsia.designsystem.FuchsiaTheme
 
-private val Fuchsia = Color(0xFFB20A4B)
-private val FuchsiaSoft = Color(0xFFFCE8EF)
-private val Green = Color(0xFF24835F)
-private val Amber = Color(0xFFAE7619)
-private val Red = Color(0xFFB83A48)
+private val Fuchsia: Color @Composable get() = FuchsiaColors.Primary
+private val Green: Color @Composable get() = FuchsiaColors.Success
+private val Amber: Color @Composable get() = FuchsiaColors.Warning
+private val Red: Color @Composable get() = FuchsiaColors.Error
 private val Weekdays = listOf("الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
 
 private data class UnifiedCalendarEvent(val id: String, val startDate: String, val endDate: String, val title: String, val details: String, val status: String, val kind: String)
@@ -98,29 +103,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                PartnerTheme { PartnerRoot() }
-            }
+            FuchsiaTheme { PartnerRoot() }
         }
     }
-}
-
-@Composable
-private fun PartnerTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    val colors = if (dark) darkColorScheme(
-        primary = Color(0xFFFF8AB4), onPrimary = Color(0xFF4B001B),
-        secondary = Color(0xFFEAB7CA), background = Color(0xFF151216),
-        surface = Color(0xFF211C22), onSurface = Color(0xFFF8F5F7),
-        onBackground = Color(0xFFF8F5F7), surfaceVariant = Color(0xFF342C34),
-        onSurfaceVariant = Color(0xFFE0D5DD), error = Color(0xFFFFB4AB),
-    ) else lightColorScheme(
-        primary = Fuchsia, onPrimary = Color.White, secondary = Color(0xFF7B5365),
-        background = Color(0xFFFFFAFC), surface = Color.White, onSurface = Color(0xFF251D22),
-        onBackground = Color(0xFF251D22), surfaceVariant = Color(0xFFF4EDF1),
-        onSurfaceVariant = Color(0xFF62565E), error = Red,
-    )
-    MaterialTheme(colorScheme = colors, content = content)
 }
 
 @Composable
@@ -228,16 +213,18 @@ private fun LoginScreen(busy: Boolean, error: String, onLogin: (String, String) 
         Spacer(Modifier.height(18.dp))
         Text("Fuchsia Partner", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
         Text("إدارة قاعاتك وحجوزاتك بسهولة", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
-        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        FuchsiaSurfaceCard {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("تسجيل دخول الشريك", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("كلمة المرور") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
                 if (error.isNotBlank()) Notice(error, error = true)
-                Button(onClick = { onLogin(email, password) }, enabled = !busy && email.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(15.dp)) {
-                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                    else Text("دخول إلى مساحة الشريك", fontWeight = FontWeight.Bold)
-                }
+                FuchsiaPrimaryButton(
+                    text = "دخول إلى مساحة الشريك",
+                    enabled = email.isNotBlank() && password.isNotBlank(),
+                    busy = busy,
+                    onClick = { onLogin(email, password) },
+                )
             }
         }
         Text("استخدم حسابك في فوشيا بوتيك. يلزم اعتماد الحساب كشريك من الإدارة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
@@ -838,8 +825,13 @@ private fun DetailLine(label: String, value: String) {
 
 @Composable
 private fun StatusPill(status: String) {
-    val tint = when (status) { "pending" -> Amber; "confirmed" -> Green; "rejected", "cancelled" -> Red; "expired" -> Red; else -> MaterialTheme.colorScheme.primary }
-    Surface(color = tint.copy(alpha = 0.12f), shape = RoundedCornerShape(30.dp)) { Text(statusLabel(status), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp) }
+    val tone = when (status) {
+        "pending", "rental_pending_confirmation" -> FuchsiaStatusTone.Warning
+        "confirmed", "rental_confirmed", "rental_preparing", "rental_out", "rental_returned" -> FuchsiaStatusTone.Success
+        "rejected", "cancelled", "expired", "rental_rejected", "rental_cancelled" -> FuchsiaStatusTone.Error
+        else -> FuchsiaStatusTone.Neutral
+    }
+    FuchsiaStatusChip(label = statusLabel(status), tone = tone)
 }
 
 @Composable
