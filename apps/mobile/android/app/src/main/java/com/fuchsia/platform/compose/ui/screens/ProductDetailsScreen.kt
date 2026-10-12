@@ -93,7 +93,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
     var availableQuantity by remember(productId) { mutableIntStateOf(-1) }
     var rentalCanBook by remember(productId) { mutableStateOf(false) }
     var availabilityPreviewOnly by remember(productId) { mutableStateOf(false) }
-    var rentalReturnDate by remember(productId) { mutableStateOf<String?>(null) }
+    var rentalEndDate by remember(productId) { mutableStateOf<String?>(null) }
     var availabilityLoading by remember(productId) { mutableStateOf(false) }
     var availabilityError by remember(productId) { mutableStateOf("") }
     var checkedAvailabilityKey by remember(productId) { mutableStateOf<String?>(null) }
@@ -118,7 +118,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
             availableQuantity = -1
             rentalCanBook = false
             availabilityPreviewOnly = false
-            rentalReturnDate = null
+            rentalEndDate = null
             availabilityLoading = false
             availabilityError = ""
             checkedAvailabilityKey = null
@@ -127,13 +127,13 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
         availabilityLoading = true
         availableQuantity = -1
         rentalCanBook = false
-        rentalReturnDate = null
+        rentalEndDate = null
         availabilityError = ""
         runCatching { FuchsiaApi.rentalAvailability(selectedProduct.id, selectedDate, rentalDays, quantity, selectedProduct.stockQuantity ?: 1) }
             .onSuccess {
                 availableQuantity = it.availableQuantity
                 rentalCanBook = it.canBook
-                rentalReturnDate = it.endDate
+                rentalEndDate = it.endDate
                 availabilityPreviewOnly = it.previewOnly
                 checkedAvailabilityKey = "$selectedDate|$rentalDays|$quantity"
             }
@@ -256,7 +256,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                                 deposit = current.rentalDeposit,
                                 quantity = quantity,
                                 previewOnly = availabilityPreviewOnly,
-                                returnDate = rentalReturnDate,
+                                endDate = rentalEndDate,
                                 minDays = current.rentalMinDays,
                                 maxDays = current.rentalMaxDays,
                                 days = rentalDays,
@@ -321,7 +321,7 @@ private fun RentalSelection(
     deposit: Double,
     quantity: Int,
     previewOnly: Boolean,
-    returnDate: String?,
+    endDate: String?,
     minDays: Int,
     maxDays: Int,
     days: Int,
@@ -358,7 +358,7 @@ private fun RentalSelection(
                 )
             }
             Text("يسمح بالإيجار من $minDays إلى $maxDays أيام.", color = FuchsiaColors.Muted, fontSize = 11.sp)
-            if (!returnDate.isNullOrBlank()) Text("موعد الإرجاع المتوقع: ${formatArabicRentalDate(returnDate)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            if (!endDate.isNullOrBlank()) Text("آخر يوم في مدة الإيجار: ${formatArabicRentalDate(endDate)}", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("ملخص التكلفة", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
