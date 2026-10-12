@@ -66,6 +66,7 @@ data class RentalAvailability(
     val stockQuantity: Int,
     val reservedQuantity: Int,
     val endDate: String,
+    val canBook: Boolean = false,
     val previewOnly: Boolean = false,
 )
 
@@ -531,22 +532,23 @@ object FuchsiaApi {
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
 
-    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
+    suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
-            getJson("/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days")
+            getJson("/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days&quantity=$quantity")
         } catch (failure: ApiException) {
             if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
             val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
             val end = runCatching { parser.parse(startDate) }.getOrNull()?.let { date ->
-                Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, days.coerceAtLeast(1) - 1) }.let(parser::format)
+                Calendar.getInstance().apply { time = date; add(Calendar.DAY_OF_MONTH, days.coerceAtLeast(1)) }.let(parser::format)
             }.orEmpty()
-            return@withContext RentalAvailability(stockQuantity.coerceAtLeast(1), stockQuantity.coerceAtLeast(1), 0, end, previewOnly = true)
+            return@withContext RentalAvailability(stockQuantity.coerceAtLeast(1), stockQuantity.coerceAtLeast(1), 0, end, canBook = quantity <= stockQuantity.coerceAtLeast(1), previewOnly = true)
         }
         RentalAvailability(
             availableQuantity = response.optInt("availableQuantity"),
             stockQuantity = response.optInt("stockQuantity"),
             reservedQuantity = response.optInt("reservedQuantity"),
             endDate = response.optString("endDate"),
+            canBook = response.optBoolean("canBook", response.optInt("availableQuantity") >= quantity),
         )
     }
 
