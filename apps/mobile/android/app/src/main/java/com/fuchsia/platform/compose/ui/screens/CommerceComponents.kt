@@ -36,6 +36,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fuchsia.designsystem.FuchsiaPrimaryButton
+import com.fuchsia.designsystem.FuchsiaSectionTitle
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import java.text.NumberFormat
 import java.util.Locale
@@ -65,14 +67,7 @@ internal fun CommerceHeader(
 
 @Composable
 internal fun CommerceSectionTitle(title: String, detail: String? = null) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, color = FuchsiaColors.Ink)
-        if (!detail.isNullOrBlank()) Text(detail, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), color = FuchsiaColors.Muted)
-    }
+    FuchsiaSectionTitle(title = title, detail = detail, modifier = Modifier.padding(top = 5.dp, bottom = 3.dp))
 }
 
 @Composable
@@ -116,20 +111,7 @@ internal fun CommercePrimaryButton(
     busy: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !busy,
-        modifier = modifier.fillMaxWidth().height(56.dp),
-        shape = RoundedCornerShape(17.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
-    ) {
-        if (busy) {
-            CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
-        } else {
-            Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        }
-    }
+    FuchsiaPrimaryButton(text = text, modifier = modifier.height(56.dp), enabled = enabled, busy = busy, onClick = onClick)
 }
 
 @Composable

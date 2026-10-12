@@ -16,3 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "FuchsiaPartner"
 include(":app")
+include(":design-system")
+project(":design-system").projectDir = file("../../design-system/android")

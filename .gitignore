@@ -55,3 +55,6 @@ Thumbs.db
 /apps/mobile/android/local.properties
 /apps/mobile/android/.idea/
 /apps/mobile/dist/
+/apps/design-system/android/.gradle/
+/apps/design-system/android/**/build/
+/apps/design-system/android/local.properties
