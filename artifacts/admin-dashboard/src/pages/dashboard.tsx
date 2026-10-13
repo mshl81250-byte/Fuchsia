@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu, CalendarDays, Building2, Store } from "lucide-react";
+import { PackageSearch, LayoutDashboard, Users, Tag, LogOut, ChevronRight, Menu, CalendarDays, Building2, Store, Box, Layers3, Image } from "lucide-react";
 import { toast } from "sonner";
 import { OrdersView } from "@/components/dashboard/orders-view";
 import { OverviewView } from "@/components/dashboard/overview-view";
@@ -16,10 +16,11 @@ import { RentalsView } from "@/components/dashboard/rentals-view";
 import { VenueReservationsView } from "@/components/dashboard/venue-reservations-view";
 import { VenueOwnersView } from "@/components/dashboard/venue-owners-view";
 import { StoreOwnersView } from "@/components/dashboard/store-owners-view";
+import { ContentManagementView } from "@/components/dashboard/content-management-view";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-type Tab = "orders" | "rentals" | "venue-reservations" | "venue-owners" | "store-owners" | "overview" | "customers" | "coupons";
+type Tab = "orders" | "rentals" | "venue-reservations" | "venue-owners" | "store-owners" | "overview" | "customers" | "coupons" | "products" | "stores" | "categories" | "banners";
 
 const TAB_ROUTES: Record<Tab, string> = {
   orders: "/orders",
@@ -30,6 +31,10 @@ const TAB_ROUTES: Record<Tab, string> = {
   overview: "/overview",
   customers: "/customers",
   coupons: "/coupons",
+  products: "/products",
+  stores: "/stores",
+  categories: "/categories",
+  banners: "/banners",
 };
 
 const ROUTE_TABS: Record<string, Tab> = Object.fromEntries(
@@ -169,6 +174,10 @@ export default function Dashboard() {
     { id: "overview", label: "نظرة عامة", icon: LayoutDashboard },
     { id: "customers", label: "العملاء", icon: Users },
     { id: "coupons", label: "الكوبونات", icon: Tag },
+    { id: "products", label: "المنتجات", icon: Box },
+    { id: "stores", label: "المتاجر", icon: Store },
+    { id: "categories", label: "التصنيفات", icon: Layers3 },
+    { id: "banners", label: "البنرات", icon: Image },
   ] as const;
 
   return (
@@ -261,6 +270,7 @@ export default function Dashboard() {
             {activeTab === "overview" && <OverviewView />}
             {activeTab === "customers" && <CustomersView />}
             {activeTab === "coupons" && <CouponsView />}
+            {(activeTab === "products" || activeTab === "stores" || activeTab === "categories" || activeTab === "banners") && <ContentManagementView section={activeTab} />}
           </div>
         </div>
       </main>

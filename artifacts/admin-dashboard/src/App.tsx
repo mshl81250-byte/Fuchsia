@@ -31,6 +31,10 @@ function Router() {
       <Route path="/overview" component={Dashboard} />
       <Route path="/customers" component={Dashboard} />
       <Route path="/coupons" component={Dashboard} />
+      <Route path="/products" component={Dashboard} />
+      <Route path="/stores" component={Dashboard} />
+      <Route path="/categories" component={Dashboard} />
+      <Route path="/banners" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );

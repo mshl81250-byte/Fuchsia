@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   usersTable, productsTable, storesTable, ordersTable,
-  categoriesTable, bannersTable, couponsTable, insertCouponSchema,
+  categoriesTable, bannersTable, couponsTable, insertCouponSchema, insertCategorySchema, insertBannerSchema,
+  insertProductSchema, insertStoreSchema,
   orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
   walletTransactionsTable, venueBookingsTable, venuesTable, venueBookingEventsTable, venueOwnersTable
 } from "@workspace/db";
@@ -611,6 +612,144 @@ router.post("/coupons", async (req, res) => {
     req.log.error({ err }, "Admin create coupon failed");
     res.status(400).json({ error: "بيانات غير صحيحة" });
   }
+});
+
+router.get("/products", async (req, res): Promise<void> => {
+  try {
+    res.json(await db.select().from(productsTable).orderBy(desc(productsTable.id)));
+  } catch (error) {
+    req.log.error({ error }, "Admin list products failed");
+    res.status(500).json({ error: "تعذر تحميل المنتجات" });
+  }
+});
+
+router.post("/products", async (req, res): Promise<void> => {
+  try {
+    const data = insertProductSchema.parse(req.body);
+    await db.insert(productsTable).values(data);
+    const [product] = await db.select().from(productsTable).orderBy(desc(productsTable.id)).limit(1);
+    res.status(201).json(product);
+  } catch (error) {
+    req.log.error({ error }, "Admin create product failed");
+    res.status(400).json({ error: "بيانات المنتج غير صحيحة" });
+  }
+});
+
+router.patch("/products/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "رقم المنتج غير صحيح" }); return; }
+    const updates = insertProductSchema.partial().parse(req.body);
+    await db.update(productsTable).set(updates).where(eq(productsTable.id, id));
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id));
+    if (!product) { res.status(404).json({ error: "المنتج غير موجود" }); return; }
+    res.json(product);
+  } catch (error) {
+    req.log.error({ error }, "Admin update product failed");
+    res.status(400).json({ error: "تعذر تحديث المنتج" });
+  }
+});
+
+router.delete("/products/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "رقم المنتج غير صحيح" }); return; }
+    await db.delete(productsTable).where(eq(productsTable.id, id));
+    res.json({ success: true });
+  } catch (error) {
+    req.log.error({ error }, "Admin delete product failed");
+    res.status(400).json({ error: "تعذر حذف المنتج" });
+  }
+});
+
+router.get("/stores", async (req, res): Promise<void> => {
+  try { res.json(await db.select().from(storesTable).orderBy(desc(storesTable.id))); }
+  catch (error) { req.log.error({ error }, "Admin list stores failed"); res.status(500).json({ error: "تعذر تحميل المتاجر" }); }
+});
+
+router.post("/stores", async (req, res): Promise<void> => {
+  try {
+    const data = insertStoreSchema.parse(req.body);
+    await db.insert(storesTable).values(data);
+    const [store] = await db.select().from(storesTable).orderBy(desc(storesTable.id)).limit(1);
+    res.status(201).json(store);
+  } catch (error) { req.log.error({ error }, "Admin create store failed"); res.status(400).json({ error: "بيانات المتجر غير صحيحة" }); }
+});
+
+router.patch("/stores/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const updates = insertStoreSchema.partial().parse(req.body);
+    await db.update(storesTable).set(updates).where(eq(storesTable.id, id));
+    const [store] = await db.select().from(storesTable).where(eq(storesTable.id, id));
+    if (!store) { res.status(404).json({ error: "المتجر غير موجود" }); return; }
+    res.json(store);
+  } catch (error) { req.log.error({ error }, "Admin update store failed"); res.status(400).json({ error: "تعذر تحديث المتجر" }); }
+});
+
+router.delete("/stores/:id", async (req, res): Promise<void> => {
+  try { await db.delete(storesTable).where(eq(storesTable.id, Number(req.params.id))); res.json({ success: true }); }
+  catch (error) { req.log.error({ error }, "Admin delete store failed"); res.status(400).json({ error: "تعذر حذف المتجر" }); }
+});
+
+router.get("/categories", async (req, res): Promise<void> => {
+  try { res.json(await db.select().from(categoriesTable).orderBy(desc(categoriesTable.id))); }
+  catch (error) { req.log.error({ error }, "Admin list categories failed"); res.status(500).json({ error: "تعذر تحميل التصنيفات" }); }
+});
+
+router.post("/categories", async (req, res): Promise<void> => {
+  try {
+    const data = insertCategorySchema.parse(req.body);
+    await db.insert(categoriesTable).values(data);
+    const [category] = await db.select().from(categoriesTable).orderBy(desc(categoriesTable.id)).limit(1);
+    res.status(201).json(category);
+  } catch (error) { req.log.error({ error }, "Admin create category failed"); res.status(400).json({ error: "بيانات التصنيف غير صحيحة" }); }
+});
+
+router.patch("/categories/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const updates = insertCategorySchema.partial().parse(req.body);
+    await db.update(categoriesTable).set(updates).where(eq(categoriesTable.id, id));
+    const [category] = await db.select().from(categoriesTable).where(eq(categoriesTable.id, id));
+    if (!category) { res.status(404).json({ error: "التصنيف غير موجود" }); return; }
+    res.json(category);
+  } catch (error) { req.log.error({ error }, "Admin update category failed"); res.status(400).json({ error: "تعذر تحديث التصنيف" }); }
+});
+
+router.delete("/categories/:id", async (req, res): Promise<void> => {
+  try { await db.delete(categoriesTable).where(eq(categoriesTable.id, Number(req.params.id))); res.json({ success: true }); }
+  catch (error) { req.log.error({ error }, "Admin delete category failed"); res.status(400).json({ error: "تعذر حذف التصنيف" }); }
+});
+
+router.get("/banners", async (req, res): Promise<void> => {
+  try { res.json(await db.select().from(bannersTable).orderBy(bannersTable.sortOrder, desc(bannersTable.id))); }
+  catch (error) { req.log.error({ error }, "Admin list banners failed"); res.status(500).json({ error: "تعذر تحميل البنرات" }); }
+});
+
+router.post("/banners", async (req, res): Promise<void> => {
+  try {
+    const data = insertBannerSchema.parse(req.body);
+    await db.insert(bannersTable).values(data);
+    const [banner] = await db.select().from(bannersTable).orderBy(desc(bannersTable.id)).limit(1);
+    res.status(201).json(banner);
+  } catch (error) { req.log.error({ error }, "Admin create banner failed"); res.status(400).json({ error: "بيانات البنر غير صحيحة" }); }
+});
+
+router.patch("/banners/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number(req.params.id);
+    const updates = insertBannerSchema.partial().parse(req.body);
+    await db.update(bannersTable).set(updates).where(eq(bannersTable.id, id));
+    const [banner] = await db.select().from(bannersTable).where(eq(bannersTable.id, id));
+    if (!banner) { res.status(404).json({ error: "البنر غير موجود" }); return; }
+    res.json(banner);
+  } catch (error) { req.log.error({ error }, "Admin update banner failed"); res.status(400).json({ error: "تعذر تحديث البنر" }); }
+});
+
+router.delete("/banners/:id", async (req, res): Promise<void> => {
+  try { await db.delete(bannersTable).where(eq(bannersTable.id, Number(req.params.id))); res.json({ success: true }); }
+  catch (error) { req.log.error({ error }, "Admin delete banner failed"); res.status(400).json({ error: "تعذر حذف البنر" }); }
 });
 
 export default router;
