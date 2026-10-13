@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useGetDashboardStats, getGetDashboardStatsQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,23 +21,56 @@ import { Badge } from "@/components/ui/badge";
 
 type Tab = "orders" | "rentals" | "venue-reservations" | "venue-owners" | "store-owners" | "overview" | "customers" | "coupons";
 
+const TAB_ROUTES: Record<Tab, string> = {
+  orders: "/orders",
+  rentals: "/rentals",
+  "venue-reservations": "/venue-reservations",
+  "venue-owners": "/venue-owners",
+  "store-owners": "/store-owners",
+  overview: "/overview",
+  customers: "/customers",
+  coupons: "/coupons",
+};
+
+const ROUTE_TABS: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_ROUTES).map(([tab, route]) => [route, tab]),
+) as Record<string, Tab>;
+
 export default function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("orders");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [location, navigate] = useLocation();
+  const queryClient = useQueryClient();
+  const activeTab = ROUTE_TABS[location] ?? "orders";
 
   // Login form state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    const auth = localStorage.getItem("fuchsia_admin");
-    if (auth === "true") {
-      setIsAuthenticated(true);
-    } else {
-      setIsAuthenticated(false);
-    }
-  }, []);
+    let mounted = true;
+    fetch("/api/admin/auth/me", { credentials: "include", cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("جلسة الإدارة غير صالحة");
+        if (mounted) setIsAuthenticated(true);
+      })
+      .catch(() => {
+        if (mounted) setIsAuthenticated(false);
+      });
+
+    const handleUnauthorized = () => {
+      queryClient.clear();
+      if (mounted) {
+        setIsAuthenticated(false);
+        toast.error("انتهت جلسة الإدارة. يرجى تسجيل الدخول مجددًا.");
+      }
+    };
+    window.addEventListener("fuchsia-admin-unauthorized", handleUnauthorized);
+    return () => {
+      mounted = false;
+      window.removeEventListener("fuchsia-admin-unauthorized", handleUnauthorized);
+    };
+  }, [queryClient]);
 
   const { data: stats } = useGetDashboardStats({
     query: {
@@ -55,17 +90,22 @@ export default function Dashboard() {
         body: JSON.stringify({ email, password }),
       });
       if (!response.ok) throw new Error("invalid credentials");
-      localStorage.setItem("fuchsia_admin", "true");
       setIsAuthenticated(true);
+      navigate("/overview");
       toast.success("تم تسجيل الدخول بنجاح");
     } catch {
       toast.error("بيانات الدخول غير صحيحة");
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("fuchsia_admin");
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      queryClient.clear();
+      setIsAuthenticated(false);
+      navigate("/");
+    }
   };
 
   if (isAuthenticated === null) {
@@ -164,8 +204,8 @@ export default function Dashboard() {
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
+                  onClick={() => {
+                  navigate(TAB_ROUTES[tab.id]);
                   setIsSidebarOpen(false);
                 }}
                 className={cn(
