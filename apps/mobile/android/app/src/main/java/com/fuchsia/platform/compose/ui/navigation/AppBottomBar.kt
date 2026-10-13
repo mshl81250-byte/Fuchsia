@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
@@ -64,7 +66,11 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
         ) {
             tabs.forEach { tab ->
                 val selected = selectedRoute == tab.route
-                val iconScale by animateFloatAsState(if (selected) 1.1f else 1f, animationSpec = tween(220), label = "bottom-tab-scale")
+                val iconScale by animateFloatAsState(
+                    if (selected) 1.1f else 1f,
+                    animationSpec = spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "bottom-tab-scale",
+                )
                 NavigationBarItem(
                     selected = selected,
                     onClick = { if (!selected) onSelect(tab.route) },
@@ -89,7 +95,7 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
                         }
                     },
                     label = {
-                        AnimatedVisibility(visible = selected, enter = fadeIn(tween(160)) + scaleIn(tween(160)), exit = fadeOut(tween(100)) + scaleOut(tween(100))) {
+                            AnimatedVisibility(visible = selected, enter = fadeIn(tween(180)) + scaleIn(spring(stiffness = Spring.StiffnessMedium, dampingRatio = Spring.DampingRatioMediumBouncy)), exit = fadeOut(tween(110)) + scaleOut(tween(110))) {
                             Text(tab.label, style = MaterialTheme.typography.labelSmall, color = FuchsiaColors.TextAccent)
                         }
                     },

@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -184,20 +186,20 @@ fun FuchsiaAppNavHost(
     }
 
     val forwardEnter: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
-        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(320, easing = FastOutSlowInEasing)) +
-            fadeIn(tween(220)) + scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.985f)
+        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.86f)) +
+            fadeIn(tween(220)) + scaleIn(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.86f), initialScale = 0.975f)
     }
     val forwardExit: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
-        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(280, easing = FastOutSlowInEasing)) +
-            fadeOut(tween(180)) + scaleOut(tween(280, easing = FastOutSlowInEasing), targetScale = 0.985f)
+        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260, easing = FastOutSlowInEasing)) +
+            fadeOut(tween(180)) + scaleOut(tween(260, easing = FastOutSlowInEasing), targetScale = 0.975f)
     }
     val backEnter: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
-        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(300, easing = FastOutSlowInEasing)) +
-            fadeIn(tween(210)) + scaleIn(tween(300, easing = FastOutSlowInEasing), initialScale = 0.985f)
+        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.86f)) +
+            fadeIn(tween(210)) + scaleIn(spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.86f), initialScale = 0.975f)
     }
     val backExit: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
-        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(270, easing = FastOutSlowInEasing)) +
-            fadeOut(tween(170)) + scaleOut(tween(270, easing = FastOutSlowInEasing), targetScale = 0.985f)
+        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(250, easing = FastOutSlowInEasing)) +
+            fadeOut(tween(170)) + scaleOut(tween(250, easing = FastOutSlowInEasing), targetScale = 0.975f)
     }
 
     Box(Modifier.fillMaxSize()) {
