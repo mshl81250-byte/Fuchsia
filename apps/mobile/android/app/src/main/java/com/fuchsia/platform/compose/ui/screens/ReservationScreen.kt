@@ -376,8 +376,8 @@ private fun formatDate(date: Date): String =
     SimpleDateFormat("EEEE، d MMMM", Locale.forLanguageTag("ar-YE")).format(date)
 
 private fun formatIsoDate(value: String): String = runCatching {
-    val instant = java.time.Instant.parse(value)
-    formatDate(Date.from(instant))
+    val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX", Locale.US)
+    formatDate(parser.parse(value) ?: return@runCatching value)
 }.getOrDefault(value)
 
 private fun reservationStatus(status: String): String = when (status) {

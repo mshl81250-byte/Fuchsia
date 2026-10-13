@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.FuchsiaBoutique" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#A80D51</item>
+        <item name="android:statusBarColor">#FBF7F2</item>
+        <item name="android:navigationBarColor">#FBF7F2</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#FBF7F2</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

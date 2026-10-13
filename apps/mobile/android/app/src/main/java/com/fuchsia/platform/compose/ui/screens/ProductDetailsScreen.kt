@@ -4,7 +4,6 @@ import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -221,7 +220,7 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    BoxWithConstraints(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
+                    Box(Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
                         ProductGallery(current)
                         Row(
                             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
