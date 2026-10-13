@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -62,7 +63,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun VerifyScreen(
     email: String,
-    debugCode: String?,
     onBack: () -> Unit,
     onVerified: () -> Unit,
 ) {
@@ -70,7 +70,7 @@ fun VerifyScreen(
     val scope = rememberCoroutineScope()
     var code by rememberSaveable { mutableStateOf("") }
     var secondsLeft by rememberSaveable { mutableIntStateOf(180) }
-    var busy by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -125,24 +125,6 @@ fun VerifyScreen(
             textAlign = TextAlign.Center,
         )
 
-        if (!debugCode.isNullOrBlank()) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight),
-                border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Line),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text("رمز التحقق للاختبار", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text(debugCode, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 27.sp, letterSpacing = 5.sp)
-                }
-            }
-        }
-
         OutlinedTextField(
             value = code,
             onValueChange = { value -> code = value.filter(Char::isDigit).take(6); error = "" },
@@ -169,6 +151,10 @@ fun VerifyScreen(
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
+                if (secondsLeft <= 0) {
+                    error = "انتهت صلاحية الرمز. يرجى طلب رمز جديد."
+                    return@Button
+                }
                 busy = true
                 scope.launch {
                     try {
@@ -182,7 +168,7 @@ fun VerifyScreen(
                     }
                 }
             },
-            enabled = code.length == 6 && !busy,
+            enabled = code.length == 6 && secondsLeft > 0 && !busy,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)

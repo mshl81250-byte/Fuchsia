@@ -246,11 +246,10 @@ fun AuthScreen(
                             scope.launch {
                                 try {
                                     if (isRegister) {
-                                        val response = FuchsiaApi.requestRegistrationCode(
+                                        FuchsiaApi.requestRegistrationCode(
                                             fullName.trim(), normalizedEmail, password, phone.trim(),
                                         )
-                                        val debugCode = response.optString("debugCode").takeIf { it.isNotBlank() }
-                                        onCodeRequested(normalizedEmail, debugCode)
+                                        onCodeRequested(normalizedEmail, null)
                                     } else {
                                         val session = FuchsiaApi.login(normalizedEmail, password)
                                         SessionVault.save(context, session.user, session.token)

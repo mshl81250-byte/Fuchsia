@@ -131,6 +131,8 @@ private fun PartnerRoot() {
     var loading by remember { mutableStateOf(false) }
     var loginBusy by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf("") }
+    var partnerRequestBusy by remember { mutableStateOf(false) }
+    var partnerRequestError by remember { mutableStateOf("") }
     var preview by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
 
@@ -181,17 +183,23 @@ private fun PartnerRoot() {
             val hasRentalStore = (profile?.optJSONArray("rentalStores")?.length() ?: 0) > 0
             when {
                 owner == null && !hasRentalStore -> PartnerRequestScreen(
+                    busy = partnerRequestBusy,
                     onSubmit = { business, phone ->
                         scope.launch {
-                            loading = true
-                            runCatching { PartnerApi.requestPartner(token.orEmpty(), business, phone) }
-                                .onSuccess { reloadKey++ }
-                                .onFailure { profileError = it.message ?: "تعذر إرسال الطلب" }
-                            loading = false
+                            partnerRequestBusy = true
+                            partnerRequestError = ""
+                            try {
+                                PartnerApi.requestPartner(token.orEmpty(), business, phone)
+                                reloadKey++
+                            } catch (failure: Throwable) {
+                                partnerRequestError = failure.message ?: "تعذر إرسال طلب الاعتماد. تحقق من الاتصال وحاول مجددًا."
+                            } finally {
+                                partnerRequestBusy = false
+                            }
                         }
                     },
                     onLogout = { PartnerSession.clear(context); token = null; profile = null },
-                    error = profileError,
+                    error = partnerRequestError,
                 )
                 status == "pending" && !hasRentalStore -> PendingApprovalScreen(
                     businessName = owner?.optString("businessName").orEmpty(),
@@ -267,10 +275,9 @@ private fun LoginScreen(busy: Boolean, error: String, onLogin: (String, String) 
 }
 
 @Composable
-private fun PartnerRequestScreen(onSubmit: (String, String) -> Unit, onLogout: () -> Unit, error: String) {
+private fun PartnerRequestScreen(busy: Boolean, onSubmit: (String, String) -> Unit, onLogout: () -> Unit, error: String) {
     var business by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-    var sending by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         BrandMark()
         Spacer(Modifier.height(18.dp))
@@ -280,7 +287,10 @@ private fun PartnerRequestScreen(onSubmit: (String, String) -> Unit, onLogout: (
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("رقم التواصل") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
         if (error.isNotBlank()) Notice(error, error = true)
-        Button(onClick = { sending = true; onSubmit(business, phone) }, enabled = !sending && business.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(50.dp)) { Text("إرسال طلب الاعتماد") }
+        Button(onClick = { onSubmit(business, phone) }, enabled = !busy && business.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(50.dp)) {
+            if (busy) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            else Text("إرسال طلب الاعتماد")
+        }
         TextButton(onClick = onLogout) { Text("تسجيل الخروج") }
     }
 }

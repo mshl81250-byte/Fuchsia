@@ -86,7 +86,7 @@ import kotlinx.coroutines.launch
 object AppRoutes {
     const val Welcome = "welcome"
     const val Auth = "auth?register={register}"
-    const val Verify = "verify/{email}?debugCode={debugCode}"
+    const val Verify = "verify/{email}"
     const val Home = "home"
     const val Categories = "categories"
     const val Wishlist = "wishlist"
@@ -112,8 +112,7 @@ object AppRoutes {
     const val About = "about"
 
     fun auth(register: Boolean): String = "auth?register=$register"
-    fun verify(email: String, debugCode: String?): String =
-        "verify/${Uri.encode(email)}?debugCode=${Uri.encode(debugCode.orEmpty())}"
+    fun verify(email: String): String = "verify/${Uri.encode(email)}"
     fun category(id: Int): String = "category/$id"
     fun product(id: Int): String = "product/$id"
     fun checkout(gift: Boolean): String = "checkout?gift=$gift"
@@ -235,19 +234,17 @@ fun FuchsiaAppNavHost(
                             launchSingleTop = true
                         }
                     },
-                    onCodeRequested = { email, code -> navController.navigate(AppRoutes.verify(email, code)) },
+                    onCodeRequested = { email, _ -> navController.navigate(AppRoutes.verify(email)) },
                 )
             }
             composable(
                 route = AppRoutes.Verify,
                 arguments = listOf(
                     navArgument("email") { type = NavType.StringType },
-                    navArgument("debugCode") { type = NavType.StringType; defaultValue = "" },
                 ),
             ) { entry ->
                 VerifyScreen(
                     email = entry.arguments?.getString("email").orEmpty(),
-                    debugCode = entry.arguments?.getString("debugCode").orEmpty().takeIf { it.isNotBlank() },
                     onBack = { navController.popBackStack() },
                     onVerified = {
                         navController.navigate(AppRoutes.Home) {

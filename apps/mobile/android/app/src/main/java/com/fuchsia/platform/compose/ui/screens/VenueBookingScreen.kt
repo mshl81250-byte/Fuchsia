@@ -468,12 +468,18 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
                             val rangeAvailable = isRangeAvailable(key, bookingDays, booked)
                             val isRangeDay = selected != null && key > selected && key <= addDaysToDateKey(selected, bookingDays - 1)
                             val statusLabel = when { isSelected -> "البداية"; isBooked -> "محجوز"; isPast -> "مكتمل"; !rangeAvailable -> "تعارض"; isRangeDay -> "ضمن الحجز"; else -> "متاح" }
-                            val statusColor = Color.White
+                            val statusColor = when {
+                                isSelected -> Color.White
+                                isBooked || !rangeAvailable -> MaterialTheme.colorScheme.error
+                                isPast -> MaterialTheme.colorScheme.onSurfaceVariant
+                                isRangeDay -> FuchsiaColors.Primary
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                             Surface(onClick = { if (rangeAvailable) onDate(key) }, modifier = Modifier.fillMaxWidth().height(70.dp), shape = RoundedCornerShape(13.dp), color = when { isSelected -> FuchsiaColors.Primary; isBooked || !rangeAvailable -> MaterialTheme.colorScheme.error.copy(alpha = .10f); isRangeDay -> FuchsiaColors.Primary.copy(alpha = .12f); isPast -> MaterialTheme.colorScheme.surface; else -> MaterialTheme.colorScheme.surfaceVariant }, border = when { isSelected -> null; key == todayKey -> BorderStroke(2.dp, FuchsiaColors.Gold); isBooked || !rangeAvailable -> BorderStroke(1.dp, FuchsiaColors.Error.copy(alpha = .55f)); isRangeDay -> BorderStroke(1.dp, FuchsiaColors.Primary.copy(alpha = .55f)); isPast -> BorderStroke(1.dp, FuchsiaColors.Line); else -> BorderStroke(1.dp, FuchsiaColors.Success.copy(alpha = .65f)) }, enabled = rangeAvailable) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                                     Text(day.toString(), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                                     if (isPast) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = statusColor, modifier = Modifier.size(13.dp))
-                                    if (key == todayKey) Text("اليوم", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                                    if (key == todayKey) Text("اليوم", color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                                     Text(statusLabel, color = statusColor, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                 }
                             }
@@ -482,7 +488,7 @@ private fun AvailabilityCalendar(month: Calendar, booked: Set<String>, selected:
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "محدد"); LegendDot(FuchsiaColors.White, "متاح"); LegendDot(FuchsiaColors.Muted.copy(alpha = .25f), "محجوز") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) { LegendDot(FuchsiaColors.Primary, "محدد"); LegendDot(FuchsiaColors.Success, "متاح"); LegendDot(FuchsiaColors.Error.copy(alpha = .75f), "محجوز") }
     }
 }
 

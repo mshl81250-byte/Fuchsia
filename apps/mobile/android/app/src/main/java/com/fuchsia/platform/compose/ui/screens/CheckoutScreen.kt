@@ -267,7 +267,9 @@ fun CheckoutScreen(
             return
         }
         val rentalItems = currentCart.items.filter { it.fulfillmentType == "rental" }
-        val needsDelivery = rentalItems.any { it.rentalFulfillment == "delivery" } || rentalItems.isEmpty()
+        val needsDelivery = currentCart.items.any {
+            it.fulfillmentType != "rental" || it.rentalFulfillment == "delivery"
+        }
         if (fullName.isBlank() || phone.isBlank() || (needsDelivery && address.isBlank())) {
             snackbarShown(scope, snackbar, if (needsDelivery) "يرجى إدخال الاسم ورقم الهاتف وعنوان التوصيل." else "يرجى إدخال الاسم ورقم الهاتف.")
             return
@@ -349,8 +351,9 @@ fun CheckoutScreen(
     val outsideSanaa = latitude != null && longitude != null && !isSanaaLocation(latitude!!, longitude!!)
     val isRentalCheckout = cart?.items?.any { it.fulfillmentType == "rental" } == true
     val isPreviewOnlyRental = directRental?.previewOnly == true
-    val rentalNeedsDelivery = cart?.items?.any { it.fulfillmentType == "rental" && it.rentalFulfillment == "delivery" } == true
-    val needsDelivery = !isRentalCheckout || rentalNeedsDelivery
+    val needsDelivery = cart?.items?.any {
+        it.fulfillmentType != "rental" || it.rentalFulfillment == "delivery"
+    } == true
 
     Scaffold(
         containerColor = FuchsiaColors.Cream,

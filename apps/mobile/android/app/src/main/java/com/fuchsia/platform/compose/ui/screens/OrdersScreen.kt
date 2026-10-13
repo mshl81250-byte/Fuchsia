@@ -125,6 +125,7 @@ fun OrdersScreen(
         while (true) {
             loading = orders.isEmpty()
             refreshing = orders.isNotEmpty()
+            tracking = null
             try {
                 val fetchedOrders = FuchsiaApi.customerOrders(userToken)
                 orders = fetchedOrders
@@ -140,6 +141,7 @@ fun OrdersScreen(
                     updatedAt = System.currentTimeMillis()
                 }
             } catch (failure: Exception) {
+                tracking = null
                 error = failure.message ?: "تعذر تحديث حالة الطلب. تحقق من الاتصال ثم أعد المحاولة."
             } finally {
                 loading = false
