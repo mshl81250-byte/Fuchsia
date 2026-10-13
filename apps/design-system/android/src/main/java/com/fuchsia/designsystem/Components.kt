@@ -1,6 +1,7 @@
 package com.fuchsia.designsystem
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -37,15 +39,21 @@ fun FuchsiaPrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled && !busy,
-        modifier = modifier.fillMaxWidth().heightIn(min = 54.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .background(
+                brush = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, FuchsiaColors.PrimaryDark)),
+                shape = RoundedCornerShape(18.dp),
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
+            containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             disabledContentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 0.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp, focusedElevation = 4.dp),
     ) {
         if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
         else Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)

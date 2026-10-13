@@ -1,6 +1,14 @@
 package com.fuchsia.platform.compose.ui.screens
 
 import android.util.Patterns
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +28,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -111,20 +120,30 @@ fun AuthScreen(
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(
-            text = if (isRegister) "مرحبًا بك في فوشيا" else "مرحبًا من جديد",
-            modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.headlineMedium,
-            color = FuchsiaColors.Ink,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = if (isRegister) "إنشاء الحساب يفتح لك خيارات تناسب كل مناسبة." else "تسجيل الدخول لمتابعة اختيار الهدية.",
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 17.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = FuchsiaColors.Muted,
-            textAlign = TextAlign.Center,
-        )
+        AnimatedContent(
+            targetState = isRegister,
+            label = "auth-heading-transition",
+            transitionSpec = {
+                (slideInVertically(tween(260)) { it / 3 } + fadeIn(tween(220))) togetherWith
+                    (slideOutVertically(tween(220)) { -it / 4 } + fadeOut(tween(150)))
+            },
+        ) { registerMode ->
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = if (registerMode) "مرحبًا بك في فوشيا" else "مرحبًا من جديد",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = FuchsiaColors.Ink,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = if (registerMode) "إنشاء الحساب يفتح لك خيارات تناسب كل مناسبة." else "تسجيل الدخول لمتابعة اختيار الهدية.",
+                    modifier = Modifier.padding(top = 4.dp, bottom = 17.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = FuchsiaColors.Muted,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
         Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!isRegister) {
                 Button(onClick = { isRegister = false; error = "" }, modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
@@ -153,7 +172,12 @@ fun AuthScreen(
                 modifier = Modifier.fillMaxWidth().padding(17.dp),
                 verticalArrangement = Arrangement.spacedBy(11.dp),
             ) {
-                if (isRegister) {
+                AnimatedVisibility(
+                    visible = isRegister,
+                    enter = slideInVertically(tween(260)) { -it / 2 } + fadeIn(tween(220)),
+                    exit = slideOutVertically(tween(180)) { -it / 3 } + fadeOut(tween(120)),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     AuthField(
                         value = fullName,
                         onValueChange = { fullName = it; error = "" },
@@ -170,6 +194,7 @@ fun AuthScreen(
                         keyboardType = KeyboardType.Phone,
                         imeAction = ImeAction.Next,
                     )
+                    }
                 }
                 AuthField(
                     value = email,
@@ -240,9 +265,15 @@ fun AuthScreen(
                         }
                     },
                     enabled = !busy,
-                    modifier = Modifier.fillMaxWidth().height(55.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .background(
+                            Brush.horizontalGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark)),
+                            RoundedCornerShape(17.dp),
+                        ),
                     shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                    colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
                 ) {
                     if (busy) {

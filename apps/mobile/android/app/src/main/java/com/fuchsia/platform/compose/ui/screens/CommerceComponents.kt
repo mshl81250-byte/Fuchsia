@@ -1,4 +1,9 @@
 package com.fuchsia.platform.compose.ui.screens
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,9 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fuchsia.designsystem.FuchsiaPrimaryButton
 import com.fuchsia.designsystem.FuchsiaSectionTitle
+import com.fuchsia.designsystem.FuchsiaFormatters
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
-import java.text.NumberFormat
-import java.util.Locale
 
 @Composable
 internal fun CommerceHeader(
@@ -49,19 +53,30 @@ internal fun CommerceHeader(
     onBack: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    AnimatedVisibility(
+        visible = true,
+        enter = fadeIn(tween(300)) + slideInVertically(tween(360)) { -it / 4 },
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Ink)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(15.dp),
+                color = FuchsiaColors.White,
+                border = BorderStroke(1.dp, FuchsiaColors.Line),
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Primary)
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), color = FuchsiaColors.Muted)
+            }
+            trailing?.invoke()
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = FuchsiaColors.Ink)
-            if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp), color = FuchsiaColors.Muted)
-        }
-        trailing?.invoke()
     }
 }
 
@@ -205,4 +220,4 @@ internal fun CommerceEmptyState(title: String, detail: String, action: String, o
 }
 
 internal fun formatYemeniRiyal(value: Double): String =
-    NumberFormat.getNumberInstance(Locale.forLanguageTag("ar-YE")).format(value) + " ر.ي"
+    FuchsiaFormatters.yemeniRiyal(value)

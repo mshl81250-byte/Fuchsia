@@ -1,4 +1,8 @@
 package com.fuchsia.platform.compose.ui.screens
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 
 import android.content.Intent
 import android.net.Uri
@@ -149,6 +153,10 @@ fun OrdersScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()),
         ) {
+            AnimatedVisibility(
+                visible = true,
+                enter = fadeIn(tween(320)) + slideInVertically(tween(380)) { -it / 4 },
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -179,6 +187,7 @@ fun OrdersScreen(
                         Icon(Icons.Rounded.Refresh, contentDescription = "تحديث الطلبات", tint = FuchsiaColors.Primary)
                     }
                 }
+            }
             }
 
             LazyColumn(
@@ -231,6 +240,8 @@ fun OrdersScreen(
                 } else if (tracking != null) {
                     item { TrackingDetails(tracking = tracking!!, updatedAt = updatedAt, onCallDriver = { phone ->
                         runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))) }
+                    }, onOpenReceipt = { url ->
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                     }) }
                     val selectedOrder = orders.firstOrNull { it.id == selectedOrderId }
                     if (tracking?.rental != null && selectedOrder?.status in setOf("rental_pending_confirmation", "rental_confirmed", "rental_preparing")) {
@@ -365,7 +376,7 @@ private fun OrderChoiceCard(order: CustomerOrder, selected: Boolean, onClick: ()
 }
 
 @Composable
-private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriver: (String) -> Unit) {
+private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriver: (String) -> Unit, onOpenReceipt: (String) -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(21.dp),
@@ -391,6 +402,32 @@ private fun TrackingDetails(tracking: OrderTracking, updatedAt: Long, onCallDriv
                 Column(horizontalAlignment = Alignment.End) {
                     Text("تاريخ الطلب", color = FuchsiaColors.Muted, fontSize = 11.sp)
                     Text(formatDate(tracking.createdAt), color = FuchsiaColors.Ink, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                }
+            }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight),
+                border = BorderStroke(1.dp, FuchsiaColors.Line),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.AutoMirrored.Rounded.ReceiptLong, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(19.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("حالة الدفع", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(paymentStatusLabel(tracking.paymentStatus), color = paymentStatusColor(tracking.paymentStatus), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                        if (tracking.paymentAmount > 0) Text(formatMoney(tracking.paymentAmount), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                    }
+                    Text(paymentMethodLabel(tracking.paymentMethod), color = FuchsiaColors.Muted, fontSize = 11.sp)
+                    tracking.transactionReference?.let { Text("رقم العملية: $it", color = FuchsiaColors.Muted, fontSize = 11.sp) }
+                    tracking.paymentReceiptUrl?.takeIf { it.isNotBlank() }?.let { receiptUrl ->
+                        TextButton(onClick = { onOpenReceipt(receiptUrl) }) {
+                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text("فتح الإيصال")
+                        }
+                    }
                 }
             }
             tracking.rental?.let { rental ->
@@ -483,3 +520,26 @@ private fun formatShortDate(value: String): String {
 }
 
 private fun formatTime(value: Long): String = if (value <= 0L) "—" else SimpleDateFormat("h:mm:ss a", Locale.forLanguageTag("ar-YE")).format(Date(value))
+
+private fun paymentStatusLabel(value: String): String = when (value) {
+    "approved" -> "تمت مراجعة الدفع واعتماده"
+    "pending_review" -> "الإيصال بانتظار المراجعة"
+    "rejected" -> "تم رفض الإيصال؛ تواصل مع الدعم"
+    "unpaid" -> "الدفع عند التوصيل"
+    else -> value.ifBlank { "قيد المعالجة" }
+}
+
+@Composable
+private fun paymentStatusColor(value: String): Color = when (value) {
+    "approved" -> Color(0xFF20835B)
+    "rejected" -> FuchsiaColors.Error
+    "pending_review" -> Color(0xFF9A6400)
+    else -> FuchsiaColors.Ink
+}
+
+private fun paymentMethodLabel(value: String): String = when {
+    value == "cash_on_delivery" -> "طريقة الدفع: عند التوصيل"
+    value.startsWith("wallet_") -> "طريقة الدفع: محفظة إلكترونية"
+    value.isBlank() -> "طريقة الدفع غير محددة"
+    else -> "طريقة الدفع: $value"
+}

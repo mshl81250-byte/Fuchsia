@@ -1,5 +1,9 @@
 package com.fuchsia.platform.compose.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,6 +52,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Brush
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -90,13 +95,18 @@ fun VerifyScreen(
             }
         }
         Spacer(Modifier.height(30.dp))
-        Card(
-            modifier = Modifier.align(Alignment.CenterHorizontally).size(76.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
+        AnimatedVisibility(
+            visible = true,
+            enter = scaleIn(tween(520)) + fadeIn(tween(360)),
         ) {
-            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.MarkEmailRead, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(36.dp))
+            Card(
+                modifier = Modifier.align(Alignment.CenterHorizontally).size(76.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
+            ) {
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.MarkEmailRead, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(36.dp))
+                }
             }
         }
         Spacer(Modifier.height(20.dp))
@@ -173,9 +183,12 @@ fun VerifyScreen(
                 }
             },
             enabled = code.length == 6 && !busy,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(Brush.horizontalGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark)), RoundedCornerShape(17.dp)),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         ) {
             if (busy) CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
             else Text("تأكيد وإنشاء الحساب", fontWeight = FontWeight.Bold)

@@ -1,4 +1,8 @@
 package com.fuchsia.platform.compose.ui.screens
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -84,11 +88,11 @@ import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.StoreCategory
 import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
+import com.fuchsia.designsystem.FuchsiaFormatters
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
@@ -192,11 +196,12 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                HomeHeader(
-                    name = greetingName,
-                    isGuest = isGuest,
-                    onCart = onCart,
-                )
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(tween(360)) + slideInVertically(tween(420)) { -it / 4 },
+                ) {
+                    HomeHeader(name = greetingName, isGuest = isGuest, onCart = onCart)
+                }
             }
             item {
                 OutlinedTextField(
@@ -326,7 +331,14 @@ private fun VenueBookingPromo(onClick: () -> Unit) {
 @Composable
 private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
     val darkTheme = isSystemInDarkTheme()
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
+        border = BorderStroke(1.dp, FuchsiaColors.Line),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    ) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit, colorFilter = if (darkTheme) ColorFilter.tint(Color.White) else null)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -344,6 +356,7 @@ private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
             HeaderIcon(Icons.Rounded.NotificationsNone, "الإشعارات") {}
             HeaderIcon(Icons.Rounded.ShoppingBag, "السلة", onCart)
         }
+    }
     }
 }
 
@@ -453,4 +466,4 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
     }
 }
 
-internal fun formatRiyal(value: Double): String = NumberFormat.getNumberInstance(Locale.forLanguageTag("ar-YE")).format(value) + " ر.ي"
+internal fun formatRiyal(value: Double): String = FuchsiaFormatters.yemeniRiyal(value)

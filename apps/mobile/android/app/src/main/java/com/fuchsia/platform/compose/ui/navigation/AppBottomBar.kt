@@ -8,11 +8,14 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Category
@@ -33,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 
@@ -65,12 +69,23 @@ fun FuchsiaBottomBar(selectedRoute: String, onSelect: (String) -> Unit) {
                     selected = selected,
                     onClick = { if (!selected) onSelect(tab.route) },
                     icon = {
-                        Surface(
-                            modifier = Modifier.size(if (selected) 46.dp else 42.dp).scale(iconScale),
-                            shape = RoundedCornerShape(if (selected) 16.dp else 14.dp),
-                            color = if (selected) FuchsiaColors.Rose else MaterialTheme.colorScheme.surface,
+                        Box(
+                            modifier = Modifier
+                                .size(if (selected) 48.dp else 42.dp)
+                                .scale(iconScale)
+                                .background(
+                                    if (selected) Brush.linearGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark))
+                                    else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface)),
+                                    RoundedCornerShape(if (selected) 17.dp else 14.dp),
+                                )
+                                .border(
+                                    width = if (selected) 1.dp else 0.dp,
+                                    color = if (selected) FuchsiaColors.Gold.copy(alpha = .55f) else MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(if (selected) 17.dp else 14.dp),
+                                ),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Icon(tab.icon, contentDescription = tab.label, tint = if (selected) FuchsiaColors.IconAccent else FuchsiaColors.Muted, modifier = Modifier.padding(9.dp).size(27.dp))
+                            Icon(tab.icon, contentDescription = tab.label, tint = if (selected) FuchsiaColors.White else FuchsiaColors.Muted, modifier = Modifier.size(if (selected) 25.dp else 24.dp))
                         }
                     },
                     label = {

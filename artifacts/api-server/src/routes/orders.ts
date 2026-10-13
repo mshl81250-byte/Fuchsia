@@ -10,6 +10,13 @@ const router = Router();
 
 const DELIVERY_FEE = 500;
 
+function maskPaymentReference(reference: string | null): string | null {
+  if (!reference) return null;
+  const value = reference.trim();
+  if (!value) return null;
+  return value.length <= 4 ? value : `••••${value.slice(-4)}`;
+}
+
 async function buildOrder(order: typeof ordersTable.$inferSelect) {
   const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
   return { ...order, items, createdAt: order.createdAt.toISOString() };
@@ -83,6 +90,11 @@ router.get("/:id/tracking", async (req, res): Promise<void> => {
       total: order.total,
       createdAt: order.createdAt.toISOString(),
       updatedAt: (history.at(-1)?.createdAt ?? order.createdAt).toISOString(),
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      paymentAmount: order.paymentAmount,
+      transactionReference: maskPaymentReference(order.transactionReference),
+      paymentReceiptUrl: order.paymentReceiptUrl,
       driverName: order.driverName,
       driverPhone: order.driverPhone,
       rental: rentalReturnDate ? {

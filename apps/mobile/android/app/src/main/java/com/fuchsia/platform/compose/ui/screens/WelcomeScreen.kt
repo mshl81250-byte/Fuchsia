@@ -1,6 +1,13 @@
 package com.fuchsia.platform.compose.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,20 +79,37 @@ fun WelcomeScreen(
     var page by rememberSaveable { mutableIntStateOf(0) }
     BackHandler(enabled = page > 0) { page -= 1 }
 
-    if (page == 0) {
-        FirstWelcomePage(onNext = { page = 1 }, onSkip = { page = 2 })
-    } else if (page == 1) {
-        SecondWelcomePage(
-            onBack = { page = 0 },
-            onNext = { page = 2 },
-            onLogin = onLogin,
-            onRegister = onRegister,
-            onCategory = onCategory,
-            onReservation = onReservation,
-            onGiftOrder = onGiftOrder,
-        )
-    } else {
-        ThirdWelcomePage(onBack = { page = 1 }, onExplore = onExplore, onLogin = onLogin, onRegister = onRegister)
+    AnimatedContent(
+        targetState = page,
+        label = "welcome-page-transition",
+        transitionSpec = {
+            val entering = if (targetState > initialState) {
+                slideInHorizontally(tween(360)) { it / 3 } + fadeIn(tween(240))
+            } else {
+                slideInHorizontally(tween(320)) { -it / 3 } + fadeIn(tween(220))
+            }
+            val exiting = if (targetState > initialState) {
+                slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(180))
+            } else {
+                slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(160))
+            }
+            entering togetherWith exiting
+        },
+        modifier = Modifier.fillMaxSize(),
+    ) { currentPage ->
+        when (currentPage) {
+            0 -> FirstWelcomePage(onNext = { page = 1 }, onSkip = { page = 2 })
+            1 -> SecondWelcomePage(
+                onBack = { page = 0 },
+                onNext = { page = 2 },
+                onLogin = onLogin,
+                onRegister = onRegister,
+                onCategory = onCategory,
+                onReservation = onReservation,
+                onGiftOrder = onGiftOrder,
+            )
+            else -> ThirdWelcomePage(onBack = { page = 1 }, onExplore = onExplore, onLogin = onLogin, onRegister = onRegister)
+        }
     }
 }
 
@@ -133,7 +157,7 @@ private fun FirstWelcomePage(onNext: () -> Unit, onSkip: () -> Unit) {
                     Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
                 TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("تخطي", color = FuchsiaColors.Muted) }
-                Text("شاشتان ترحيبيتان تظهران عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text("ثلاث شاشات ترحيبية تظهر عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -229,14 +253,14 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
 @Composable
 private fun WelcomePageIndicator(page: Int) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        repeat(2) { index ->
+        repeat(3) { index ->
             Box(
                 Modifier.padding(horizontal = 3.dp).size(width = if (index == page) 22.dp else 7.dp, height = 7.dp)
                     .background(if (index == page) FuchsiaColors.Primary else FuchsiaColors.Line, CircleShape),
             )
         }
         Spacer(Modifier.width(7.dp))
-        Text("${page + 1} من ٢", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+        Text("${page + 1} من ٣", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 

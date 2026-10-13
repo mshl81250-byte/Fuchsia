@@ -4,9 +4,11 @@ import android.app.Activity
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,7 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,7 +79,6 @@ import com.fuchsia.platform.compose.ui.screens.WishlistScreen
 import com.fuchsia.platform.compose.ui.screens.VenueBookingScreen
 import com.fuchsia.platform.compose.ui.screens.VenuePartnerScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object AppRoutes {
@@ -142,22 +142,9 @@ fun FuchsiaAppNavHost(
     var directRentalDraft by remember { mutableStateOf<RentalBookingDraft?>(null) }
     val currentEntry by navController.currentBackStackEntryAsState()
     val routeNow = currentEntry?.destination?.route
-    var previousRoute by remember { mutableStateOf<String?>(null) }
-    var showBrandTransition by remember { mutableStateOf(false) }
     var showExitSheet by remember { mutableStateOf(false) }
     var guestStarting by remember { mutableStateOf(false) }
     var guestError by remember { mutableStateOf("") }
-
-    LaunchedEffect(routeNow) {
-        if (routeNow != null) {
-            if (previousRoute != null && previousRoute != routeNow) {
-                showBrandTransition = true
-                delay(260)
-                showBrandTransition = false
-            }
-            previousRoute = routeNow
-        }
-    }
 
     BackHandler(enabled = routeNow == AppRoutes.Home) { showExitSheet = true }
 
@@ -197,16 +184,20 @@ fun FuchsiaAppNavHost(
     }
 
     val forwardEnter: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
-        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)) + fadeIn(tween(180))
+        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(320, easing = FastOutSlowInEasing)) +
+            fadeIn(tween(220)) + scaleIn(tween(320, easing = FastOutSlowInEasing), initialScale = 0.985f)
     }
     val forwardExit: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
-        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(230)) + fadeOut(tween(160))
+        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(280, easing = FastOutSlowInEasing)) +
+            fadeOut(tween(180)) + scaleOut(tween(280, easing = FastOutSlowInEasing), targetScale = 0.985f)
     }
     val backEnter: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.EnterTransition = {
-        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(240)) + fadeIn(tween(180))
+        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(300, easing = FastOutSlowInEasing)) +
+            fadeIn(tween(210)) + scaleIn(tween(300, easing = FastOutSlowInEasing), initialScale = 0.985f)
     }
     val backExit: AnimatedContentTransitionScope<*>.() -> androidx.compose.animation.ExitTransition = {
-        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(220)) + fadeOut(tween(150))
+        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(270, easing = FastOutSlowInEasing)) +
+            fadeOut(tween(170)) + scaleOut(tween(270, easing = FastOutSlowInEasing), targetScale = 0.985f)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -467,30 +458,6 @@ fun FuchsiaAppNavHost(
             }
         }
 
-        AnimatedVisibility(
-            visible = showBrandTransition,
-            modifier = Modifier.fillMaxSize().zIndex(2f),
-            enter = fadeIn(tween(90)),
-            exit = fadeOut(tween(120)),
-        ) {
-            Box(
-                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Image(
-                        painter = painterResource(R.drawable.fuchsia_logo),
-                        contentDescription = "فوشيا بوتيك",
-                        modifier = Modifier.size(width = 154.dp, height = 132.dp),
-                        contentScale = ContentScale.Fit,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text("لحظات ونفتح الصفحة", color = FuchsiaColors.Ink, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(15.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
-                }
-            }
-        }
         if (showExitSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showExitSheet = false },

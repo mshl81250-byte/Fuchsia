@@ -1,4 +1,8 @@
 package com.fuchsia.platform.compose.ui.screens
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.tween
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -72,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import com.fuchsia.platform.compose.data.DeliveryAddress
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.SessionVault
+import com.fuchsia.designsystem.FuchsiaPrimaryButton
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -131,6 +136,10 @@ fun AccountScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(tween(360)) + slideInVertically(tween(420)) { -it / 4 },
+                ) {
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 19.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(if (isGuest) "أهلاً بك" else "أهلاً بك، $greeting", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -138,13 +147,18 @@ fun AccountScreen(
                     }
                 }
             }
+                }
             if (isGuest) {
                 item {
                     Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp)) {
                             Text("سجّل الدخول لتجربة أكمل", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text("احفظ عناوينك ومفضلتك وتابع طلباتك بسهولة.", color = FuchsiaColors.Muted, modifier = Modifier.padding(top = 6.dp))
-                            Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تسجيل الدخول أو إنشاء حساب", fontWeight = FontWeight.Bold) }
+                            FuchsiaPrimaryButton(
+                                text = "تسجيل الدخول أو إنشاء حساب",
+                                modifier = Modifier.padding(top = 16.dp),
+                                onClick = onSignIn,
+                            )
                         }
                     }
                 }

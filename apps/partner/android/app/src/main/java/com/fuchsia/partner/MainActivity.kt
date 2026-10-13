@@ -3,6 +3,12 @@ package com.fuchsia.partner
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +42,8 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,6 +52,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -90,6 +99,10 @@ import com.fuchsia.designsystem.FuchsiaSurfaceCard
 import com.fuchsia.designsystem.FuchsiaStatusChip
 import com.fuchsia.designsystem.FuchsiaStatusTone
 import com.fuchsia.designsystem.FuchsiaTheme
+import com.fuchsia.designsystem.FuchsiaErrorState
+import com.fuchsia.designsystem.FuchsiaEmptyState
+import com.fuchsia.designsystem.FuchsiaFormatters
+import com.fuchsia.designsystem.FuchsiaLoadingState
 
 private val Fuchsia: Color @Composable get() = FuchsiaColors.Primary
 private val Green: Color @Composable get() = FuchsiaColors.Success
@@ -204,32 +217,51 @@ private fun PartnerRoot() {
 private fun LoginScreen(busy: Boolean, error: String, onLogin: (String, String) -> Unit, onPreview: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var showPassword by remember { mutableStateOf(false) }
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
     Column(
         Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        BrandMark()
-        Spacer(Modifier.height(18.dp))
-        Text("Fuchsia Partner", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
-        Text("إدارة قاعاتك وحجوزاتك بسهولة", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
-        FuchsiaSurfaceCard {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("تسجيل دخول الشريك", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
-                OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("كلمة المرور") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-                if (error.isNotBlank()) Notice(error, error = true)
-                FuchsiaPrimaryButton(
-                    text = "دخول إلى مساحة الشريك",
-                    enabled = email.isNotBlank() && password.isNotBlank(),
-                    busy = busy,
-                    onClick = { onLogin(email, password) },
-                )
+        AnimatedVisibility(visible = entered, enter = fadeIn(tween(420)) + slideInVertically(tween(520)) { it / 5 }, exit = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 6 }) {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                BrandMark()
+                Spacer(Modifier.height(18.dp))
+                Text("Fuchsia Partner", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                Text("إدارة قاعاتك وحجوزاتك بسهولة", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
+                FuchsiaSurfaceCard {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("تسجيل دخول الشريك", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                        OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("كلمة المرور") },
+                            singleLine = true,
+                            visualTransformation = if (showPassword) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showPassword = !showPassword }) {
+                                    Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, contentDescription = if (showPassword) "إخفاء كلمة المرور" else "إظهار كلمة المرور")
+                                }
+                            },
+                        )
+                        if (error.isNotBlank()) AnimatedVisibility(visible = true, enter = fadeIn(tween(220))) { Notice(error, error = true) }
+                        FuchsiaPrimaryButton(
+                            text = "دخول إلى مساحة الشريك",
+                            enabled = email.isNotBlank() && password.isNotBlank(),
+                            busy = busy,
+                            onClick = { onLogin(email, password) },
+                        )
+                    }
+                }
+                Text("استخدم حسابك في فوشيا بوتيك. يلزم اعتماد الحساب كشريك من الإدارة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
+                if (BuildConfig.DEBUG) {
+                    TextButton(onClick = onPreview, modifier = Modifier.padding(top = 4.dp)) { Text("معاينة الواجهة دون اتصال", color = MaterialTheme.colorScheme.primary) }
+                }
             }
-        }
-        Text("استخدم حسابك في فوشيا بوتيك. يلزم اعتماد الحساب كشريك من الإدارة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
-        if (BuildConfig.DEBUG) {
-            TextButton(onClick = onPreview, modifier = Modifier.padding(top = 4.dp)) { Text("معاينة الواجهة دون اتصال", color = MaterialTheme.colorScheme.primary) }
         }
     }
 }
@@ -281,11 +313,9 @@ private fun InactivePartnerScreen(status: String, onLogout: () -> Unit) {
 private fun ServiceErrorScreen(message: String, onRetry: () -> Unit, onPreview: () -> Unit, onLogout: () -> Unit) {
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
         BrandMark()
-        Spacer(Modifier.height(20.dp))
-        Text("تعذر تحميل مساحة الشريك", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(message, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 12.dp))
+        Spacer(Modifier.height(8.dp))
+        FuchsiaErrorState(message = FuchsiaFormatters.userFacingError(message, "تعذر تحميل مساحة الشريك"), onRetry = onRetry)
         Text("تحقق من نشر واجهات /api/venue-partner على الخادم ثم أعد المحاولة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, textAlign = TextAlign.Center)
-        Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().padding(top = 18.dp)) { Icon(Icons.Rounded.Refresh, contentDescription = null); Text("إعادة المحاولة", modifier = Modifier.padding(start = 6.dp)) }
         if (BuildConfig.DEBUG) TextButton(onClick = onPreview) { Text("عرض معاينة الواجهة") }
         TextButton(onClick = onLogout) { Text("تسجيل الخروج") }
     }
@@ -788,6 +818,7 @@ private fun BookingDetailsDialog(booking: PartnerBooking, venueName: String, pre
                 DetailLine("الإجمالي", "${formatMoney(booking.totalAmount)} ر.ي")
                 DetailLine("المبلغ المرفق", "${formatMoney(booking.paymentAmount)} ر.ي")
                 DetailLine("حالة الإيصال", paymentLabel(booking.paymentStatus))
+                booking.transactionReference?.let { DetailLine("رقم العملية", it) }
                 DetailLine("حالة الحجز", if (isBookingExpired(booking)) "انتهت المهلة" else statusLabel(booking.status))
                 booking.notes?.let { DetailLine("ملاحظات العميل", it) }
                 booking.paymentReceiptUrl?.let { url ->
@@ -879,10 +910,8 @@ private fun Notice(text: String, error: Boolean = false) {
 
 @Composable
 private fun CenterMessage(text: String, busy: Boolean = false) {
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        if (busy) CircularProgressIndicator()
-        Text(text, modifier = Modifier.padding(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+    if (busy) FuchsiaLoadingState(message = text, modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing))
+    else FuchsiaEmptyState(title = text, detail = "اسحب للتحديث أو جرّب العملية مرة أخرى.", modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing))
 }
 
 @Composable
@@ -940,9 +969,9 @@ private fun demoVenues() = listOf(
 )
 
 private fun demoBookings(): List<PartnerBooking> = listOf(
-    PartnerBooking(-701, -501, "women", daysFromToday(8), 1, 220, "سارة محمد", "77XXXXXXX", 350000.0, 105000.0, "pending_review", "pending", null, "حفل زفاف"),
-    PartnerBooking(-702, -501, "men", daysFromToday(16), 2, 180, "عبدالله علي", "73XXXXXXX", 700000.0, 700000.0, "approved", "confirmed", null, null),
-    PartnerBooking(-703, -502, "women", daysFromToday(24), 1, 140, "أمل صالح", "71XXXXXXX", 240000.0, 72000.0, "pending_review", "pending", null, "يرجى التواصل مساءً"),
+    PartnerBooking(-701, -501, "women", daysFromToday(8), 1, 220, "سارة محمد", "77XXXXXXX", 350000.0, 105000.0, "pending_review", null, "pending", null, "حفل زفاف"),
+    PartnerBooking(-702, -501, "men", daysFromToday(16), 2, 180, "عبدالله علي", "73XXXXXXX", 700000.0, 700000.0, "approved", "WALLET-4821", "confirmed", null, null),
+    PartnerBooking(-703, -502, "women", daysFromToday(24), 1, 140, "أمل صالح", "71XXXXXXX", 240000.0, 72000.0, "pending_review", null, "pending", null, "يرجى التواصل مساءً"),
 )
 
 private fun demoBlackouts() = listOf(
@@ -959,11 +988,8 @@ private fun buildMonthCells(anchor: Calendar): List<Int?> {
 private fun dateKey(year: Int, zeroBasedMonth: Int, day: Int): String = String.format(Locale.US, "%04d-%02d-%02d", year, zeroBasedMonth + 1, day)
 private fun todayKey(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().time)
 private fun daysFromToday(days: Int): String = SimpleDateFormat("yyyy-MM-dd'T'12:00:00.000'Z'", Locale.US).format(Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, days) }.time)
-private fun prettyDate(value: String): String = runCatching {
-    val key = value.substringBefore('T')
-    SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(key)?.let { SimpleDateFormat("d MMMM yyyy", Locale("ar", "YE")).format(it) } ?: key
-}.getOrDefault(value)
-private fun formatMoney(value: Double): String = String.format(Locale("ar", "YE"), "%,.0f", value)
+private fun prettyDate(value: String): String = FuchsiaFormatters.prettyDate(value)
+private fun formatMoney(value: Double): String = FuchsiaFormatters.yemeniRiyal(value)
 private fun audienceLabel(value: String): String = when (value) { "women" -> "النساء"; "men" -> "الرجال"; else -> "النساء والرجال" }
 private fun statusLabel(value: String): String = when (value) { "pending" -> "طلب جديد"; "confirmed" -> "مؤكد"; "rejected" -> "مرفوض"; "cancelled" -> "ملغى"; "expired" -> "انتهت المهلة"; else -> value }
 private fun paymentLabel(value: String): String = when (value) { "approved" -> "تمت المراجعة"; "pending_review" -> "بانتظار المراجعة"; "rejected" -> "مرفوض"; else -> value }
