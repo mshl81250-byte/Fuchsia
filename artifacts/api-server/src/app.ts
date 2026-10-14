@@ -35,6 +35,18 @@ app.use("/uploads", express.static(path.resolve(process.cwd(), "artifacts/api-se
 
 app.use("/api", router);
 
+const adminDashboardDist = path.resolve(process.cwd(), "artifacts/admin-dashboard/dist/public");
+app.use("/admin", express.static(adminDashboardDist, { index: "index.html" }));
+app.use("/admin", (req, res, next) => {
+  if (req.method !== "GET") {
+    next();
+    return;
+  }
+  res.sendFile(path.join(adminDashboardDist, "index.html"), (error) => {
+    if (error && !res.headersSent) next(error);
+  });
+});
+
 const frontendDist = path.resolve(process.cwd(), "artifacts/lamsa/dist/public");
 app.use(express.static(frontendDist, { index: "index.html" }));
 app.use((req, res, next) => {
