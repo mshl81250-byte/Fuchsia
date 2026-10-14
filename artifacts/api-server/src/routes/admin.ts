@@ -6,9 +6,10 @@ import {
   insertProductSchema, insertStoreSchema,
   orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
   walletTransactionsTable, venueBookingsTable, venuesTable, venueBookingEventsTable, venueOwnersTable,
+  venueAvailabilityTable, venueBlackoutsTable,
   notificationsTable, orderStatusEventsTable
 } from "@workspace/db";
-import { eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
+import { and, eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
@@ -545,6 +546,115 @@ router.patch("/notification-settings/:channel", async (req, res): Promise<void> 
   } catch (err) {
     req.log.error({ err }, "Admin notification settings update failed");
     res.status(500).json({ error: "تعذر حفظ إعدادات القناة" });
+  }
+});
+
+router.get("/venues", async (req, res): Promise<void> => {
+  try {
+    const rows = await db.select({
+      id: venuesTable.id,
+      nameAr: venuesTable.nameAr,
+      city: venuesTable.city,
+      address: venuesTable.address,
+      audienceScope: venuesTable.audienceScope,
+      isPublished: venuesTable.isPublished,
+      ownerId: venueOwnersTable.id,
+      ownerName: venueOwnersTable.businessName,
+    }).from(venuesTable).leftJoin(venueOwnersTable, eq(venuesTable.ownerId, venueOwnersTable.id)).orderBy(desc(venuesTable.id));
+    res.json(rows);
+  } catch (error) {
+    req.log.error({ error }, "Admin list venues failed");
+    res.status(500).json({ error: "تعذر تحميل القاعات" });
+  }
+});
+
+router.get("/venues/:id/schedule", async (req, res): Promise<void> => {
+  try {
+    const venueId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(venueId) || venueId < 1) { res.status(400).json({ error: "رقم القاعة غير صحيح" }); return; }
+    const [venue] = await db.select({ id: venuesTable.id, nameAr: venuesTable.nameAr, audienceScope: venuesTable.audienceScope }).from(venuesTable).where(eq(venuesTable.id, venueId));
+    if (!venue) { res.status(404).json({ error: "القاعة غير موجودة" }); return; }
+    const [availability, blackouts] = await Promise.all([
+      db.select().from(venueAvailabilityTable).where(eq(venueAvailabilityTable.venueId, venueId)),
+      db.select().from(venueBlackoutsTable).where(eq(venueBlackoutsTable.venueId, venueId)).orderBy(desc(venueBlackoutsTable.startDate)),
+    ]);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ venue, availability, blackouts });
+  } catch (error) {
+    req.log.error({ error }, "Admin venue schedule load failed");
+    res.status(500).json({ error: "تعذر تحميل جدول القاعة" });
+  }
+});
+
+router.put("/venues/:id/schedule", async (req, res): Promise<void> => {
+  try {
+    const venueId = Number.parseInt(req.params.id, 10);
+    const input = Array.isArray(req.body?.slots) ? req.body.slots as Array<Record<string, unknown>> : null;
+    if (!Number.isInteger(venueId) || venueId < 1 || !input || input.length > 21 || input.some((slot) => typeof slot.isOpen !== "boolean")) {
+      res.status(400).json({ error: "أرسل جدولًا أسبوعيًا صحيحًا" }); return;
+    }
+    const [venue] = await db.select().from(venuesTable).where(eq(venuesTable.id, venueId));
+    if (!venue) { res.status(404).json({ error: "القاعة غير موجودة" }); return; }
+    const allowedScopes = venue.audienceScope === "both" ? ["both", "women", "men"] : [venue.audienceScope];
+    const slots = input.map((slot) => ({
+      audienceScope: String(slot.audienceScope || ""),
+      weekDay: Number(slot.weekDay),
+      isOpen: slot.isOpen === true,
+      startTime: typeof slot.startTime === "string" && /^\d{2}:\d{2}$/.test(slot.startTime) ? slot.startTime : null,
+      endTime: typeof slot.endTime === "string" && /^\d{2}:\d{2}$/.test(slot.endTime) ? slot.endTime : null,
+    }));
+    const keys = new Set<string>();
+    for (const slot of slots) {
+      const key = `${slot.audienceScope}:${slot.weekDay}`;
+      if (!allowedScopes.includes(slot.audienceScope) || !Number.isInteger(slot.weekDay) || slot.weekDay < 0 || slot.weekDay > 6 || keys.has(key) || (slot.isOpen && (!slot.startTime || !slot.endTime))) {
+        res.status(400).json({ error: "تحقق من الأيام والأقسام في الجدول" }); return;
+      }
+      keys.add(key);
+    }
+    await db.transaction(async (tx) => {
+      await tx.delete(venueAvailabilityTable).where(eq(venueAvailabilityTable.venueId, venueId));
+      if (slots.length) await tx.insert(venueAvailabilityTable).values(slots.map((slot) => ({ venueId, audienceScope: slot.audienceScope, weekDay: slot.weekDay, period: "all_day", isOpen: slot.isOpen, startTime: slot.startTime, endTime: slot.endTime })));
+    });
+    res.json({ venueId, slots });
+  } catch (error) {
+    req.log.error({ error }, "Admin venue schedule update failed");
+    res.status(500).json({ error: "تعذر حفظ جدول القاعة" });
+  }
+});
+
+router.post("/venues/:id/blackouts", async (req, res): Promise<void> => {
+  try {
+    const venueId = Number.parseInt(req.params.id, 10);
+    const startDate = String(req.body?.startDate || "");
+    const endDate = String(req.body?.endDate || "");
+    const audienceScope = String(req.body?.audienceScope || "both");
+    const dateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+    if (!Number.isInteger(venueId) || venueId < 1 || !dateOnly(startDate) || !dateOnly(endDate) || endDate < startDate || !["both", "women", "men"].includes(audienceScope)) {
+      res.status(400).json({ error: "أدخل فترة إغلاق صحيحة" }); return;
+    }
+    const [venue] = await db.select({ id: venuesTable.id, audienceScope: venuesTable.audienceScope }).from(venuesTable).where(eq(venuesTable.id, venueId));
+    if (!venue) { res.status(404).json({ error: "القاعة غير موجودة" }); return; }
+    if (venue.audienceScope !== "both" && audienceScope !== "both" && venue.audienceScope !== audienceScope) { res.status(400).json({ error: "القسم غير متاح في هذه القاعة" }); return; }
+    const [admin] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, "admin@fuchsia.ye"));
+    if (!admin) { res.status(500).json({ error: "حساب الإدارة غير موجود" }); return; }
+    const [created] = await db.insert(venueBlackoutsTable).values({ venueId, audienceScope, startDate, endDate, reason: typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null, createdByUserId: admin.id });
+    res.status(201).json({ id: Number(created.insertId), venueId, audienceScope, startDate, endDate });
+  } catch (error) {
+    req.log.error({ error }, "Admin venue blackout create failed");
+    res.status(500).json({ error: "تعذر إضافة فترة الإغلاق" });
+  }
+});
+
+router.delete("/venues/:id/blackouts/:blackoutId", async (req, res): Promise<void> => {
+  try {
+    const venueId = Number.parseInt(req.params.id, 10);
+    const blackoutId = Number.parseInt(req.params.blackoutId, 10);
+    if (!Number.isInteger(venueId) || !Number.isInteger(blackoutId)) { res.status(400).json({ error: "معرف الإغلاق غير صحيح" }); return; }
+    await db.delete(venueBlackoutsTable).where(and(eq(venueBlackoutsTable.id, blackoutId), eq(venueBlackoutsTable.venueId, venueId)));
+    res.json({ id: blackoutId, venueId, deleted: true });
+  } catch (error) {
+    req.log.error({ error }, "Admin venue blackout delete failed");
+    res.status(500).json({ error: "تعذر حذف فترة الإغلاق" });
   }
 });
 

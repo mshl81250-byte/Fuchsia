@@ -40,12 +40,14 @@ import { StoreOwnersView } from "@/components/dashboard/store-owners-view";
 import { CustomersView } from "@/components/dashboard/customers-view";
 import { CouponsView } from "@/components/dashboard/coupons-view";
 import { ContentManagementView } from "@/components/dashboard/content-management-view";
+import { VenueSchedulesView } from "@/components/dashboard/venue-schedules-view";
 
 type Tab =
   | "command"
   | "orders"
   | "rentals"
   | "venue-reservations"
+  | "venue-schedules"
   | "venue-owners"
   | "store-owners"
   | "customers"
@@ -70,6 +72,7 @@ const TAB_ROUTES: Record<Tab, string> = {
   orders: "/orders",
   rentals: "/rentals",
   "venue-reservations": "/venue-reservations",
+  "venue-schedules": "/venue-schedules",
   "venue-owners": "/venue-owners",
   "store-owners": "/store-owners",
   customers: "/customers",
@@ -86,6 +89,7 @@ const NAV_ITEMS: Array<{ id: Tab; label: string; hint: string; icon: typeof Layo
   { id: "orders", label: "طلبات العملاء", hint: "التجارة والتوصيل", icon: ShoppingBag },
   { id: "rentals", label: "طلبات التأجير", hint: "دورة الشريك", icon: Package },
   { id: "venue-reservations", label: "حجوزات القاعات", hint: "من العميل إلى الشريك", icon: CalendarDays },
+  { id: "venue-schedules", label: "جداول القاعات", hint: "التوفر والإغلاقات", icon: Clock3 },
   { id: "venue-owners", label: "اعتماد الشركاء", hint: "أصحاب القاعات", icon: Building2 },
   { id: "store-owners", label: "ملاك المتاجر", hint: "ربط المتجر بالحساب", icon: Store },
   { id: "customers", label: "العملاء", hint: "الحسابات والنشاط", icon: Users },
@@ -265,7 +269,7 @@ export default function Dashboard() {
       <nav className="flex-1 space-y-1 overflow-y-auto p-4">{NAV_ITEMS.map((item) => { const Icon = item.icon; const selected = item.id === activeTab; return <button key={item.id} onClick={() => goTo(item.id)} className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-right transition", selected ? "bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-950/20" : "text-slate-300 hover:bg-white/10 hover:text-white")}><Icon className="h-5 w-5 shrink-0" /><span className="min-w-0"><span className="block text-sm font-bold">{item.label}</span><span className={cn("mt-0.5 block truncate text-[11px]", selected ? "text-fuchsia-100" : "text-slate-500")}>{item.hint}</span></span></button>; })}</nav>
       <div className="border-t border-white/10 p-4"><button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-bold text-rose-300 transition hover:bg-rose-400/10"><LogOut className="h-5 w-5" /> تسجيل الخروج</button></div>
     </aside>
-    <main className="min-w-0 lg:mr-0"><header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200/80 bg-[#f6f7fb]/90 px-4 backdrop-blur md:px-8"><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}><Menu className="h-6 w-6" /></Button><div><p className="text-xs font-bold text-fuchsia-700">FUCHSIA / CONTROL CENTER</p><h1 className="mt-1 text-xl font-black text-slate-900">{activeItem.label}</h1></div></div><div className="hidden items-center gap-3 sm:flex"><div className="relative"><Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input className="h-10 w-52 rounded-xl border-0 bg-white pr-9 shadow-sm" placeholder="بحث سريع" /></div><button className="rounded-xl bg-white p-2.5 text-slate-500 shadow-sm hover:text-fuchsia-700"><Bell className="h-5 w-5" /></button><button className="rounded-xl bg-white p-2.5 text-slate-500 shadow-sm hover:text-fuchsia-700"><Settings2 className="h-5 w-5" /></button></div></header><div className="p-4 md:p-8"><div className="mx-auto max-w-[1500px]">{activeTab === "command" && <CommandCenter onNavigate={goTo} />}{activeTab === "orders" && <OrdersView />}{activeTab === "rentals" && <RentalsView />}{activeTab === "venue-reservations" && <VenueReservationsView />}{activeTab === "venue-owners" && <VenueOwnersView />}{activeTab === "store-owners" && <StoreOwnersView />}{activeTab === "customers" && <CustomersView />}{activeTab === "coupons" && <CouponsView />}{activeTab === "catalog" && <ContentManagementView section="products" />}</div></div></main>
+    <main className="min-w-0 lg:mr-0"><header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200/80 bg-[#f6f7fb]/90 px-4 backdrop-blur md:px-8"><div className="flex items-center gap-3"><Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(true)}><Menu className="h-6 w-6" /></Button><div><p className="text-xs font-bold text-fuchsia-700">FUCHSIA / CONTROL CENTER</p><h1 className="mt-1 text-xl font-black text-slate-900">{activeItem.label}</h1></div></div><div className="hidden items-center gap-3 sm:flex"><div className="relative"><Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input className="h-10 w-52 rounded-xl border-0 bg-white pr-9 shadow-sm" placeholder="بحث سريع" /></div><button className="rounded-xl bg-white p-2.5 text-slate-500 shadow-sm hover:text-fuchsia-700"><Bell className="h-5 w-5" /></button><button className="rounded-xl bg-white p-2.5 text-slate-500 shadow-sm hover:text-fuchsia-700"><Settings2 className="h-5 w-5" /></button></div></header><div className="p-4 md:p-8"><div className="mx-auto max-w-[1500px]">{activeTab === "command" && <CommandCenter onNavigate={goTo} />}{activeTab === "orders" && <OrdersView />}{activeTab === "rentals" && <RentalsView />}{activeTab === "venue-reservations" && <VenueReservationsView />}{activeTab === "venue-schedules" && <VenueSchedulesView />}{activeTab === "venue-owners" && <VenueOwnersView />}{activeTab === "store-owners" && <StoreOwnersView />}{activeTab === "customers" && <CustomersView />}{activeTab === "coupons" && <CouponsView />}{activeTab === "catalog" && <ContentManagementView section="products" />}</div></div></main>
   </div>;
 }
 

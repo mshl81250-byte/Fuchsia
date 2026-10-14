@@ -26,6 +26,7 @@ function Router() {
       <Route path="/orders" component={Dashboard} />
       <Route path="/rentals" component={Dashboard} />
       <Route path="/venue-reservations" component={Dashboard} />
+      <Route path="/venue-schedules" component={Dashboard} />
       <Route path="/venue-owners" component={Dashboard} />
       <Route path="/store-owners" component={Dashboard} />
       <Route path="/overview" component={Dashboard} />
