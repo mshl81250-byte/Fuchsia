@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Box, Building2, Image, Layers3, Pencil, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
+import { Box, Building2, ChevronDown, ChevronUp, Image, Layers3, Pencil, Plus, RefreshCw, Store, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Product = { id: number; nameAr: string; nameEn?: string | null; price: number; discountPrice?: number | null; fulfillmentType: string; categoryId: number; storeId: number; imageUrl: string; images?: string | null; inStock: boolean; stockQuantity?: number | null; isPublished: boolean; isFeatured: boolean; isNew: boolean; rentalDailyPrice?: number | null; rentalDeposit: number };
@@ -28,24 +28,179 @@ function SectionHeader({ title, description, onRefresh, onAdd }: { title: string
   return <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-3xl font-bold tracking-tight">{title}</h2><p className="mt-1 text-muted-foreground">{description}</p></div><div className="flex gap-2"><Button variant="outline" onClick={onRefresh} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button><Button onClick={onAdd} className="gap-2"><Plus className="h-4 w-4" /> إضافة</Button></div></div>;
 }
 
+type ImageGalleryProps = {
+  images: string[];
+  onChange: (images: string[]) => void;
+  max?: number;
+};
+
+function ImageGalleryField({ images, onChange, max = 20 }: ImageGalleryProps) {
+  const [uploading, setUploading] = useState(0);
+
+  const uploadFiles = async (files: File[]) => {
+    const selected = files.slice(0, Math.max(0, max - images.length));
+    if (!selected.length) {
+      toast.error(`يمكن إضافة ${max} صورة كحد أقصى`);
+      return;
+    }
+
+    setUploading(selected.length);
+    try {
+      const uploaded = await Promise.all(selected.map(async (file) => {
+        const body = new FormData();
+        body.append("image", file);
+        const response = await fetch("/api/uploads/admin-image", { method: "POST", body, credentials: "include" });
+        const result = await response.json().catch(() => ({})) as { url?: string; error?: string };
+        if (!response.ok || !result.url) throw new Error(result.error || "تعذر رفع الصورة");
+        return result.url;
+      }));
+      onChange([...images, ...uploaded]);
+      toast.success(`تم رفع ${uploaded.length} صورة بنجاح`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر رفع الصور");
+    } finally {
+      setUploading(0);
+    }
+  };
+
+  const remove = (index: number) => onChange(images.filter((_, imageIndex) => imageIndex !== index));
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= images.length) return;
+    const next = [...images];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-dashed border-fuchsia-200 bg-fuchsia-50/40 p-4 md:col-span-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Label>معرض صور العرض</Label>
+          <p className="mt-1 text-xs text-muted-foreground">ارفع حتى 20 صورة. الصورة الأولى هي الصورة الرئيسية ويمكن تغيير ترتيبها بالأسهم.</p>
+        </div>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-fuchsia-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-fuchsia-800">
+          <Upload className="h-4 w-4" />
+          {uploading ? `جارٍ رفع ${uploading} صورة...` : "اختيار صور من الجهاز"}
+          <input
+            type="file"
+            className="sr-only"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            disabled={uploading > 0 || images.length >= max}
+            onChange={(event) => {
+              const files = Array.from(event.currentTarget.files || []);
+              event.currentTarget.value = "";
+              void uploadFiles(files);
+            }}
+          />
+        </label>
+      </div>
+      {images.length === 0 ? (
+        <div className="rounded-xl bg-white/80 px-4 py-8 text-center text-sm text-muted-foreground">لم تُرفع صور بعد</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {images.map((url, index) => (
+            <div key={`${url}-${index}`} className="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+              <img src={url} alt={`صورة العرض ${index + 1}`} className="aspect-square w-full object-cover" />
+              {index === 0 && <span className="absolute right-2 top-2 rounded-full bg-fuchsia-700 px-2 py-1 text-[10px] font-bold text-white">رئيسية</span>}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-slate-950/75 p-1.5 text-white opacity-0 transition group-hover:opacity-100">
+                <div className="flex gap-0.5">
+                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-white hover:bg-white/20" disabled={index === 0} onClick={() => move(index, -1)} aria-label="تحريك الصورة للأعلى"><ChevronUp className="h-4 w-4" /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-white hover:bg-white/20" disabled={index === images.length - 1} onClick={() => move(index, 1)} aria-label="تحريك الصورة للأسفل"><ChevronDown className="h-4 w-4" /></Button>
+                </div>
+                <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-rose-200 hover:bg-rose-500/30 hover:text-white" onClick={() => remove(index)} aria-label="حذف الصورة"><X className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProductForm({ onSaved, onCancel, editing }: FormProps) {
   const product = editing as Product | undefined;
   const parseImages = (value?: string | null) => {
-    try { const parsed = value ? JSON.parse(value) : []; return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []; } catch { return []; }
+    try {
+      const parsed = value ? JSON.parse(value) : [];
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
   };
-  const [form, setForm] = useState({ nameAr: product?.nameAr || "", nameEn: product?.nameEn || "", price: String(product?.price || ""), discountPrice: product?.discountPrice == null ? "" : String(product.discountPrice), fulfillmentType: product?.fulfillmentType || "sale", categoryId: String(product?.categoryId || ""), storeId: String(product?.storeId || ""), imageUrl: product?.imageUrl || "", images: parseImages(product?.images), stockQuantity: product?.stockQuantity == null ? "" : String(product.stockQuantity), rentalDailyPrice: product?.rentalDailyPrice == null ? "" : String(product.rentalDailyPrice), rentalDeposit: String(product?.rentalDeposit || 0), inStock: product?.inStock ?? true, isPublished: product?.isPublished ?? false, isFeatured: product?.isFeatured ?? false, isNew: product?.isNew ?? false });
+  const initialImages = Array.from(new Set([product?.imageUrl, ...parseImages(product?.images)].filter((value): value is string => Boolean(value))));
+  const [form, setForm] = useState({
+    nameAr: product?.nameAr || "",
+    nameEn: product?.nameEn || "",
+    price: String(product?.price || ""),
+    discountPrice: product?.discountPrice == null ? "" : String(product.discountPrice),
+    fulfillmentType: product?.fulfillmentType || "sale",
+    categoryId: String(product?.categoryId || ""),
+    storeId: String(product?.storeId || ""),
+    images: initialImages,
+    stockQuantity: product?.stockQuantity == null ? "" : String(product.stockQuantity),
+    rentalDailyPrice: product?.rentalDailyPrice == null ? "" : String(product.rentalDailyPrice),
+    rentalDeposit: String(product?.rentalDeposit || 0),
+    inStock: product?.inStock ?? true,
+    isPublished: product?.isPublished ?? false,
+    isFeatured: product?.isFeatured ?? false,
+    isNew: product?.isNew ?? false,
+  });
   const [busy, setBusy] = useState(false);
   const set = (key: string, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
-  const setImage = (index: number, value: string) => setForm((current) => ({ ...current, images: current.images.map((image, imageIndex) => imageIndex === index ? value : image) }));
-  const addImage = () => setForm((current) => current.images.length >= 20 ? current : { ...current, images: [...current.images, ""] });
-  const removeImage = (index: number) => setForm((current) => ({ ...current, images: current.images.filter((_, imageIndex) => imageIndex !== index) }));
-  const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try {
-    const gallery = [form.imageUrl.trim(), ...form.images.map((image) => image.trim()).filter(Boolean)].filter((image, index, list) => list.indexOf(image) === index).slice(0, 20);
-    if (!gallery.length) throw new Error("أرفق صورة واحدة على الأقل للعرض");
-    const data = { nameAr: form.nameAr.trim(), nameEn: form.nameEn.trim() || null, price: Number(form.price), discountPrice: form.discountPrice ? Number(form.discountPrice) : null, fulfillmentType: form.fulfillmentType, categoryId: Number(form.categoryId), storeId: Number(form.storeId), imageUrl: gallery[0], images: JSON.stringify(gallery), inStock: form.inStock, stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : null, isPublished: form.isPublished, isFeatured: form.isFeatured, isNew: form.isNew, rentalDailyPrice: form.rentalDailyPrice ? Number(form.rentalDailyPrice) : null, rentalDeposit: Number(form.rentalDeposit || 0), rentalCategory: "other", eventAudience: "both", availableColors: "[]", rentalMinDays: 1, rentalMaxDays: 3, rentalBufferDays: 0, tags: "[]", occasionTags: "[]" };
-    await request(product ? `/api/admin/products/${product.id}` : "/api/admin/products", { method: product ? "PATCH" : "POST", body: JSON.stringify(data) }); toast.success(product ? "تم تحديث العرض والصور" : "تم إنشاء العرض والصور"); onSaved();
-  } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حفظ العرض"); } finally { setBusy(false); } };
-  return <Card><CardHeader><CardTitle>{product ? "تعديل العرض" : "إضافة عرض جديد"}</CardTitle><p className="text-sm text-muted-foreground">أضف صورة رئيسية وصورًا إضافية حسب طبيعة العرض؛ صندوق الخطبة مثلًا يمكن أن يحتوي على أكثر من 6 صور.</p></CardHeader><CardContent><form onSubmit={submit} className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>اسم العرض بالعربي</Label><Input required value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} /></div><div className="space-y-2"><Label>الاسم بالإنجليزية</Label><Input value={form.nameEn} onChange={(e) => set("nameEn", e.target.value)} /></div><div className="space-y-2"><Label>السعر الأساسي للعرض</Label><Input required type="number" min="0" value={form.price} onChange={(e) => set("price", e.target.value)} /></div><div className="space-y-2"><Label>سعر العرض بعد الخصم</Label><Input type="number" min="0" value={form.discountPrice} onChange={(e) => set("discountPrice", e.target.value)} placeholder="اختياري" /></div><div className="space-y-2"><Label>نوع العرض</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={form.fulfillmentType} onChange={(e) => set("fulfillmentType", e.target.value)}><option value="sale">بيع</option><option value="rental">إيجار</option></select></div><div className="space-y-2"><Label>الصورة الرئيسية</Label><Input required value={form.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} dir="ltr" placeholder="https://..." /></div><div className="space-y-2 md:col-span-2"><div className="flex items-center justify-between"><div><Label>صور العرض الإضافية</Label><p className="text-xs text-muted-foreground">يمكنك إضافة العدد المناسب، حتى 20 صورة. استخدم روابط الصور الحالية أو التخزين المخصص.</p></div><Button type="button" variant="outline" onClick={addImage}>إضافة صورة</Button></div><div className="mt-2 grid gap-2 md:grid-cols-2">{form.images.map((image, index) => <div key={`${index}-${image}`} className="flex gap-2"><Input value={image} onChange={(e) => setImage(index, e.target.value)} dir="ltr" placeholder={`رابط الصورة ${index + 2}`} /><Button type="button" variant="ghost" className="text-rose-600" onClick={() => removeImage(index)}>حذف</Button></div>)}</div></div><div className="space-y-2"><Label>رقم التصنيف</Label><Input required type="number" min="1" value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)} /></div><div className="space-y-2"><Label>رقم المتجر</Label><Input required type="number" min="1" value={form.storeId} onChange={(e) => set("storeId", e.target.value)} /></div><div className="space-y-2"><Label>الكمية</Label><Input type="number" min="0" value={form.stockQuantity} onChange={(e) => set("stockQuantity", e.target.value)} /></div><div className="space-y-2"><Label>سعر اليوم للإيجار</Label><Input type="number" min="0" value={form.rentalDailyPrice} onChange={(e) => set("rentalDailyPrice", e.target.value)} /></div><div className="space-y-2"><Label>تأمين الإيجار</Label><Input type="number" min="0" value={form.rentalDeposit} onChange={(e) => set("rentalDeposit", e.target.value)} /></div><div className="flex flex-wrap gap-5 md:col-span-2">{([["inStock", "متوفر"], ["isPublished", "منشور"], ["isFeatured", "مميز"], ["isNew", "جديد"]] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2"><Switch checked={form[key]} onCheckedChange={(value) => set(key, value)} /><span>{label}</span></label>)}</div><div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ حفظ العرض..." : "حفظ العرض"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div></form></CardContent></Card>;
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const gallery = Array.from(new Set(form.images.filter(Boolean))).slice(0, 20);
+      if (!gallery.length) throw new Error("ارفع صورة واحدة على الأقل للعرض");
+      const data = {
+        nameAr: form.nameAr.trim(), nameEn: form.nameEn.trim() || null,
+        price: Number(form.price), discountPrice: form.discountPrice ? Number(form.discountPrice) : null,
+        fulfillmentType: form.fulfillmentType, categoryId: Number(form.categoryId), storeId: Number(form.storeId),
+        imageUrl: gallery[0], images: JSON.stringify(gallery.slice(1)),
+        inStock: form.inStock, stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : null,
+        isPublished: form.isPublished, isFeatured: form.isFeatured, isNew: form.isNew,
+        rentalDailyPrice: form.rentalDailyPrice ? Number(form.rentalDailyPrice) : null,
+        rentalDeposit: Number(form.rentalDeposit || 0), rentalCategory: "other", eventAudience: "both",
+        availableColors: "[]", rentalMinDays: 1, rentalMaxDays: 3, rentalBufferDays: 0, tags: "[]", occasionTags: "[]",
+      };
+      await request(product ? `/api/admin/products/${product.id}` : "/api/admin/products", { method: product ? "PATCH" : "POST", body: JSON.stringify(data) });
+      toast.success(product ? "تم تحديث العرض والصور" : "تم إنشاء العرض والصور");
+      onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر حفظ العرض");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{product ? "تعديل العرض" : "إضافة عرض جديد"}</CardTitle>
+        <p className="text-sm text-muted-foreground">ارفع صور صندوق الخطبة أو الطاولة مباشرة من جهازك مع معاينتها وترتيبها قبل الحفظ.</p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2"><Label>اسم العرض بالعربي</Label><Input required value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} /></div>
+          <div className="space-y-2"><Label>الاسم بالإنجليزية</Label><Input value={form.nameEn} onChange={(e) => set("nameEn", e.target.value)} /></div>
+          <div className="space-y-2"><Label>السعر الأساسي للعرض</Label><Input required type="number" min="0" value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
+          <div className="space-y-2"><Label>سعر العرض بعد الخصم</Label><Input type="number" min="0" value={form.discountPrice} onChange={(e) => set("discountPrice", e.target.value)} placeholder="اختياري" /></div>
+          <div className="space-y-2"><Label>نوع العرض</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={form.fulfillmentType} onChange={(e) => set("fulfillmentType", e.target.value)}><option value="sale">بيع</option><option value="rental">إيجار</option></select></div>
+          <ImageGalleryField images={form.images} onChange={(images) => setForm((current) => ({ ...current, images }))} />
+          <div className="space-y-2"><Label>رقم التصنيف</Label><Input required type="number" min="1" value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)} /></div>
+          <div className="space-y-2"><Label>رقم المتجر</Label><Input required type="number" min="1" value={form.storeId} onChange={(e) => set("storeId", e.target.value)} /></div>
+          <div className="space-y-2"><Label>الكمية</Label><Input type="number" min="0" value={form.stockQuantity} onChange={(e) => set("stockQuantity", e.target.value)} /></div>
+          <div className="space-y-2"><Label>سعر اليوم للإيجار</Label><Input type="number" min="0" value={form.rentalDailyPrice} onChange={(e) => set("rentalDailyPrice", e.target.value)} /></div>
+          <div className="space-y-2"><Label>تأمين الإيجار</Label><Input type="number" min="0" value={form.rentalDeposit} onChange={(e) => set("rentalDeposit", e.target.value)} /></div>
+          <div className="flex flex-wrap gap-5 md:col-span-2">{([['inStock', 'متوفر'], ['isPublished', 'منشور'], ['isFeatured', 'مميز'], ['isNew', 'جديد']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2"><Switch checked={form[key]} onCheckedChange={(value) => set(key, value)} /><span>{label}</span></label>)}</div>
+          <div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ حفظ العرض..." : "حفظ العرض"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 export function ProductsView() {
   const [rows, setRows] = useState<Product[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<Product>(); const [adding, setAdding] = useState(false);

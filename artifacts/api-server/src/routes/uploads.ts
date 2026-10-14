@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { db, storesTable, venueOwnersTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
 import { uploadPublicImage } from "../lib/object-storage";
+import { requireAdmin } from "../lib/admin-auth";
 
 const router = Router();
 const uploadDir = path.resolve(process.cwd(), "artifacts/api-server/uploads/receipts");
@@ -50,6 +51,33 @@ router.post("/receipt", receiptUpload.single("receipt"), async (req, res): Promi
   await fs.promises.writeFile(path.join(uploadDir, filename), req.file.buffer, { flag: "wx" });
   const baseUrl = `${req.protocol}://${req.get("host")}`;
   res.status(201).json({ url: `${baseUrl}/uploads/receipts/${filename}`, mimeType: contentType, size: req.file.size });
+});
+
+router.post("/admin-image", requireAdmin, imageUpload.single("image"), async (req, res): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "أرفق صورة JPG أو PNG أو WebP لا يتجاوز حجمها 7 ميغابايت" });
+      return;
+    }
+    const contentType = verifiedImageType(req.file.buffer);
+    if (!contentType || contentType !== req.file.mimetype) {
+      res.status(400).json({ error: "محتوى الصورة لا يطابق نوع الملف" });
+      return;
+    }
+
+    const extension = contentType === "image/jpeg" ? "jpg" : contentType === "image/png" ? "png" : "webp";
+    const key = `catalog/${crypto.randomUUID()}.${extension}`;
+    const url = await uploadPublicImage({ key, body: req.file.buffer, contentType });
+    res.status(201).json({ url, contentType, size: req.file.size });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown";
+    if (message.includes("Object storage is not configured")) {
+      res.status(503).json({ error: "تخزين الصور الدائم غير مهيأ على الخادم بعد" });
+      return;
+    }
+    req.log.error({ error }, "Admin image upload failed");
+    res.status(502).json({ error: "تعذر رفع الصورة إلى خدمة التخزين" });
+  }
 });
 
 router.post("/image", imageUpload.single("image"), async (req, res): Promise<void> => {
