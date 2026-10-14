@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetDashboardStatsQueryKey, useGetDashboardStats } from "@workspace/api-client-react";
 import {
   Activity,
   ArrowLeft,
@@ -56,7 +55,15 @@ type Tab =
 type PartnerOwner = { id: number; status: string; businessName: string; createdAt: string };
 type StoreOwnerLink = { id: number; nameAr: string; ownerUserId: number | null; ownerName: string | null };
 type Reservation = { id: number; status: string; venueName: string | null; customerName: string | null; reservationAt: string };
-type AdminFeed = { partnerOwners: PartnerOwner[]; storeOwners: StoreOwnerLink[]; reservations: Reservation[] };
+type CommandCenterData = {
+  generatedAt: string;
+  stats: { totalUsers: number; totalOrders: number; totalRevenue: number; pendingOrders: number };
+  partnerOps: { totalOwners: number; pendingOwners: number; activeOwners: number; unassignedStores: number };
+  partnerOwners: PartnerOwner[];
+  storeOwnerLinks: StoreOwnerLink[];
+  reservations: Reservation[];
+  health: { api: string };
+};
 
 const TAB_ROUTES: Record<Tab, string> = {
   command: "/",
@@ -144,37 +151,35 @@ function MetricCard({ title, value, detail, icon: Icon, tone }: { title: string;
 }
 
 function CommandCenter({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetDashboardStats({ query: { refetchInterval: 30000, queryKey: getGetDashboardStatsQueryKey() } });
-  const [feed, setFeed] = useState<AdminFeed>({ partnerOwners: [], storeOwners: [], reservations: [] });
-  const [feedLoading, setFeedLoading] = useState(true);
-  const [feedError, setFeedError] = useState(false);
+  const [center, setCenter] = useState<CommandCenterData | null>(null);
+  const [centerLoading, setCenterLoading] = useState(true);
+  const [centerError, setCenterError] = useState(false);
 
-  const loadFeed = async () => {
-    setFeedLoading(true);
-    setFeedError(false);
+  const loadCenter = async () => {
+    setCenterLoading(true);
+    setCenterError(false);
     try {
-      const [partnerOwners, storeOwners, reservations] = await Promise.all([
-        getAdminJson<PartnerOwner[]>("/api/admin/venue-owners"),
-        getAdminJson<StoreOwnerLink[]>("/api/admin/store-owner-links"),
-        getAdminJson<Reservation[]>("/api/admin/reservations"),
-      ]);
-      setFeed({ partnerOwners, storeOwners, reservations });
+      setCenter(await getAdminJson<CommandCenterData>("/api/admin/command-center"));
     } catch {
-      setFeedError(true);
+      setCenterError(true);
     } finally {
-      setFeedLoading(false);
+      setCenterLoading(false);
     }
   };
 
-  useEffect(() => { void loadFeed(); }, []);
+  useEffect(() => {
+    void loadCenter();
+    const timer = window.setInterval(() => void loadCenter(), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  const pendingPartners = feed.partnerOwners.filter((item) => item.status === "pending");
-  const pendingReservations = feed.reservations.filter((item) => item.status === "pending");
-  const unassignedStores = feed.storeOwners.filter((item) => !item.ownerUserId);
+  const pendingPartners = center?.partnerOps.pendingOwners ?? 0;
+  const pendingReservations = center?.reservations.filter((item) => item.status === "pending") ?? [];
+  const unassignedStores = center?.partnerOps.unassignedStores ?? 0;
   const healthItems = [
-    { label: "تطبيق العملاء", detail: `${stats?.totalUsers ?? 0} حساب مسجل`, ok: true },
-    { label: "تطبيق الشركاء", detail: `${feed.partnerOwners.length} ملف شريك`, ok: !feedError },
-    { label: "خدمة الطلبات", detail: `${stats?.totalOrders ?? 0} طلبًا في النظام`, ok: true },
+    { label: "تطبيق العملاء", detail: `${center?.stats.totalUsers ?? 0} حساب مسجل`, ok: !centerError },
+    { label: "تطبيق الشركاء", detail: `${center?.partnerOps.totalOwners ?? 0} ملف شريك`, ok: !centerError },
+    { label: "خدمة الطلبات", detail: `${center?.stats.totalOrders ?? 0} طلبًا في النظام`, ok: !centerError },
   ];
 
   return (
@@ -188,26 +193,26 @@ function CommandCenter({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
             <h2 className="text-3xl font-black tracking-tight md:text-4xl">إدارة المنصة من شاشة واحدة</h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">لوحة جديدة تربط نشاط تطبيق العملاء بتدفقات تطبيق الشركاء: الطلبات، الحجوزات، اعتماد الشركاء، والكتالوج.</p>
           </div>
-          <Button variant="secondary" className="gap-2 self-start rounded-xl md:self-auto" onClick={() => { void refetchStats(); void loadFeed(); }}><RefreshCw className="h-4 w-4" /> تحديث البيانات</Button>
+          <Button variant="secondary" className="gap-2 self-start rounded-xl md:self-auto" onClick={() => void loadCenter()}><RefreshCw className="h-4 w-4" /> تحديث البيانات</Button>
         </div>
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard title="إيرادات الطلبات" value={statsLoading ? "…" : formatCurrency(stats?.totalRevenue ?? 0)} detail="من تطبيق العملاء" icon={CircleDollarSign} tone="bg-emerald-500" />
-        <MetricCard title="طلبات بانتظار الإجراء" value={statsLoading ? "…" : (stats?.pendingOrders ?? 0)} detail="تحتاج متابعة فريق التشغيل" icon={ShoppingBag} tone="bg-amber-500" />
-        <MetricCard title="طلبات اعتماد الشركاء" value={feedLoading ? "…" : pendingPartners.length} detail="من تطبيق الشركاء" icon={Building2} tone="bg-violet-500" />
-        <MetricCard title="حجوزات تحتاج مراجعة" value={feedLoading ? "…" : pendingReservations.length} detail="قاعات ومناسبات" icon={CalendarDays} tone="bg-sky-500" />
+        <MetricCard title="إيرادات الطلبات" value={centerLoading ? "…" : formatCurrency(center?.stats.totalRevenue ?? 0)} detail="من تطبيق العملاء" icon={CircleDollarSign} tone="bg-emerald-500" />
+        <MetricCard title="طلبات بانتظار الإجراء" value={centerLoading ? "…" : (center?.stats.pendingOrders ?? 0)} detail="تحتاج متابعة فريق التشغيل" icon={ShoppingBag} tone="bg-amber-500" />
+        <MetricCard title="طلبات اعتماد الشركاء" value={centerLoading ? "…" : pendingPartners} detail="من تطبيق الشركاء" icon={Building2} tone="bg-violet-500" />
+        <MetricCard title="حجوزات تحتاج مراجعة" value={centerLoading ? "…" : pendingReservations.length} detail="قاعات ومناسبات" icon={CalendarDays} tone="bg-sky-500" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <Card className="border-0 shadow-sm ring-1 ring-black/[0.04]"><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="text-lg">آخر حجوزات القاعات</CardTitle><p className="mt-1 text-sm text-slate-500">تدفق مباشر من العميل إلى الشريك</p></div><Button variant="ghost" className="gap-1 text-fuchsia-700" onClick={() => onNavigate("venue-reservations")}>عرض الكل <ArrowLeft className="h-4 w-4" /></Button></CardHeader><CardContent>{feedLoading ? <div className="py-10 text-center text-sm text-slate-400">جارٍ تحميل بيانات الحجوزات…</div> : feed.reservations.slice(0, 5).map((reservation) => <div key={reservation.id} className="flex items-center justify-between gap-3 border-t py-4 first:border-0"><div className="min-w-0"><p className="truncate font-bold text-slate-800">{reservation.venueName || "قاعة غير مسماة"}</p><p className="mt-1 text-xs text-slate-500">{reservation.customerName || "عميل"} · {new Date(reservation.reservationAt).toLocaleDateString("ar-YE")}</p></div><StatusPill status={reservation.status} /></div>)}{!feedLoading && feed.reservations.length === 0 && <div className="py-10 text-center text-sm text-slate-400">لا توجد حجوزات حتى الآن</div>}</CardContent></Card>
+        <Card className="border-0 shadow-sm ring-1 ring-black/[0.04]"><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle className="text-lg">آخر حجوزات القاعات</CardTitle><p className="mt-1 text-sm text-slate-500">تدفق مباشر من العميل إلى الشريك</p></div><Button variant="ghost" className="gap-1 text-fuchsia-700" onClick={() => onNavigate("venue-reservations")}>عرض الكل <ArrowLeft className="h-4 w-4" /></Button></CardHeader><CardContent>{centerLoading ? <div className="py-10 text-center text-sm text-slate-400">جارٍ تحميل بيانات الحجوزات…</div> : center?.reservations.slice(0, 5).map((reservation) => <div key={reservation.id} className="flex items-center justify-between gap-3 border-t py-4 first:border-0"><div className="min-w-0"><p className="truncate font-bold text-slate-800">{reservation.venueName || "قاعة غير مسماة"}</p><p className="mt-1 text-xs text-slate-500">{reservation.customerName || "عميل"} · {new Date(reservation.reservationAt).toLocaleDateString("ar-YE")}</p></div><StatusPill status={reservation.status} /></div>)}{!centerLoading && !center?.reservations.length && <div className="py-10 text-center text-sm text-slate-400">لا توجد حجوزات حتى الآن</div>}</CardContent></Card>
         <Card className="border-0 shadow-sm ring-1 ring-black/[0.04]"><CardHeader><CardTitle className="text-lg">صحة التطبيقات والعمليات</CardTitle><p className="mt-1 text-sm text-slate-500">مؤشرات الاتصال بالمنظومة المشتركة</p></CardHeader><CardContent className="space-y-3">{healthItems.map((item) => <div key={item.label} className="flex items-center justify-between rounded-2xl bg-slate-50 p-4"><div><p className="font-bold text-slate-800">{item.label}</p><p className="mt-1 text-xs text-slate-500">{item.detail}</p></div><span className={cn("flex h-9 w-9 items-center justify-center rounded-full", item.ok ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")}>{item.ok ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}</span></div>)}</CardContent></Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <ActionCard icon={Building2} title="اعتماد الشركاء" count={pendingPartners.length} description="طلبات أصحاب القاعات الجديدة" action="venue-owners" onNavigate={onNavigate} />
-        <ActionCard icon={Store} title="ربط ملاك المتاجر" count={unassignedStores.length} description="متاجر تحتاج حساب شريك" action="store-owners" onNavigate={onNavigate} />
-        <ActionCard icon={Users} title="نشاط العملاء" count={stats?.totalUsers ?? 0} description="إجمالي الحسابات المسجلة" action="customers" onNavigate={onNavigate} />
+        <ActionCard icon={Building2} title="اعتماد الشركاء" count={pendingPartners} description="طلبات أصحاب القاعات الجديدة" action="venue-owners" onNavigate={onNavigate} />
+        <ActionCard icon={Store} title="ربط ملاك المتاجر" count={unassignedStores} description="متاجر تحتاج حساب شريك" action="store-owners" onNavigate={onNavigate} />
+        <ActionCard icon={Users} title="نشاط العملاء" count={center?.stats.totalUsers ?? 0} description="إجمالي الحسابات المسجلة" action="customers" onNavigate={onNavigate} />
       </div>
     </div>
   );

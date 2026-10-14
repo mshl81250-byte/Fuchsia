@@ -59,6 +59,81 @@ router.post("/auth/logout", (_req, res): void => {
 
 router.use(requireAdmin);
 
+router.get("/command-center", async (req, res): Promise<void> => {
+  try {
+    const [
+      [productCount],
+      [storeCount],
+      [orderCount],
+      [userCount],
+      [pendingOrderCount],
+      [activePromotionCount],
+      orderTotals,
+      partnerOwners,
+      storeOwnerLinks,
+      reservations,
+    ] = await Promise.all([
+      db.select({ count: count() }).from(productsTable),
+      db.select({ count: count() }).from(storesTable),
+      db.select({ count: count() }).from(ordersTable),
+      db.select({ count: count() }).from(usersTable),
+      db.select({ count: count() }).from(ordersTable).where(eq(ordersTable.status, "received")),
+      db.select({ count: count() }).from(bannersTable).where(eq(bannersTable.isActive, true)),
+      db.select({ total: ordersTable.total }).from(ordersTable),
+      db.select({
+        id: venueOwnersTable.id,
+        businessName: venueOwnersTable.businessName,
+        status: venueOwnersTable.status,
+        createdAt: venueOwnersTable.createdAt,
+      }).from(venueOwnersTable).orderBy(desc(venueOwnersTable.createdAt)),
+      db.select({
+        id: storesTable.id,
+        nameAr: storesTable.nameAr,
+        ownerUserId: storesTable.ownerUserId,
+        ownerName: usersTable.fullName,
+      }).from(storesTable).leftJoin(usersTable, eq(storesTable.ownerUserId, usersTable.id)).orderBy(storesTable.id),
+      db.select({
+        id: venueBookingsTable.id,
+        status: venueBookingsTable.status,
+        venueName: venuesTable.nameAr,
+        customerName: venueBookingsTable.customerName,
+        reservationAt: venueBookingsTable.reservationAt,
+      }).from(venueBookingsTable)
+        .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
+        .orderBy(desc(venueBookingsTable.reservationAt))
+        .limit(10),
+    ]);
+
+    const totalRevenue = orderTotals.reduce((total, order) => total + Number(order.total || 0), 0);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      generatedAt: new Date().toISOString(),
+      stats: {
+        totalProducts: Number(productCount.count),
+        totalStores: Number(storeCount.count),
+        totalOrders: Number(orderCount.count),
+        totalUsers: Number(userCount.count),
+        totalRevenue,
+        pendingOrders: Number(pendingOrderCount.count),
+        activePromotions: Number(activePromotionCount.count),
+      },
+      partnerOps: {
+        totalOwners: partnerOwners.length,
+        pendingOwners: partnerOwners.filter((owner) => owner.status === "pending").length,
+        activeOwners: partnerOwners.filter((owner) => owner.status === "active").length,
+        unassignedStores: storeOwnerLinks.filter((store) => !store.ownerUserId).length,
+      },
+      partnerOwners: partnerOwners.map((owner) => ({ ...owner, createdAt: owner.createdAt.toISOString() })),
+      storeOwnerLinks,
+      reservations: reservations.map((reservation) => ({ ...reservation, reservationAt: reservation.reservationAt.toISOString() })),
+      health: { api: "ok" },
+    });
+  } catch (error) {
+    req.log.error({ error }, "Admin command center failed");
+    res.status(500).json({ error: "تعذر تحميل مركز التشغيل" });
+  }
+});
+
 router.get("/venue-owners", async (req, res): Promise<void> => {
   try {
     const owners = await db.select({
