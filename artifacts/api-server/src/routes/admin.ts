@@ -5,9 +5,10 @@ import {
   categoriesTable, bannersTable, couponsTable, insertCouponSchema, insertCategorySchema, insertBannerSchema,
   insertProductSchema, insertStoreSchema,
   orderItemsTable, notificationChannelSettingsTable, cartItemsTable,
-  walletTransactionsTable, venueBookingsTable, venuesTable, venueBookingEventsTable, venueOwnersTable
+  walletTransactionsTable, venueBookingsTable, venuesTable, venueBookingEventsTable, venueOwnersTable,
+  notificationsTable, orderStatusEventsTable
 } from "@workspace/db";
-import { eq, count, sum, desc } from "drizzle-orm";
+import { eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
@@ -549,6 +550,11 @@ router.patch("/notification-settings/:channel", async (req, res): Promise<void> 
 
 router.get("/users", async (req, res) => {
   try {
+    const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 120) : "";
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+    const where = search
+      ? or(like(usersTable.fullName, `%${search}%`), like(usersTable.email, `%${search}%`), like(usersTable.phone, `%${search}%`))
+      : undefined;
     const users = await db.select({
       id: usersTable.id,
       fullName: usersTable.fullName,
@@ -558,12 +564,56 @@ router.get("/users", async (req, res) => {
       rewardPoints: usersTable.rewardPoints,
       referralCode: usersTable.referralCode,
       createdAt: usersTable.createdAt,
-    }).from(usersTable).orderBy(desc(usersTable.createdAt)).limit(100);
+    }).from(usersTable).where(where).orderBy(desc(usersTable.createdAt)).limit(limit);
 
     res.json(users.map(u => ({ ...u, createdAt: u.createdAt.toISOString(), avatarUrl: null, address: null })));
   } catch (err) {
     req.log.error({ err }, "Admin list users failed");
     res.status(500).json({ error: "حدث خطأ" });
+  }
+});
+
+router.get("/users/:id", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "معرف العميل غير صحيح" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    if (!user) { res.status(404).json({ error: "العميل غير موجود" }); return; }
+
+    const [orders, bookings] = await Promise.all([
+      db.select().from(ordersTable).where(eq(ordersTable.userId, id)).orderBy(desc(ordersTable.createdAt)).limit(100),
+      db.select({
+        id: venueBookingsTable.id,
+        venueId: venueBookingsTable.venueId,
+        venueName: venuesTable.nameAr,
+        status: venueBookingsTable.status,
+        reservationAt: venueBookingsTable.reservationAt,
+        bookingDays: venueBookingsTable.bookingDays,
+        paymentStatus: venueBookingsTable.paymentStatus,
+      }).from(venueBookingsTable)
+        .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
+        .where(eq(venueBookingsTable.customerUserId, id))
+        .orderBy(desc(venueBookingsTable.reservationAt)).limit(100),
+    ]);
+    const orderIds = orders.map((order) => order.id);
+    const [orderEvents, notifications] = await Promise.all([
+      orderIds.length
+        ? db.select().from(orderStatusEventsTable).where(inArray(orderStatusEventsTable.orderId, orderIds)).orderBy(desc(orderStatusEventsTable.createdAt)).limit(250)
+        : Promise.resolve([]),
+      db.select().from(notificationsTable).where(eq(notificationsTable.sessionId, orders[0]?.sessionId ?? "")).orderBy(desc(notificationsTable.createdAt)).limit(100),
+    ]);
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      user: { ...user, createdAt: user.createdAt.toISOString() },
+      orders: orders.map((order) => ({ ...order, createdAt: order.createdAt.toISOString() })),
+      bookings: bookings.map((booking) => ({ ...booking, reservationAt: booking.reservationAt.toISOString() })),
+      orderEvents: orderEvents.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
+      notifications: notifications.map((notification) => ({ ...notification, createdAt: notification.createdAt.toISOString() })),
+    });
+  } catch (error) {
+    req.log.error({ error }, "Admin customer detail failed");
+    res.status(500).json({ error: "تعذر تحميل تفاصيل العميل" });
   }
 });
 
