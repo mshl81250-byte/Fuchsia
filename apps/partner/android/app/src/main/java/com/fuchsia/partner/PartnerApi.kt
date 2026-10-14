@@ -42,6 +42,7 @@ data class PartnerBooking(
 data class PartnerWeeklySlot(val audienceScope: String, val weekDay: Int, val isOpen: Boolean)
 data class PartnerBlackout(val id: Int, val startDate: String, val endDate: String, val audienceScope: String, val reason: String?)
 data class PartnerMonthAvailability(val booked: Set<String>, val closed: Set<String>)
+data class PartnerNotification(val id: Int, val type: String, val title: String, val message: String, val isRead: Boolean, val createdAt: String, val bookingType: String?, val bookingId: Int?)
 
 data class PartnerLogin(val user: JSONObject, val token: String)
 
@@ -58,6 +59,17 @@ object PartnerApi {
 
     suspend fun profile(token: String): JSONObject = withContext(Dispatchers.IO) {
         JSONObject(request("/api/venue-partner/me", "GET", token = token))
+    }
+
+    suspend fun notifications(token: String): List<PartnerNotification> = withContext(Dispatchers.IO) {
+        JSONArray(request("/api/notifications/partner", "GET", token = token)).toObjectList { row ->
+            PartnerNotification(row.optInt("id"), row.optString("type"), row.optString("title"), row.optString("message"), row.optBoolean("isRead"), row.optString("createdAt"), row.optString("bookingType").takeIf(String::isNotBlank), if (row.isNull("bookingId")) null else row.optInt("bookingId"))
+        }
+    }
+
+    suspend fun markNotificationRead(token: String, notificationId: Int) = withContext(Dispatchers.IO) {
+        request("/api/notifications/partner/$notificationId/read", "PATCH", token = token)
+        Unit
     }
 
     suspend fun requestPartner(token: String, businessName: String, phone: String): JSONObject = withContext(Dispatchers.IO) {

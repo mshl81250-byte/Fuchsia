@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable, walletTransactionsTable } from "@workspace/db";
-import { eq, desc, asc, sql, and, or } from "drizzle-orm";
-import { createCustomerNotification } from "../lib/notifications";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, productsTable, storesTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable, walletTransactionsTable } from "@workspace/db";
+import { eq, desc, asc, sql, and, or, inArray } from "drizzle-orm";
+import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { authenticatedUserId } from "../lib/user-session";
 
@@ -295,6 +295,23 @@ router.post("/", async (req, res): Promise<void> => {
         rentalTimeSlot: item.rentalTimeSlot,
         imageUrl: item.imageUrl,
       });
+    }
+
+    const productIds = [...new Set(cartItems.map((item) => item.productId).filter((id) => Number.isInteger(id) && id > 0))];
+    if (productIds.length > 0) {
+      const owners = await db.select({ ownerUserId: storesTable.ownerUserId })
+        .from(productsTable)
+        .innerJoin(storesTable, eq(productsTable.storeId, storesTable.id))
+        .where(inArray(productsTable.id, productIds));
+      const ownerIds = [...new Set(owners.map((owner) => owner.ownerUserId).filter((id): id is number => id !== null && Number.isInteger(id) && id > 0))];
+      await Promise.all(ownerIds.map((ownerUserId) => createPartnerNotification({
+        recipientUserId: ownerUserId,
+        bookingType: "product",
+        bookingId: order.id,
+        type: "product_order_created",
+        title: "طلب منتج جديد",
+        message: `وصل طلب جديد رقم ${order.id} ويحتوي على منتج من متجرك؛ راجع تفاصيل الطلب وابدأ التجهيز.`,
+      }).catch((error) => req.log.warn({ error, orderId: order.id, ownerUserId }, "Partner product notification failed"))));
     }
 
     await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));

@@ -83,7 +83,7 @@ export async function createCustomerNotification(input: NotificationInput) {
 
 export async function createPartnerNotification(input: {
   recipientUserId: number;
-  bookingType?: "venue" | "rental";
+  bookingType?: "venue" | "rental" | "product";
   bookingId?: number;
   requestId?: number;
   type: string;

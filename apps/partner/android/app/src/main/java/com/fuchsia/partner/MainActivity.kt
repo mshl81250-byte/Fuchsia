@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -88,6 +89,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -336,6 +338,9 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    var notifications by remember(preview) { mutableStateOf(emptyList<PartnerNotification>()) }
+    var showNotifications by remember { mutableStateOf(false) }
+    var knownNotificationIds by remember { mutableStateOf(emptySet<Int>()) }
     val venueBookingsAllowed = preview || profile?.optJSONObject("account")?.optJSONObject("permissions")?.optBoolean("venueBookings", true) != false
     val venueRows = remember(profile, preview, venueBookingsAllowed) { if (preview && venueBookingsAllowed) demoVenues() else if (venueBookingsAllowed) parseVenues(profile?.optJSONArray("venues")) else emptyList() }
     val rentalStores = remember(profile, preview) { if (preview) demoRentalStores() else parseRentalStores(profile?.optJSONArray("rentalStores")) }
@@ -366,6 +371,19 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     var busy by remember { mutableStateOf(false) }
     val businessName = profile?.optJSONObject("owner")?.optString("businessName")?.takeIf(String::isNotBlank)
         ?: rentalStores.firstOrNull()?.name.orEmpty()
+
+    LaunchedEffect(token, preview) {
+        if (preview || token.isNullOrBlank()) return@LaunchedEffect
+        while (true) {
+            runCatching { PartnerApi.notifications(token) }.onSuccess { fresh ->
+                val newUnread = fresh.filter { !it.isRead && it.id !in knownNotificationIds }
+                notifications = fresh
+                if (knownNotificationIds.isNotEmpty() && newUnread.isNotEmpty()) snackbar.showSnackbar(newUnread.first().title)
+                knownNotificationIds = fresh.map { it.id }.toSet()
+            }
+            delay(15_000)
+        }
+    }
 
     suspend fun reloadBookings() {
         if (preview) {
@@ -435,6 +453,11 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
                     Text("مساحة الشريك", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                     Text(if (preview) "معاينة فقط · لا تحفظ أي تغييرات" else businessName.ifBlank { "إدارة القاعات والحجوزات" }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+                Box {
+                    IconButton(onClick = { showNotifications = true }) { Icon(Icons.Rounded.Notifications, contentDescription = "الإشعارات") }
+                    val unread = notifications.count { !it.isRead }
+                    if (unread > 0) Text(unread.coerceAtMost(99).toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopEnd).clip(CircleShape).background(Fuchsia).padding(horizontal = 5.dp, vertical = 2.dp))
                 }
                 TextButton(onClick = onExit) { Icon(Icons.Rounded.Logout, contentDescription = "تسجيل الخروج"); Text("خروج", fontSize = 12.sp) }
             }
@@ -631,6 +654,30 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
             dismissButton = { TextButton(onClick = { showCloseDialog = false }) { Text("إلغاء") } },
         )
     }
+    if (showNotifications) AlertDialog(
+        onDismissRequest = { showNotifications = false },
+        title = { Text("إشعارات الشريك", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            if (notifications.isEmpty()) Text("لا توجد إشعارات جديدة.")
+            else Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                notifications.forEach { notification ->
+                    Card(onClick = {
+                        if (!notification.isRead && !preview && !token.isNullOrBlank()) scope.launch {
+                            runCatching { PartnerApi.markNotificationRead(token, notification.id) }
+                                .onSuccess { notifications = notifications.map { if (it.id == notification.id) it.copy(isRead = true) else it } }
+                        }
+                    }, colors = CardDefaults.cardColors(containerColor = if (notification.isRead) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer)) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(notification.title, fontWeight = FontWeight.Bold)
+                            Text(notification.message, fontSize = 12.sp)
+                            Text(notification.createdAt.replace("T", " ").take(16), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("إغلاق") } },
+    )
 }
 
 @Composable
