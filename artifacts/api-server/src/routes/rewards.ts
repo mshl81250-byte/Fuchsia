@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { rewardTransactionsTable, usersTable, spinHistoryTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -27,9 +28,9 @@ function spinWheel() {
 
 router.get("/", async (req, res): Promise<void> => {
   try {
-    const userId = parseInt(req.query.userId as string);
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض المكافآت" });
       return;
     }
 
@@ -67,9 +68,9 @@ router.get("/", async (req, res): Promise<void> => {
 
 router.post("/spin", async (req, res): Promise<void> => {
   try {
-    const { userId } = req.body;
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لتدوير العجلة" });
       return;
     }
 

@@ -24,12 +24,14 @@ async function buildOrder(order: typeof ordersTable.$inferSelect) {
 
 router.get("/", async (req, res): Promise<void> => {
   try {
-    const sessionId = req.query.sessionId as string;
-    if (!sessionId) {
-      res.status(400).json({ error: "sessionId required" });
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
       return;
     }
-    const orders = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.createdAt));
+    const orders = await db.select().from(ordersTable)
+      .where(or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId))))
+      .orderBy(desc(ordersTable.createdAt));
     const result = await Promise.all(orders.map(buildOrder));
     res.json(result);
   } catch (err) {
@@ -121,7 +123,14 @@ router.get("/:id/tracking", async (req, res): Promise<void> => {
 router.get("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض الطلب" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(
+      and(eq(ordersTable.id, id), or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId)))),
+    );
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
@@ -141,6 +150,13 @@ router.post("/", async (req, res): Promise<void> => {
       paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl, couponCode, notes, userId,
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
+
+    const authenticatedId = await authenticatedUserId(req);
+    if (userId != null && (!authenticatedId || Number(userId) !== authenticatedId)) {
+      res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" });
+      return;
+    }
+    const effectiveUserId = authenticatedId;
 
     if (!sessionId || !customerName || !customerPhone) {
       res.status(400).json({ error: "Missing required fields" });
@@ -203,7 +219,7 @@ router.post("/", async (req, res): Promise<void> => {
 
     await db.insert(ordersTable).values({
       sessionId,
-      userId: userId ?? null,
+      userId: effectiveUserId,
       status: initialStatus,
       total,
       subtotal,
@@ -251,7 +267,7 @@ router.post("/", async (req, res): Promise<void> => {
       });
     }
     await appendOrderStatusEvent(order.id, initialStatus);
-    const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
+    const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
     await createCustomerNotification({
       sessionId,
       orderId: order.id,
@@ -283,20 +299,20 @@ router.post("/", async (req, res): Promise<void> => {
 
     await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
 
-    if (userId) {
+    if (effectiveUserId) {
       const points = Math.floor(total / 1000) * 10;
       if (points > 0) {
         const [currentUser] = await db.select({ rewardPoints: usersTable.rewardPoints })
-          .from(usersTable).where(eq(usersTable.id, userId));
+          .from(usersTable).where(eq(usersTable.id, effectiveUserId));
         if (currentUser) {
           await db.update(usersTable)
             .set({
               rewardPoints: currentUser.rewardPoints + points,
               totalSpent: sql`${usersTable.totalSpent} + ${total}`,
             })
-            .where(eq(usersTable.id, userId));
+            .where(eq(usersTable.id, effectiveUserId));
           await db.insert(rewardTransactionsTable).values({
-            userId,
+            userId: effectiveUserId,
             points,
             description: `نقاط طلب رقم ${order.id}`,
             orderId: order.id,
@@ -320,6 +336,12 @@ router.post("/offer", async (req, res): Promise<void> => {
       paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl,
       userId, giftRecipientName, giftMessage,
     } = req.body;
+    const authenticatedId = await authenticatedUserId(req);
+    if (userId != null && (!authenticatedId || Number(userId) !== authenticatedId)) {
+      res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" });
+      return;
+    }
+    const effectiveUserId = authenticatedId;
     const OFFER_TOTAL = 45000;
     if (!sessionId || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
       res.status(400).json({ error: "يرجى إدخال بيانات العميل والعنوان ورسالة الهدية" }); return;
@@ -337,7 +359,7 @@ router.post("/offer", async (req, res): Promise<void> => {
     if (!wallet) { res.status(400).json({ error: "المحفظة المختارة غير متاحة" }); return; }
     if (typeof paymentReceiptUrl !== "string" || paymentReceiptUrl.length > 7 * 1024 * 1024) { res.status(400).json({ error: "حجم الإيصال أكبر من الحد المسموح" }); return; }
     await db.insert(ordersTable).values({
-      sessionId, userId: userId ?? null, status: "received", total: OFFER_TOTAL, subtotal: OFFER_TOTAL, deliveryFee: 0, discount: 0,
+      sessionId, userId: effectiveUserId, status: "received", total: OFFER_TOTAL, subtotal: OFFER_TOTAL, deliveryFee: 0, discount: 0,
       deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
       paymentMethod: paymentMethod ?? `wallet_${paymentWalletId}`, paymentType: normalizedPaymentType, paymentStatus: "pending_review",
       paymentWalletId: Number(paymentWalletId), paymentAmount: expectedAmount, remainingAmount: Math.max(0, OFFER_TOTAL - expectedAmount),
@@ -349,7 +371,7 @@ router.post("/offer", async (req, res): Promise<void> => {
     const orderId = created.id;
     await appendOrderStatusEvent(orderId, "received");
     await db.insert(orderItemsTable).values({ orderId, productId: 0, productName: "عرض صندوق خطوبة وسط 60×40", price: OFFER_TOTAL, quantity: 1, imageUrl: "offer://facebook-khitbah-offer" });
-    const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
+    const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
     await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
     res.status(201).json(await buildOrder(order));

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { favoritesTable, productsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -16,9 +17,9 @@ function parseProduct(p: typeof productsTable.$inferSelect) {
 
 router.get("/", async (req, res): Promise<void> => {
   try {
-    const userId = parseInt(req.query.userId as string);
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض المفضلة" });
       return;
     }
 
@@ -40,14 +41,20 @@ router.get("/", async (req, res): Promise<void> => {
 
 router.post("/", async (req, res): Promise<void> => {
   try {
-    const { userId, productId } = req.body;
-    if (!userId || !productId) {
+    const userId = await authenticatedUserId(req);
+    const { productId } = req.body;
+    if (!userId) {
+      res.status(401).json({ error: "يلزم تسجيل الدخول لتعديل المفضلة" });
+      return;
+    }
+    if (!Number.isInteger(Number(productId)) || Number(productId) < 1) {
       res.status(400).json({ error: "بيانات مفقودة" });
       return;
     }
+    const normalizedProductId = Number(productId);
 
     const [existing] = await db.select().from(favoritesTable).where(
-      and(eq(favoritesTable.userId, userId), eq(favoritesTable.productId, productId))
+      and(eq(favoritesTable.userId, userId), eq(favoritesTable.productId, normalizedProductId))
     );
 
     if (existing) {
@@ -56,7 +63,7 @@ router.post("/", async (req, res): Promise<void> => {
       return;
     }
 
-    await db.insert(favoritesTable).values({ userId, productId });
+    await db.insert(favoritesTable).values({ userId, productId: normalizedProductId });
     res.json({ isFavorite: true });
   } catch (err) {
     req.log.error({ err }, "Toggle favorite failed");

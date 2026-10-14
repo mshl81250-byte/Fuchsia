@@ -1,0 +1,126 @@
+name: Security audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, Monday at 03:17 UTC.
+    - cron: "17 3 * * 1"
+  push:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "**/package.json"
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "**/package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run full production audit and preserve JSON report
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm audit --prod --json > audit-prod.json 2>audit-prod.stderr || audit_status=$?
+          echo "pnpm_audit_exit_code=${audit_status:-0}" >> "$GITHUB_STEP_SUMMARY"
+          test -s audit-prod.json
+
+      - name: Fail on high or critical findings in API-server dependencies
+        shell: node {0}
+        run: |
+          const fs = require("node:fs");
+          const report = JSON.parse(fs.readFileSync("audit-prod.json", "utf8"));
+          const findings = [];
+          for (const advisory of Object.values(report.advisories ?? {})) {
+            for (const finding of advisory.findings ?? []) {
+              const apiServerPath = (finding.paths ?? []).some((path) => path.startsWith("artifacts__api-server>"));
+              if (apiServerPath && ["high", "critical"].includes(advisory.severity)) {
+                findings.push({
+                  severity: advisory.severity,
+                  package: advisory.module_name,
+                  title: advisory.title,
+                  url: advisory.url,
+                });
+              }
+            }
+          }
+          if (findings.length) {
+            console.error(JSON.stringify(findings, null, 2));
+            process.exit(1);
+          }
+          console.log("No high or critical findings in API-server dependency paths.");
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: |
+            audit-prod.json
+            audit-prod.stderr
+          retention-days: 30
+
+  code-quality:
+    name: Security regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Typecheck Expo mobile app
+        run: pnpm --dir apps/mobile run typecheck
+
+      - name: Production build
+        run: pnpm run build
+        env:
+          PORT: 3000
+          BASE_PATH: /

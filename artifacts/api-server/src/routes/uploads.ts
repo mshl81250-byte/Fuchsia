@@ -12,12 +12,8 @@ const router = Router();
 const uploadDir = path.resolve(process.cwd(), "artifacts/api-server/uploads/receipts");
 fs.mkdirSync(uploadDir, { recursive: true });
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const receiptStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${path.extname(file.originalname).toLowerCase()}`),
-});
 const receiptUpload = multer({
-  storage: receiptStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 7 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => cb(null, allowedMimeTypes.has(file.mimetype)),
 });
@@ -34,13 +30,26 @@ function verifiedImageType(buffer: Buffer): "image/jpeg" | "image/png" | "image/
   return null;
 }
 
-router.post("/receipt", receiptUpload.single("receipt"), (req, res): void => {
+router.post("/receipt", receiptUpload.single("receipt"), async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  if (!userId) {
+    res.status(401).json({ error: "يلزم تسجيل الدخول لرفع إيصال الدفع" });
+    return;
+  }
   if (!req.file) {
     res.status(400).json({ error: "أرفق صورة إيصال بصيغة JPG أو PNG أو WebP" });
     return;
   }
+  const contentType = verifiedImageType(req.file.buffer);
+  if (!contentType || contentType !== req.file.mimetype) {
+    res.status(400).json({ error: "محتوى الصورة لا يطابق نوع الملف" });
+    return;
+  }
+  const extension = contentType === "image/jpeg" ? "jpg" : contentType === "image/png" ? "png" : "webp";
+  const filename = `${userId}-${Date.now()}-${crypto.randomBytes(8).toString("hex")}.${extension}`;
+  await fs.promises.writeFile(path.join(uploadDir, filename), req.file.buffer, { flag: "wx" });
   const baseUrl = `${req.protocol}://${req.get("host")}`;
-  res.status(201).json({ url: `${baseUrl}/uploads/receipts/${req.file.filename}`, mimeType: req.file.mimetype, size: req.file.size });
+  res.status(201).json({ url: `${baseUrl}/uploads/receipts/${filename}`, mimeType: contentType, size: req.file.size });
 });
 
 router.post("/image", imageUpload.single("image"), async (req, res): Promise<void> => {
