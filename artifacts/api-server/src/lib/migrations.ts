@@ -12,6 +12,8 @@ const RENTAL_HANDOVER_MIGRATION_ID = "20261007_rental_handover_plan_v1";
 const REAL_VENUE_CATALOG_MIGRATION_ID = "20261007_real_venue_owner_catalog_v1";
 const DIRECT_RENTAL_BOOKING_MIGRATION_ID = "20261007_direct_rental_booking_v1";
 const PARTNER_OPERATIONS_PHASE3_MIGRATION_ID = "20261009_partner_operations_phase3_v1";
+const PARTNER_ACCOUNTS_MIGRATION_ID = "20261015_partner_accounts_permissions_v1";
+const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -31,6 +33,20 @@ export async function runMigrations(): Promise<void> {
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  const [rentalDimensionsRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [RENTAL_DIMENSIONS_MIGRATION_ID],
+  );
+  if ((rentalDimensionsRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("products", "table_width_cm", "DOUBLE NULL");
+    await addColumnIfMissing("products", "table_length_cm", "DOUBLE NULL");
+    await addColumnIfMissing("products", "table_diameter_cm", "DOUBLE NULL");
+    await addColumnIfMissing("products", "table_seats", "INT NULL");
+    await addColumnIfMissing("products", "setup_notes", "TEXT NULL");
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [RENTAL_DIMENSIONS_MIGRATION_ID]);
+    logger.info({ migrationId: RENTAL_DIMENSIONS_MIGRATION_ID }, "Rental product dimensions migration completed");
+  }
 
   const [commerceRows] = await pool.query(
     "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
@@ -443,5 +459,17 @@ export async function runMigrations(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_OPERATIONS_PHASE3_MIGRATION_ID]);
     logger.info({ migrationId: PARTNER_OPERATIONS_PHASE3_MIGRATION_ID }, "Partner operations phase 3 migration completed");
+  }
+
+  const [partnerAccountsRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PARTNER_ACCOUNTS_MIGRATION_ID],
+  );
+  if ((partnerAccountsRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("users", "account_type", "VARCHAR(24) NOT NULL DEFAULT 'customer'");
+    await addColumnIfMissing("users", "partner_permissions", "TEXT NOT NULL");
+    await pool.query("UPDATE users SET partner_permissions = ? WHERE partner_permissions IS NULL OR partner_permissions = ''", ["{\"products\":false,\"rentals\":false,\"venueBookings\":false}"]);
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_ACCOUNTS_MIGRATION_ID]);
+    logger.info({ migrationId: PARTNER_ACCOUNTS_MIGRATION_ID }, "Partner accounts migration completed");
   }
 }

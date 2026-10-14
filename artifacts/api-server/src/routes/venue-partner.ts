@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { and, desc, eq, gt, gte, inArray, lt, or } from "drizzle-orm";
-import { db, pool, storesTable, venueOwnersTable, venuesTable, venueBookingsTable, venueBookingEventsTable, venueBlackoutsTable, venueAvailabilityTable } from "@workspace/db";
+import { db, pool, storesTable, usersTable, venueOwnersTable, venuesTable, venueBookingsTable, venueBookingEventsTable, venueBlackoutsTable, venueAvailabilityTable } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
 import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 
@@ -42,6 +42,11 @@ function venueReady(data: {
 async function getOwner(req: Request, res: Response) {
   const userId = await authenticatedUserId(req);
   if (!userId) { res.status(401).json({ error: "سجّل الدخول بحسابك أولًا" }); return null; }
+  const [account] = await db.select({ accountType: usersTable.accountType, partnerPermissions: usersTable.partnerPermissions }).from(usersTable).where(eq(usersTable.id, userId));
+  try {
+    const permissions = JSON.parse(account?.partnerPermissions || "{}") as { venueBookings?: boolean };
+    if (account?.accountType === "partner" && permissions.venueBookings === false) { res.status(403).json({ error: "حسابك غير مخول لإدارة حجوزات القاعات" }); return null; }
+  } catch { /* legacy users keep the existing owner flow */ }
   const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.userId, userId));
   if (!owner || owner.status !== "active") {
     res.status(403).json({ error: owner?.status === "pending" ? "طلب الشراكة بانتظار اعتماد الإدارة" : "حساب الشريك غير مفعّل" });
@@ -73,12 +78,15 @@ router.get("/me", async (req, res): Promise<void> => {
     const userId = await authenticatedUserId(req);
     if (!userId) { res.status(401).json({ error: "سجّل الدخول أولًا" }); return; }
     const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.userId, userId));
+    const [user] = await db.select({ fullName: usersTable.fullName, accountType: usersTable.accountType, partnerPermissions: usersTable.partnerPermissions }).from(usersTable).where(eq(usersTable.id, userId));
+    let permissions = { products: user?.accountType === "partner", rentals: user?.accountType === "partner", venueBookings: user?.accountType !== "partner" };
+    try { permissions = { ...permissions, ...(JSON.parse(user?.partnerPermissions || "{}") as Partial<typeof permissions>) }; } catch { /* use safe defaults */ }
     const rentalStores = await db.select({ id: storesTable.id, nameAr: storesTable.nameAr, logoUrl: storesTable.logoUrl, isOpen: storesTable.isOpen })
       .from(storesTable).where(eq(storesTable.ownerUserId, userId));
-    if (!owner) { res.setHeader("Cache-Control", "no-store"); res.json({ owner: null, venues: [], rentalStores }); return; }
+    if (!owner) { res.setHeader("Cache-Control", "no-store"); res.json({ owner: null, venues: [], rentalStores, account: { fullName: user?.fullName || "", accountType: user?.accountType || "customer", permissions } }); return; }
     const venues = owner.status === "active" ? await db.select().from(venuesTable).where(eq(venuesTable.ownerId, owner.id)) : [];
     res.setHeader("Cache-Control", "no-store");
-    res.json({ owner, venues, rentalStores });
+    res.json({ owner, venues, rentalStores, account: { fullName: user?.fullName || "", accountType: user?.accountType || "customer", permissions } });
   } catch (error) {
     req.log.error({ error }, "Venue partner profile failed");
     res.status(500).json({ error: "تعذر تحميل حساب الشريك" });

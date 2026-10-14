@@ -283,10 +283,14 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                             if (current.rentalCategory == "table") {
                                 val tableSpecs = buildList {
                                     current.tableHeightCm?.let { add("الارتفاع: ${String.format(Locale.US, "%.0f", it)} سم") }
+                                    if (current.tableWidthCm != null && current.tableLengthCm != null) add("المقاس: ${String.format(Locale.US, "%.0f", current.tableWidthCm)} × ${String.format(Locale.US, "%.0f", current.tableLengthCm)} سم")
+                                    current.tableDiameterCm?.let { add("القطر: ${String.format(Locale.US, "%.0f", it)} سم") }
+                                    current.tableSeats?.let { add("المقاعد: $it") }
                                     current.stockQuantity?.let { add("العدد المتاح: $it") }
                                 }.joinToString(" · ")
                                 if (tableSpecs.isNotBlank()) Text(tableSpecs, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                 if (current.availableColors.isNotEmpty()) Text("الألوان المتوفرة: ${current.availableColors.joinToString("، ")}", color = FuchsiaColors.Muted, fontSize = 13.sp)
+                                if (current.setupNotes.isNotBlank()) Text("ملاحظات التجهيز: ${current.setupNotes}", color = FuchsiaColors.Muted, fontSize = 13.sp)
                             } else if (current.rentalCategory == "kosh" && current.stockQuantity != null) {
                                 Text("عدد الكوش المتاح: ${current.stockQuantity}", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             }

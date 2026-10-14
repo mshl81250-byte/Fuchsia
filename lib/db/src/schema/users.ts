@@ -15,6 +15,8 @@ export const usersTable = mysqlTable("users", {
   referralCode: varchar("referral_code", { length: 64 }).unique(),
   referredBy: int("referred_by"),
   tier: varchar("tier", { length: 32 }).notNull().default("silver"),
+  accountType: varchar("account_type", { length: 24 }).notNull().default("customer"),
+  partnerPermissions: text("partner_permissions").notNull().default('{"products":false,"rentals":false,"venueBookings":false}'),
   totalSpent: double("total_spent").notNull().default(0),
   lastSpinDate: text("last_spin_date"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

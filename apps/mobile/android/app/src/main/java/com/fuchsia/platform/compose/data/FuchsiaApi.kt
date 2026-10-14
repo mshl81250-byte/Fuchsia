@@ -46,6 +46,11 @@ data class StoreProduct(
     val rentalCategory: String = "other",
     val eventAudience: String = "both",
     val tableHeightCm: Double? = null,
+    val tableWidthCm: Double? = null,
+    val tableLengthCm: Double? = null,
+    val tableDiameterCm: Double? = null,
+    val tableSeats: Int? = null,
+    val setupNotes: String = "",
     val availableColors: List<String> = emptyList(),
     val stockQuantity: Int? = null,
 )
@@ -768,6 +773,11 @@ object FuchsiaApi {
             rentalCategory = rentalCategory,
             eventAudience = optString("eventAudience").ifBlank { "both" },
             tableHeightCm = if (isNull("tableHeightCm")) null else optDouble("tableHeightCm"),
+            tableWidthCm = if (isNull("tableWidthCm")) null else optDouble("tableWidthCm"),
+            tableLengthCm = if (isNull("tableLengthCm")) null else optDouble("tableLengthCm"),
+            tableDiameterCm = if (isNull("tableDiameterCm")) null else optDouble("tableDiameterCm"),
+            tableSeats = if (isNull("tableSeats")) null else optInt("tableSeats"),
+            setupNotes = optString("setupNotes"),
             availableColors = optStringArray("availableColors"),
             stockQuantity = if (isNull("stockQuantity")) null else optInt("stockQuantity"),
         )

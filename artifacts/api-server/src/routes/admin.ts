@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "crypto";
 import { db } from "@workspace/db";
 import {
   usersTable, productsTable, storesTable, ordersTable,
@@ -60,6 +61,41 @@ router.post("/auth/logout", (_req, res): void => {
 });
 
 router.use(requireAdmin);
+
+router.post("/partner-accounts", async (req, res): Promise<void> => {
+  try {
+    const fullName = typeof req.body?.fullName === "string" ? req.body.fullName.trim().slice(0, 120) : "";
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const phone = typeof req.body?.phone === "string" ? req.body.phone.trim().slice(0, 40) : null;
+    const storeId = Number(req.body?.storeId);
+    const permissions = {
+      products: req.body?.permissions?.products !== false,
+      rentals: req.body?.permissions?.rentals !== false,
+      venueBookings: req.body?.permissions?.venueBookings === true,
+    };
+    if (fullName.length < 2 || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || password.length > 128 || !Number.isInteger(storeId) || storeId < 1) {
+      res.status(400).json({ error: "أدخل الاسم والبريد وكلمة مرور من 8 أحرف ومعرف متجر صحيح" }); return;
+    }
+    const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+    if (existingUser) { res.status(409).json({ error: "البريد الإلكتروني مستخدم بالفعل" }); return; }
+    const [store] = await db.select({ id: storesTable.id, nameAr: storesTable.nameAr, ownerUserId: storesTable.ownerUserId }).from(storesTable).where(eq(storesTable.id, storeId));
+    if (!store) { res.status(404).json({ error: "المتجر غير موجود" }); return; }
+    if (store.ownerUserId) { res.status(409).json({ error: "المتجر مرتبط بحساب شريك بالفعل؛ فك الربط أولًا" }); return; }
+    const passwordHash = crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
+    const partnerPermissions = JSON.stringify(permissions);
+    const result = await db.transaction(async (tx) => {
+      const [inserted] = await tx.insert(usersTable).values({ fullName, email, phone, passwordHash, isGuest: false, accountType: "partner", partnerPermissions, rewardPoints: 0 });
+      const userId = Number(inserted.insertId);
+      await tx.update(storesTable).set({ ownerUserId: userId }).where(eq(storesTable.id, storeId));
+      return userId;
+    });
+    res.status(201).json({ userId: result, store: { id: store.id, nameAr: store.nameAr }, username: email, temporaryPassword: password, permissions });
+  } catch (error) {
+    req.log.error({ error }, "Admin create partner account failed");
+    res.status(500).json({ error: "تعذر إنشاء حساب الشريك" });
+  }
+});
 
 router.get("/command-center", async (req, res): Promise<void> => {
   try {
@@ -168,6 +204,42 @@ router.patch("/venue-owners/:id", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Admin update venue owner failed");
     res.status(500).json({ error: "تعذر تحديث اعتماد الشريك" });
+  }
+});
+
+router.get("/venue-owners/:id/details", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "معرف الشريك غير صحيح" }); return; }
+    const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.id, id));
+    if (!owner) { res.status(404).json({ error: "الشريك غير موجود" }); return; }
+    const venues = await db.select().from(venuesTable).where(eq(venuesTable.ownerId, id)).orderBy(desc(venuesTable.id));
+    const bookings = await db.select({
+      id: venueBookingsTable.id, venueId: venueBookingsTable.venueId, venueName: venuesTable.nameAr,
+      customerName: venueBookingsTable.customerName, customerPhone: venueBookingsTable.customerPhone,
+      reservationAt: venueBookingsTable.reservationAt, bookingDays: venueBookingsTable.bookingDays,
+      status: venueBookingsTable.status, paymentStatus: venueBookingsTable.paymentStatus,
+      totalAmount: venueBookingsTable.totalAmount, paymentAmount: venueBookingsTable.paymentAmount,
+      audience: venueBookingsTable.audience,
+    }).from(venueBookingsTable).innerJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
+      .where(eq(venuesTable.ownerId, id)).orderBy(desc(venueBookingsTable.reservationAt)).limit(250);
+    const today = Date.now();
+    const venueStats = venues.map((venue) => {
+      const rows = bookings.filter((booking) => booking.venueId === venue.id);
+      const confirmed = rows.filter((booking) => booking.status === "confirmed" || booking.status === "completed");
+      return { ...venue, totalBookings: rows.length, confirmedBookings: confirmed.length, pendingBookings: rows.filter((booking) => booking.status === "pending").length, totalRevenue: confirmed.reduce((total, booking) => total + Number(booking.totalAmount || 0), 0), upcomingBookings: confirmed.filter((booking) => booking.reservationAt.getTime() >= today).length };
+    });
+    const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "completed");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      owner: { ...owner, createdAt: owner.createdAt.toISOString(), updatedAt: owner.updatedAt.toISOString() },
+      stats: { venues: venues.length, totalBookings: bookings.length, confirmedBookings: confirmedBookings.length, pendingBookings: bookings.filter((booking) => booking.status === "pending").length, totalRevenue: confirmedBookings.reduce((total, booking) => total + Number(booking.totalAmount || 0), 0) },
+      venues: venueStats,
+      bookings: bookings.map((booking) => ({ ...booking, reservationAt: booking.reservationAt.toISOString() })),
+    });
+  } catch (error) {
+    req.log.error({ error }, "Admin venue owner details failed");
+    res.status(500).json({ error: "تعذر تحميل تفاصيل الشريك" });
   }
 });
 

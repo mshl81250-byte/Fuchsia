@@ -336,7 +336,8 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    val venueRows = remember(profile, preview) { if (preview) demoVenues() else parseVenues(profile?.optJSONArray("venues")) }
+    val venueBookingsAllowed = preview || profile?.optJSONObject("account")?.optJSONObject("permissions")?.optBoolean("venueBookings", true) != false
+    val venueRows = remember(profile, preview, venueBookingsAllowed) { if (preview && venueBookingsAllowed) demoVenues() else if (venueBookingsAllowed) parseVenues(profile?.optJSONArray("venues")) else emptyList() }
     val rentalStores = remember(profile, preview) { if (preview) demoRentalStores() else parseRentalStores(profile?.optJSONArray("rentalStores")) }
     var selectedVenueId by remember(venueRows) { mutableStateOf(venueRows.firstOrNull()?.id ?: 0) }
     val selectedVenue = venueRows.firstOrNull { it.id == selectedVenueId } ?: venueRows.firstOrNull()
@@ -386,7 +387,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
         val auth = token ?: return
         loadingBookings = true
         bookingsError = ""
-        val venueResult = runCatching { PartnerApi.bookings(auth) }
+        val venueResult = if (venueBookingsAllowed) runCatching { PartnerApi.bookings(auth) } else Result.success(emptyList())
         venueResult.onSuccess { bookings = it }.onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات القاعات" }
         val rentalResult = runCatching { rentalStores.flatMap { store -> PartnerRentalApi.bookings(auth, store.id).flatMap { booking ->
             booking.items.map { item -> UnifiedCalendarEvent("rental-${booking.id}-${item.name}", item.startDate.take(10), item.endDate.take(10), "إيجار · ${item.name}", "${store.name} · ${booking.customerName} · كمية ${item.quantity}", booking.status, "rental") }

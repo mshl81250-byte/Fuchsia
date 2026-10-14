@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { and, desc, eq, inArray, count } from "drizzle-orm";
-import { db, pool, storesTable, productsTable, ordersTable, orderItemsTable, rentalMaintenanceBlocksTable, insertProductSchema } from "@workspace/db";
+import { db, pool, storesTable, usersTable, productsTable, ordersTable, orderItemsTable, rentalMaintenanceBlocksTable, insertProductSchema } from "@workspace/db";
 import { authenticatedUserId } from "../lib/user-session";
 import { createCustomerNotification } from "../lib/notifications";
 import { addDateDays, getRentalOccupancy } from "../lib/rental-availability";
@@ -9,7 +9,7 @@ import { addDateDays, getRentalOccupancy } from "../lib/rental-availability";
 const router = Router();
 const OWNER_PRODUCT_FIELDS = [
   "nameAr", "nameEn", "description", "price", "discountPrice", "fulfillmentType", "rentalCategory", "eventAudience",
-  "tableHeightCm", "availableColors", "rentalDailyPrice", "rentalDeposit", "rentalMinDays", "rentalMaxDays", "rentalBufferDays",
+  "tableHeightCm", "tableWidthCm", "tableLengthCm", "tableDiameterCm", "tableSeats", "setupNotes", "availableColors", "rentalDailyPrice", "rentalDeposit", "rentalMinDays", "rentalMaxDays", "rentalBufferDays",
   "categoryId", "imageUrl", "images", "videoUrl", "brand", "inStock", "stockQuantity", "deliveryDays", "tags", "occasionTags", "isPublished",
 ] as const;
 
@@ -40,6 +40,13 @@ function parseProduct(product: typeof productsTable.$inferSelect) {
 async function authorizeStore(req: Request, res: Response, requestedStoreId?: number): Promise<number | null> {
   const userId = await authenticatedUserId(req);
   if (!userId) { res.status(401).json({ error: "سجّل الدخول بحسابك المسجل" }); return null; }
+  const [account] = await db.select({ accountType: usersTable.accountType, partnerPermissions: usersTable.partnerPermissions }).from(usersTable).where(eq(usersTable.id, userId));
+  if (account?.accountType === "partner") {
+    let permissions = { products: true, rentals: true };
+    try { permissions = { ...permissions, ...(JSON.parse(account.partnerPermissions || "{}") as Partial<typeof permissions>) }; } catch { /* keep safe legacy defaults */ }
+    const needed = req.path.startsWith("/products") ? "products" : req.path.includes("rental") || req.path.includes("maintenance") ? "rentals" : null;
+    if (needed && !permissions[needed]) { res.status(403).json({ error: "حسابك غير مخول لاستخدام هذه الميزة" }); return null; }
+  }
   const storeId = requestedStoreId ?? Number(req.query.storeId ?? req.body?.storeId);
   if (!Number.isInteger(storeId) || storeId < 1) { res.status(400).json({ error: "storeId مطلوب" }); return null; }
   const [store] = await db.select({ id: storesTable.id, ownerUserId: storesTable.ownerUserId }).from(storesTable).where(eq(storesTable.id, storeId));
@@ -62,7 +69,9 @@ function publishable(product: typeof productsTable.$inferSelect | Record<string,
   if (!Number.isInteger(Number(item.rentalBufferDays ?? 0)) || Number(item.rentalBufferDays ?? 0) < 0 || Number(item.rentalBufferDays ?? 0) > 14) return false;
   if (item.rentalCategory === "table") {
     const colors = typeof item.availableColors === "string" ? parseArray(item.availableColors) : Array.isArray(item.availableColors) ? item.availableColors : [];
-    return Number(item.tableHeightCm) > 0 && Number(item.stockQuantity) > 0 && colors.length > 0;
+    const rectangular = Number(item.tableWidthCm) > 0 && Number(item.tableLengthCm) > 0;
+    const round = Number(item.tableDiameterCm) > 0;
+    return Number(item.tableHeightCm) > 0 && (rectangular || round) && Number(item.tableSeats) > 0 && Number(item.stockQuantity) > 0 && colors.length > 0;
   }
   return Number(item.stockQuantity) > 0;
 }

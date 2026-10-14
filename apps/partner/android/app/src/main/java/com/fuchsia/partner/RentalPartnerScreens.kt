@@ -353,6 +353,9 @@ private fun RentalProductCard(product: PartnerRentalProduct, busy: Boolean, onCl
                     add("الكمية ${product.stockQuantity}")
                     if (product.bufferDays > 0) add("مهلة تجهيز ${product.bufferDays} يوم")
                     if (product.tableHeightCm != null) add("الارتفاع ${rentNumber(product.tableHeightCm)} سم")
+                    if (product.tableWidthCm != null && product.tableLengthCm != null) add("المقاس ${rentNumber(product.tableWidthCm)} × ${rentNumber(product.tableLengthCm)} سم")
+                    if (product.tableDiameterCm != null) add("القطر ${rentNumber(product.tableDiameterCm)} سم")
+                    if (product.tableSeats != null) add("${product.tableSeats} مقعد")
                     if (product.colors.isNotEmpty()) add(product.colors.take(3).joinToString("، "))
                 }.joinToString(" · ")
                 Text(specification, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -390,11 +393,16 @@ private fun RentalProductEditor(
     var deposit by remember(existing?.id) { mutableStateOf(existing?.deposit?.let(::rentNumber)?.takeIf { it != "0" }.orEmpty()) }
     var quantity by remember(existing?.id) { mutableStateOf(existing?.stockQuantity?.takeIf { it > 0 }?.toString() ?: "1") }
     var height by remember(existing?.id) { mutableStateOf(existing?.tableHeightCm?.let(::rentNumber).orEmpty()) }
+    var width by remember(existing?.id) { mutableStateOf(existing?.tableWidthCm?.let(::rentNumber).orEmpty()) }
+    var length by remember(existing?.id) { mutableStateOf(existing?.tableLengthCm?.let(::rentNumber).orEmpty()) }
+    var diameter by remember(existing?.id) { mutableStateOf(existing?.tableDiameterCm?.let(::rentNumber).orEmpty()) }
+    var seats by remember(existing?.id) { mutableStateOf(existing?.tableSeats?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var setupNotes by remember(existing?.id) { mutableStateOf(existing?.setupNotes.orEmpty()) }
     var minDays by remember(existing?.id) { mutableStateOf(existing?.minDays?.coerceAtLeast(1)?.toString() ?: "1") }
     var maxDays by remember(existing?.id) { mutableStateOf(existing?.maxDays?.coerceAtLeast(1)?.toString() ?: "3") }
     var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
-    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(6)) }
+    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(12)) }
     var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
     var busy by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf("") }
@@ -406,15 +414,15 @@ private fun RentalProductEditor(
             else scope.launch {
                 val auth = token ?: return@launch
                 busy = true
-                val remaining = (6 - imageUrls.size).coerceAtLeast(0)
+                val remaining = (12 - imageUrls.size).coerceAtLeast(0)
                 if (remaining == 0) {
-                    onMessage("الحد الأعلى 6 صور للمنتج")
+                    onMessage("الحد الأعلى 12 صورة للمنتج")
                 } else {
                     val selected = uris.take(remaining)
                     selected.forEachIndexed { index, uri ->
                         uploadStatus = "رفع الصورة ${index + 1} من ${selected.size}…"
                         runCatching { PartnerRentalApi.uploadImage(context, uri, auth, storeId) }
-                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(6) }
+                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(12) }
                             .onFailure { onMessage(it.message ?: "تعذر رفع الصورة") }
                     }
                 }
@@ -455,17 +463,27 @@ private fun RentalProductEditor(
                     OutlinedTextField(deposit, { deposit = it }, Modifier.fillMaxWidth(), label = { Text("مبلغ التأمين (اختياري)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     OutlinedTextField(quantity, { quantity = it }, Modifier.fillMaxWidth(), label = { Text(if (rentalCategory == "table") "عدد الطاولات المتاحة" else "عدد الكوش المتاحة") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     if (rentalCategory == "table") {
-                        OutlinedTextField(height, { height = it }, Modifier.fillMaxWidth(), label = { Text("ارتفاع الطاولة (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(width, { width = it }, Modifier.weight(1f), label = { Text("العرض (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                            OutlinedTextField(length, { length = it }, Modifier.weight(1f), label = { Text("الطول (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(height, { height = it }, Modifier.weight(1f), label = { Text("الارتفاع (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                            OutlinedTextField(diameter, { diameter = it }, Modifier.weight(1f), label = { Text("القطر إن كانت دائرية (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                        }
+                        OutlinedTextField(seats, { seats = it }, Modifier.fillMaxWidth(), label = { Text("عدد المقاعد/الأشخاص") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         OutlinedTextField(colorsText, { colorsText = it }, Modifier.fillMaxWidth(), label = { Text("الألوان المتوفرة، افصل بينها بفاصلة") }, singleLine = true)
+                        OutlinedTextField(setupNotes, { setupNotes = it }, Modifier.fillMaxWidth(), label = { Text("ملاحظات التجهيز والتركيب") }, minLines = 2, maxLines = 4)
                     } else {
                         OutlinedTextField(colorsText, { colorsText = it }, Modifier.fillMaxWidth(), label = { Text("الألوان/التنسيقات المتوفرة") }, singleLine = true)
+                        OutlinedTextField(setupNotes, { setupNotes = it }, Modifier.fillMaxWidth(), label = { Text("ملاحظات التجهيز والتركيب") }, minLines = 2, maxLines = 4)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(minDays, { minDays = it }, Modifier.weight(1f), label = { Text("أقل مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         OutlinedTextField(maxDays, { maxDays = it }, Modifier.weight(1f), label = { Text("أقصى مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                     OutlinedTextField(bufferDays, { bufferDays = it }, Modifier.fillMaxWidth(), label = { Text("مهلة التجهيز بعد الحجز (أيام، 0–14)") }, supportingText = { Text("تمنع حجز المنتج خلال فترة التنظيف/التجهيز التالية.") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Text("صور المنتج · ${imageUrls.size}/6", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("صور المنتج · ${imageUrls.size}/12", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         imageUrls.forEachIndexed { index, url ->
                             Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
@@ -473,7 +491,7 @@ private fun RentalProductEditor(
                                 TextButton(onClick = { imageUrls = imageUrls.filterIndexed { i, _ -> i != index } }, modifier = Modifier.align(Alignment.BottomEnd).background(Color.Black.copy(alpha = .55f)), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("×", color = Color.White) }
                             }
                         }
-                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < 6, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
+                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < 12, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
                             Icon(Icons.Rounded.CloudUpload, null); Text("صور", fontSize = 10.sp)
                         }
                     }
@@ -494,6 +512,10 @@ private fun RentalProductEditor(
                         val max = rentParseInt(maxDays)
                         val buffer = rentParseInt(bufferDays)
                         val tableHeight = rentParseNumber(height)
+                        val tableWidth = rentParseNumber(width)
+                        val tableLength = rentParseNumber(length)
+                        val tableDiameter = rentParseNumber(diameter)
+                        val tableSeats = rentParseInt(seats)
                         val colors = colorsText.split(',', '،', ';').map(String::trim).filter(String::isNotBlank).distinct().take(20)
                         formError = when {
                             name.isBlank() -> "اكتب اسم المنتج"
@@ -503,6 +525,9 @@ private fun RentalProductEditor(
                             min < 1 || max < min -> "تحقق من أقل وأقصى مدة للإيجار"
                             buffer !in 0..14 -> "مهلة التجهيز يجب أن تكون بين 0 و14 يومًا"
                             rentalCategory == "table" && tableHeight <= 0 -> "أدخل ارتفاع الطاولة بالسنتيمتر"
+                            rentalCategory == "table" && tableSeats < 1 -> "أدخل عدد المقاعد أو الأشخاص"
+                            rentalCategory == "table" && tableWidth <= 0 && tableDiameter <= 0 -> "أدخل عرض الطاولة وطولها أو قطرها"
+                            rentalCategory == "table" && tableDiameter <= 0 && tableLength <= 0 -> "أدخل طول الطاولة أو قطرها"
                             rentalCategory == "table" && colors.isEmpty() -> "أدخل لونًا واحدًا على الأقل للطاولات"
                             published && imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل النشر"
                             else -> ""
@@ -530,6 +555,11 @@ private fun RentalProductEditor(
                                 .put("rentalMaxDays", max)
                                 .put("rentalBufferDays", buffer)
                                 .put("tableHeightCm", if (rentalCategory == "table") tableHeight else JSONObject.NULL)
+                                .put("tableWidthCm", if (rentalCategory == "table" && tableWidth > 0) tableWidth else JSONObject.NULL)
+                                .put("tableLengthCm", if (rentalCategory == "table" && tableLength > 0) tableLength else JSONObject.NULL)
+                                .put("tableDiameterCm", if (rentalCategory == "table" && tableDiameter > 0) tableDiameter else JSONObject.NULL)
+                                .put("tableSeats", if (rentalCategory == "table") tableSeats else JSONObject.NULL)
+                                .put("setupNotes", setupNotes.trim())
                                 .put("availableColors", JSONArray(colors).toString())
                                 .put("stockQuantity", stock)
                                 .put("inStock", stock > 0)
