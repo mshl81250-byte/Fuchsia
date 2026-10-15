@@ -12,8 +12,9 @@ function hashPassword(password: string): string {
 }
 
 const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD ?? "";
+const adminEmail = (process.env.ADMIN_EMAIL || "admin@fuchsia.ye").trim().toLowerCase();
 if (initialAdminPassword.length < 12) {
-  throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding");
+  throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding. Never commit it to Git.");
 }
 
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
   await db.insert(schema.usersTable).values([
     {
       fullName: "مدير النظام",
-      email: "admin@fuchsia.ye",
+      email: adminEmail,
       passwordHash: hashPassword(initialAdminPassword),
       isGuest: false,
       rewardPoints: 1000,

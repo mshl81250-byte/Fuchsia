@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 
 export const ADMIN_SESSION_COOKIE = "fuchsia_admin_session";
 const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const ADMIN_EMAIL = "admin@fuchsia.ye";
+export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "admin@fuchsia.ye").trim().toLowerCase();
 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;

@@ -6,7 +6,7 @@ import {
   orderItemsTable, notificationChannelSettingsTable
 } from "@workspace/db";
 import { eq, count, sum, desc } from "drizzle-orm";
-import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
+import { ADMIN_EMAIL, requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 
 const router = Router();
@@ -33,7 +33,7 @@ router.get("/auth/me", requireAdmin, async (req, res): Promise<void> => {
       id: usersTable.id,
       fullName: usersTable.fullName,
       email: usersTable.email,
-    }).from(usersTable).where(eq(usersTable.email, "admin@fuchsia.ye"));
+    }).from(usersTable).where(eq(usersTable.email, ADMIN_EMAIL));
 
     if (!admin) {
       clearAdminSession(res);
