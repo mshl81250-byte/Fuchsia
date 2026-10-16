@@ -4,6 +4,8 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@drawable/fuchsia_app_icon"
+        android:roundIcon="@drawable/fuchsia_app_icon"
         android:label="فوشيا للشركاء"
         android:supportsRtl="true"
         android:theme="@style/Theme.FuchsiaPartner"
