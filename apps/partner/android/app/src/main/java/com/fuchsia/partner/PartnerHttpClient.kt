@@ -2,9 +2,11 @@ package com.fuchsia.partner
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.BufferedInputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -62,9 +64,11 @@ internal object PartnerHttpClient {
         val contentType = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';')
             ?: throw IllegalArgumentException("تعذر تحديد نوع الصورة")
         require(contentType in setOf("image/jpeg", "image/png", "image/webp")) { "اختر صورة JPG أو PNG أو WebP" }
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IllegalStateException("تعذر قراءة الصورة")
-        require(bytes.isNotEmpty() && bytes.size <= 7 * 1024 * 1024) { "يجب ألا يتجاوز حجم كل صورة 7 ميغابايت" }
+        val maxBytes = 7L * 1024 * 1024
+        val declaredSize = context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else -1L }
+            ?: -1L
+        require(declaredSize <= maxBytes || declaredSize < 0) { "يجب ألا يتجاوز حجم كل صورة 7 ميغابايت" }
 
         val boundary = "----Fuchsia${UUID.randomUUID().toString().replace("-", "")}"
         val connection = (URL(baseUrl + "/api/uploads/image").openConnection() as HttpURLConnection).apply {
@@ -77,6 +81,7 @@ internal object PartnerHttpClient {
             setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
         }
         try {
+            connection.setChunkedStreamingMode(16 * 1024)
             connection.outputStream.use { stream ->
                 val output = stream.buffered()
                 fun field(name: String, value: String) {
@@ -86,7 +91,20 @@ internal object PartnerHttpClient {
                 field("storeId", storeId.toString())
                 val extension = when (contentType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
                 output.write("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"rental.$extension\"\r\nContent-Type: $contentType\r\n\r\n".toByteArray(Charsets.UTF_8))
-                output.write(bytes)
+                val input = context.contentResolver.openInputStream(uri)?.let(::BufferedInputStream)
+                    ?: throw IllegalStateException("تعذر قراءة الصورة")
+                input.use { source ->
+                    val buffer = ByteArray(16 * 1024)
+                    var totalBytes = 0L
+                    while (true) {
+                        val read = source.read(buffer)
+                        if (read < 0) break
+                        totalBytes += read
+                        require(totalBytes <= maxBytes) { "يجب ألا يتجاوز حجم كل صورة 7 ميغابايت" }
+                        output.write(buffer, 0, read)
+                    }
+                    require(totalBytes > 0) { "لا يمكن رفع صورة فارغة" }
+                }
                 output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8))
                 output.flush()
             }
@@ -94,6 +112,10 @@ internal object PartnerHttpClient {
             JSONObject(response).optString("url").takeIf(String::isNotBlank)
                 ?: throw IllegalStateException("لم يُرجع الخادم رابط الصورة")
         } catch (error: PartnerApiException) {
+            throw error
+        } catch (error: IllegalArgumentException) {
+            throw error
+        } catch (error: IllegalStateException) {
             throw error
         } catch (error: Exception) {
             throw PartnerApiException(

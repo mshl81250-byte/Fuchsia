@@ -87,6 +87,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+private const val MAX_PRODUCT_IMAGES = 8
+
 @Composable
 internal fun RentalPartnerHub(
     token: String?,
@@ -402,7 +404,7 @@ private fun RentalProductEditor(
     var maxDays by remember(existing?.id) { mutableStateOf(existing?.maxDays?.coerceAtLeast(1)?.toString() ?: "3") }
     var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
-    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(12)) }
+    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(MAX_PRODUCT_IMAGES)) }
     var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
     var busy by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf("") }
@@ -414,15 +416,15 @@ private fun RentalProductEditor(
             else scope.launch {
                 val auth = token ?: return@launch
                 busy = true
-                val remaining = (12 - imageUrls.size).coerceAtLeast(0)
+                val remaining = (MAX_PRODUCT_IMAGES - imageUrls.size).coerceAtLeast(0)
                 if (remaining == 0) {
-                    onMessage("الحد الأعلى 12 صورة للمنتج")
+                    onMessage("الحد الأعلى $MAX_PRODUCT_IMAGES صور للمنتج")
                 } else {
                     val selected = uris.take(remaining)
                     selected.forEachIndexed { index, uri ->
                         uploadStatus = "رفع الصورة ${index + 1} من ${selected.size}…"
                         runCatching { PartnerRentalApi.uploadImage(context, uri, auth, storeId) }
-                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(12) }
+                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(MAX_PRODUCT_IMAGES) }
                             .onFailure { onMessage(it.message ?: "تعذر رفع الصورة") }
                     }
                 }
@@ -483,7 +485,7 @@ private fun RentalProductEditor(
                         OutlinedTextField(maxDays, { maxDays = it }, Modifier.weight(1f), label = { Text("أقصى مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                     OutlinedTextField(bufferDays, { bufferDays = it }, Modifier.fillMaxWidth(), label = { Text("مهلة التجهيز بعد الحجز (أيام، 0–14)") }, supportingText = { Text("تمنع حجز المنتج خلال فترة التنظيف/التجهيز التالية.") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Text("صور المنتج · ${imageUrls.size}/12", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("صور المنتج · ${imageUrls.size}/$MAX_PRODUCT_IMAGES", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         imageUrls.forEachIndexed { index, url ->
                             Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
@@ -491,7 +493,7 @@ private fun RentalProductEditor(
                                 TextButton(onClick = { imageUrls = imageUrls.filterIndexed { i, _ -> i != index } }, modifier = Modifier.align(Alignment.BottomEnd).background(Color.Black.copy(alpha = .55f)), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("×", color = Color.White) }
                             }
                         }
-                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < 12, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
+                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < MAX_PRODUCT_IMAGES, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
                             Icon(Icons.Rounded.CloudUpload, null); Text("صور", fontSize = 10.sp)
                         }
                     }
