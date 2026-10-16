@@ -115,6 +115,7 @@ fun CheckoutScreen(
     var longitude by remember { mutableStateOf<Double?>(null) }
     var deliveryQuoteLoading by remember { mutableStateOf(false) }
     var deliveryDistanceKm by remember { mutableStateOf<Double?>(null) }
+    var deliveryOriginAddress by remember { mutableStateOf("") }
     var locating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf("") }
     var paymentType by remember { mutableStateOf("cash_on_delivery") }
@@ -139,6 +140,7 @@ fun CheckoutScreen(
                 runCatching { FuchsiaApi.deliveryQuote(latitudeValue, longitudeValue) }
                     .onSuccess { quote ->
                         deliveryDistanceKm = quote.optDouble("distanceKm").takeIf { it.isFinite() }
+                        deliveryOriginAddress = quote.optJSONObject("settings")?.optString("originAddress").orEmpty()
                         val fee = quote.optDouble("fee", 0.0)
                         cart = cart?.let { current -> current.copy(deliveryFee = fee, total = current.subtotal + current.rentalDeposit + fee) }
                     }
@@ -498,7 +500,7 @@ fun CheckoutScreen(
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
                             if (deliveryQuoteLoading) CommerceNotice("جارٍ حساب رسوم التوصيل حسب المسافة…")
-                            else if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("${deliveryDistanceKm?.let { "المسافة التقريبية %.2f كم · " .format(it) } ?: ""}تم حساب رسوم التوصيل تلقائيًا حسب إعدادات المنصة.")
+                            else if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("${deliveryOriginAddress.takeIf { it.isNotBlank() }?.let { "من $it · " } ?: ""}${deliveryDistanceKm?.let { "المسافة التقريبية %.2f كم · ".format(it) } ?: ""}تم حساب رسوم التوصيل تلقائيًا حسب إعدادات المنصة.")
                         }
                     }
                 }

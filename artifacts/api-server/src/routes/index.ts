@@ -23,6 +23,7 @@ import paymentWalletsRouter from "./payment-wallets";
 import notificationsRouter from "./notifications";
 import uploadsRouter from "./uploads";
 import deliveryRouter from "./delivery";
+import supportRouter from "./support";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use("/payment-wallets", paymentWalletsRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/delivery", deliveryRouter);
+router.use("/support", supportRouter);
 
 export default router;

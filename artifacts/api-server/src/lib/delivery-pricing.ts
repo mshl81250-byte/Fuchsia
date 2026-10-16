@@ -7,9 +7,13 @@ export type DeliverySettings = {
   freeKm: number;
   originLatitude: number;
   originLongitude: number;
+  originAddress: string;
+  supportPhone: string;
+  supportWhatsapp: string;
+  supportEmail: string;
 };
 
-const DEFAULTS: DeliverySettings = { baseFee: 200, perKm: 80, freeKm: 0, originLatitude: 15.3694, originLongitude: 44.1910 };
+const DEFAULTS: DeliverySettings = { baseFee: 200, perKm: 80, freeKm: 0, originLatitude: 15.3694, originLongitude: 44.1910, originAddress: "صنعاء - اليمن", supportPhone: "", supportWhatsapp: "", supportEmail: "" };
 let tableReady: Promise<void> | null = null;
 
 async function ensureTable(): Promise<void> {
@@ -21,6 +25,10 @@ async function ensureTable(): Promise<void> {
       free_km DOUBLE NOT NULL DEFAULT 0,
       origin_latitude DOUBLE NOT NULL DEFAULT 15.3694,
       origin_longitude DOUBLE NOT NULL DEFAULT 44.1910,
+      origin_address VARCHAR(500) NULL,
+      support_phone VARCHAR(40) NULL,
+      support_whatsapp VARCHAR(40) NULL,
+      support_email VARCHAR(320) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`).then(async () => {
       await pool.query("INSERT IGNORE INTO delivery_settings (id) VALUES (1)");
@@ -31,11 +39,12 @@ async function ensureTable(): Promise<void> {
 
 export async function getDeliverySettings(): Promise<DeliverySettings> {
   await ensureTable();
-  const [rows] = await pool.query<(DeliverySettings & RowDataPacket)[]>("SELECT base_fee AS baseFee, per_km AS perKm, free_km AS freeKm, origin_latitude AS originLatitude, origin_longitude AS originLongitude FROM delivery_settings WHERE id = 1");
+  const [rows] = await pool.query<(DeliverySettings & RowDataPacket)[]>("SELECT base_fee AS baseFee, per_km AS perKm, free_km AS freeKm, origin_latitude AS originLatitude, origin_longitude AS originLongitude, COALESCE(origin_address, '') AS originAddress, COALESCE(support_phone, '') AS supportPhone, COALESCE(support_whatsapp, '') AS supportWhatsapp, COALESCE(support_email, '') AS supportEmail FROM delivery_settings WHERE id = 1");
   const row = rows[0];
   return row ? {
     baseFee: Number(row.baseFee), perKm: Number(row.perKm), freeKm: Number(row.freeKm),
     originLatitude: Number(row.originLatitude), originLongitude: Number(row.originLongitude),
+    originAddress: String(row.originAddress || ""), supportPhone: String(row.supportPhone || ""), supportWhatsapp: String(row.supportWhatsapp || ""), supportEmail: String(row.supportEmail || ""),
   } : DEFAULTS;
 }
 
@@ -64,7 +73,11 @@ export async function updateDeliverySettings(input: Partial<DeliverySettings>): 
     freeKm: Number.isFinite(input.freeKm) ? Math.max(0, Number(input.freeKm)) : current.freeKm,
     originLatitude: Number.isFinite(input.originLatitude) ? Number(input.originLatitude) : current.originLatitude,
     originLongitude: Number.isFinite(input.originLongitude) ? Number(input.originLongitude) : current.originLongitude,
+    originAddress: typeof input.originAddress === "string" ? input.originAddress.trim().slice(0, 500) : current.originAddress,
+    supportPhone: typeof input.supportPhone === "string" ? input.supportPhone.trim().slice(0, 40) : current.supportPhone,
+    supportWhatsapp: typeof input.supportWhatsapp === "string" ? input.supportWhatsapp.trim().slice(0, 40) : current.supportWhatsapp,
+    supportEmail: typeof input.supportEmail === "string" ? input.supportEmail.trim().slice(0, 320) : current.supportEmail,
   };
-  await pool.query("UPDATE delivery_settings SET base_fee = ?, per_km = ?, free_km = ?, origin_latitude = ?, origin_longitude = ? WHERE id = 1", [next.baseFee, next.perKm, next.freeKm, next.originLatitude, next.originLongitude]);
+  await pool.query("UPDATE delivery_settings SET base_fee = ?, per_km = ?, free_km = ?, origin_latitude = ?, origin_longitude = ?, origin_address = ?, support_phone = ?, support_whatsapp = ?, support_email = ? WHERE id = 1", [next.baseFee, next.perKm, next.freeKm, next.originLatitude, next.originLongitude, next.originAddress, next.supportPhone, next.supportWhatsapp, next.supportEmail]);
   return next;
 }

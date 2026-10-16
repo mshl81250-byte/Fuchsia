@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { usersTable, emailVerificationCodesTable, userSessionsTable } from "@workspace/db";
 import { eq, and, lt } from "drizzle-orm";
 import crypto from "crypto";
@@ -228,7 +228,7 @@ router.get("/profile", async (req, res): Promise<void> => {
 
 router.patch("/profile", async (req, res): Promise<void> => {
   try {
-    const { fullName, phone, address, avatarUrl } = req.body ?? {};
+    const { fullName, phone, secondPhone, address, avatarUrl } = req.body ?? {};
     const userId = await authenticatedUserId(req);
     if (!userId) {
       res.status(401).json({ error: "يلزم تسجيل الدخول لتعديل بيانات الحساب" });
@@ -250,6 +250,13 @@ router.patch("/profile", async (req, res): Promise<void> => {
       }
       updates.phone = phone.trim() || null;
     }
+    if (secondPhone !== undefined) {
+      if (typeof secondPhone !== "string" || secondPhone.trim().length > 40) {
+        res.status(400).json({ error: "رقم التواصل الإضافي غير صحيح" });
+        return;
+      }
+      updates.secondPhone = secondPhone.trim() || null;
+    }
     if (address !== undefined) {
       if (typeof address !== "string" || address.trim().length > 1000) {
         res.status(400).json({ error: "عنوان التوصيل غير صحيح" });
@@ -268,6 +275,21 @@ router.patch("/profile", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Update profile failed");
     res.status(500).json({ error: "حدث خطأ" });
+  }
+});
+
+router.delete("/account", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (!userId) { res.status(401).json({ error: "يلزم تسجيل الدخول لحذف الحساب" }); return; }
+  if (reason.length < 10 || reason.length > 1000) { res.status(400).json({ error: "اكتب سبب حذف الحساب (10 أحرف على الأقل)" }); return; }
+  try {
+    await pool.query("UPDATE users SET full_name = ?, email = ?, password_hash = NULL, phone = NULL, second_phone = NULL, address = NULL, avatar_url = NULL, account_type = 'deleted' WHERE id = ?", [`حساب محذوف`, `deleted_${userId}@deleted.fuchsia`, userId]);
+    await db.delete(userSessionsTable).where(eq(userSessionsTable.userId, userId));
+    res.json({ success: true, message: "تم حذف الحساب وإخفاء بياناته الشخصية" });
+  } catch (err) {
+    req.log.error({ err }, "Delete account failed");
+    res.status(500).json({ error: "تعذر حذف الحساب حاليًا" });
   }
 });
 

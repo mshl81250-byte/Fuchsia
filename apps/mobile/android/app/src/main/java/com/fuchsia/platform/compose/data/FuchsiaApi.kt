@@ -296,12 +296,19 @@ object FuchsiaApi {
         bearerToken: String,
         fullName: String,
         phone: String,
+        secondPhone: String = "",
     ): JSONObject = sendJson(
         "/api/auth/profile",
         "PATCH",
-        JSONObject().put("fullName", fullName).put("phone", phone),
+        JSONObject().put("fullName", fullName).put("phone", phone).put("secondPhone", secondPhone),
         bearerToken = bearerToken,
     )
+
+    suspend fun sendSupportMessage(bearerToken: String, category: String, subject: String, message: String): JSONObject =
+        sendJson("/api/support/messages", "POST", JSONObject().put("category", category).put("subject", subject).put("message", message), bearerToken = bearerToken)
+
+    suspend fun deleteAccount(bearerToken: String, reason: String): JSONObject =
+        sendJson("/api/auth/account", "DELETE", JSONObject().put("reason", reason), bearerToken = bearerToken)
 
     suspend fun addresses(bearerToken: String): List<DeliveryAddress> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/addresses", bearerToken))
@@ -549,6 +556,8 @@ object FuchsiaApi {
 
     suspend fun deliveryQuote(latitude: Double, longitude: Double): JSONObject =
         getJson("/api/delivery/quote?latitude=$latitude&longitude=$longitude")
+
+    suspend fun platformSettings(): JSONObject = getJson("/api/delivery/settings")
 
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {

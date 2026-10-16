@@ -1079,6 +1079,10 @@ router.patch("/delivery-settings", async (req, res): Promise<void> => {
       freeKm: body.freeKm === undefined ? undefined : Number(body.freeKm),
       originLatitude: body.originLatitude === undefined ? undefined : Number(body.originLatitude),
       originLongitude: body.originLongitude === undefined ? undefined : Number(body.originLongitude),
+      originAddress: typeof body.originAddress === "string" ? body.originAddress : undefined,
+      supportPhone: typeof body.supportPhone === "string" ? body.supportPhone : undefined,
+      supportWhatsapp: typeof body.supportWhatsapp === "string" ? body.supportWhatsapp : undefined,
+      supportEmail: typeof body.supportEmail === "string" ? body.supportEmail : undefined,
     }));
   } catch (error) { res.status(400).json({ error: "تعذر حفظ إعدادات التوصيل" }); }
 });

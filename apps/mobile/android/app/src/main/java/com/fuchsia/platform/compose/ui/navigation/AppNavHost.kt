@@ -75,6 +75,7 @@ import com.fuchsia.platform.compose.ui.screens.ProductDetailsScreen
 import com.fuchsia.platform.compose.ui.screens.ProfileEditorScreen
 import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.SettingsScreen
+import com.fuchsia.platform.compose.ui.screens.SupportScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 import com.fuchsia.platform.compose.ui.screens.WishlistScreen
@@ -109,6 +110,7 @@ object AppRoutes {
     const val Terms = "terms"
     const val Help = "help"
     const val Contact = "contact"
+    const val Support = "support"
     const val About = "about"
 
     fun auth(register: Boolean): String = "auth?register=$register"
@@ -367,9 +369,8 @@ fun FuchsiaAppNavHost(
                     onAddresses = { navController.navigate(AppRoutes.AddressBook) },
                     onOrders = { selectTab(AppRoutes.OrdersRoot) },
                     onWishlist = { selectTab(AppRoutes.Wishlist) },
-                    onVenuePartner = { navController.navigate(AppRoutes.VenuePartner) },
                     onSettings = { selectTab(AppRoutes.Settings) },
-                    onContact = { navController.navigate(AppRoutes.Contact) },
+                    onSupport = { navController.navigate(AppRoutes.Support) },
                     onSignedOut = {
                         navController.navigate(AppRoutes.Account) {
                             popUpTo(AppRoutes.Account) { inclusive = true }
@@ -416,6 +417,7 @@ fun FuchsiaAppNavHost(
             composable(AppRoutes.Terms) { PolicyScreen(isTerms = true, onBack = { navController.popBackStack() }) }
             composable(AppRoutes.Help) { HelpScreen(onBack = { navController.popBackStack() }) }
             composable(AppRoutes.Contact) { ContactScreen(onBack = { navController.popBackStack() }) }
+            composable(AppRoutes.Support) { SupportScreen(onBack = { navController.popBackStack() }) }
             composable(AppRoutes.About) { AboutScreen(onBack = { navController.popBackStack() }) }
             composable(
                 route = AppRoutes.OrderSuccess,

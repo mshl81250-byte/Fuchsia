@@ -17,6 +17,8 @@ const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
 const PRODUCT_IMAGES_LIMIT_MIGRATION_ID = "20261016_product_images_limit_v1";
 const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
 const DELIVERY_SETTINGS_MIGRATION_ID = "20261016_delivery_settings_v1";
+const SECOND_PHONE_MIGRATION_ID = "20261016_customer_second_phone_v1";
+const PLATFORM_CONTACT_MIGRATION_ID = "20261016_platform_contact_settings_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -54,6 +56,29 @@ export async function runMigrations(): Promise<void> {
     await pool.query("INSERT IGNORE INTO delivery_settings (id) VALUES (1)");
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DELIVERY_SETTINGS_MIGRATION_ID]);
     logger.info({ migrationId: DELIVERY_SETTINGS_MIGRATION_ID }, "Delivery settings migration completed");
+  }
+
+  const [secondPhoneRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [SECOND_PHONE_MIGRATION_ID],
+  );
+  if ((secondPhoneRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("users", "second_phone", "TEXT NULL");
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [SECOND_PHONE_MIGRATION_ID]);
+    logger.info({ migrationId: SECOND_PHONE_MIGRATION_ID }, "Customer second phone migration completed");
+  }
+
+  const [platformContactRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PLATFORM_CONTACT_MIGRATION_ID],
+  );
+  if ((platformContactRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("delivery_settings", "origin_address", "VARCHAR(500) NULL");
+    await addColumnIfMissing("delivery_settings", "support_phone", "VARCHAR(40) NULL");
+    await addColumnIfMissing("delivery_settings", "support_whatsapp", "VARCHAR(40) NULL");
+    await addColumnIfMissing("delivery_settings", "support_email", "VARCHAR(320) NULL");
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PLATFORM_CONTACT_MIGRATION_ID]);
+    logger.info({ migrationId: PLATFORM_CONTACT_MIGRATION_ID }, "Platform contact settings migration completed");
   }
 
   const [rentalDimensionsRows] = await pool.query(

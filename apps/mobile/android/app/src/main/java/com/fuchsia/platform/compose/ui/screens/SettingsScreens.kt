@@ -49,6 +49,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.fuchsia.platform.compose.BuildConfig
 import com.fuchsia.platform.compose.data.BiometricAuthenticator
+import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.AppPreferences
 import com.fuchsia.platform.compose.data.ThemeMode
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -332,8 +334,11 @@ fun HelpScreen(onBack: () -> Unit) {
 @Composable
 fun ContactScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val shopPhone = "778360009"
-    val address = "صنعاء - شارع كلية الشرطة، أمام ملعب النادي الترفيهي (الشرطة سابقًا)، بجوار محل ليالي الأنس للفساتين"
+    var settings by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    LaunchedEffect(Unit) { settings = runCatching { FuchsiaApi.platformSettings() }.getOrNull() }
+    val shopPhone = settings?.optString("supportPhone").orEmpty().ifBlank { "778360009" }
+    val whatsapp = settings?.optString("supportWhatsapp").orEmpty().ifBlank { shopPhone }
+    val address = settings?.optString("originAddress").orEmpty().ifBlank { "صنعاء - اليمن" }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
         Column(
             Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp),
@@ -354,7 +359,7 @@ fun ContactScreen(onBack: () -> Unit) {
                 Text("اتصال بالمتجر", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
-                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/967$shopPhone"))) },
+                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${whatsapp.filter { it.isDigit() }}"))) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(15.dp),
             ) {

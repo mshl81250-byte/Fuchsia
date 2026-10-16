@@ -1,7 +1,12 @@
 import { Router } from "express";
-import { deliveryQuote } from "../lib/delivery-pricing";
+import { deliveryQuote, getDeliverySettings } from "../lib/delivery-pricing";
 
 const router = Router();
+
+router.get("/settings", async (_req, res): Promise<void> => {
+  try { res.json(await getDeliverySettings()); }
+  catch { res.status(500).json({ error: "تعذر تحميل إعدادات المنصة" }); }
+});
 
 router.get("/quote", async (req, res): Promise<void> => {
   const latitude = Number(req.query.latitude);

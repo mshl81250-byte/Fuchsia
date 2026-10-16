@@ -8,6 +8,7 @@ export const usersTable = mysqlTable("users", {
   email: varchar("email", { length: 320 }).notNull().unique(),
   passwordHash: text("password_hash"),
   phone: text("phone"),
+  secondPhone: text("second_phone"),
   avatarUrl: text("avatar_url"),
   address: text("address"),
   isGuest: boolean("is_guest").notNull().default(false),

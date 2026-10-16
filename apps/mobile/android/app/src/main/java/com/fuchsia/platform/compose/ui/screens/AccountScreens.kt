@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SupportAgent
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -89,13 +90,13 @@ fun AccountScreen(
     onAddresses: () -> Unit,
     onOrders: () -> Unit,
     onWishlist: () -> Unit,
-    onVenuePartner: () -> Unit,
     onSettings: () -> Unit,
-    onContact: () -> Unit,
+    onSupport: () -> Unit,
     onSignedOut: () -> Unit,
     bottomBar: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val token = remember(context) { SessionVault.token(context) }
     val userId = remember(context) { SessionVault.userId(context) }
     var profile by remember(context) { mutableStateOf(SessionVault.read(context)?.optJSONObject("user")) }
@@ -105,6 +106,9 @@ fun AccountScreen(
     var loading by remember { mutableStateOf(token != null) }
     var error by remember { mutableStateOf("") }
     var confirmSignOut by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletionReason by remember { mutableStateOf("") }
+    var deletingAccount by remember { mutableStateOf(false) }
 
     LaunchedEffect(token, userId) {
         if (token.isNullOrBlank()) { loading = false; return@LaunchedEffect }
@@ -172,6 +176,7 @@ fun AccountScreen(
                             }
                             AccountInfoLine("الاسم الكامل", name.ifBlank { "غير مضاف" })
                             AccountInfoLine("رقم الهاتف", profile?.optString("phone").orEmpty().takeIf { it.isNotBlank() && it != "null" } ?: "غير مضاف")
+                            AccountInfoLine("رقم تواصل إضافي", profile?.optString("secondPhone").orEmpty().takeIf { it.isNotBlank() && it != "null" } ?: "اختياري — غير مضاف")
                             AccountInfoLine("البريد الإلكتروني", profile?.optString("email").orEmpty().takeIf { it.isNotBlank() && it != "null" } ?: "غير مضاف")
                             AccountInfoLine("العنوان الافتراضي", defaultAddress?.address ?: "لم تتم إضافة عنوان بعد")
                         }
@@ -199,9 +204,9 @@ fun AccountScreen(
                 }
                 item { AccountAction(Icons.Rounded.LocationOn, "عناوين التوصيل", "إضافة وتعديل العناوين مع الخريطة", onAddresses) }
                 item { AccountAction(Icons.Rounded.FavoriteBorder, "المنتجات المفضلة", "$favoritesCount منتجات محفوظة", onWishlist) }
-                item { AccountAction(Icons.Rounded.Star, "مساحة الشريك", "إدارة القاعات وجدول الإتاحة وإرسال طلب الاعتماد", onVenuePartner) }
                 item { AccountAction(Icons.Rounded.Settings, "الإعدادات والمظهر", "الإشعارات والوضع الفاتح أو الداكن واللغة", onSettings) }
-                item { AccountAction(Icons.Rounded.Person, "الدعم والتواصل", "تواصل معنا أو اطّلع على الأسئلة الشائعة", onContact) }
+                item { AccountAction(Icons.Rounded.SupportAgent, "الاقتراحات والاستفسارات والشكاوى", "أرسل رسالتك مباشرة إلى فريق فوشيا", onSupport) }
+                item { AccountAction(Icons.Rounded.DeleteOutline, "إعدادات متقدمة", "إدارة وحذف الحساب نهائيًا بعد كتابة السبب", { showDeleteDialog = true }) }
                 if (loading) item { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
                 if (error.isNotBlank()) item { Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall) }
                 item { OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(15.dp)) { Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = FuchsiaColors.Primary); Spacer(Modifier.width(8.dp)); Text("تسجيل الخروج", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) } }
@@ -216,6 +221,89 @@ fun AccountScreen(
                 Text("ستحتاج إلى تسجيل الدخول مجدداً لمتابعة طلباتك.", color = FuchsiaColors.Muted, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
                 Button(onClick = { confirmSignOut = false; SessionVault.clear(context); onSignedOut() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تسجيل الخروج", fontWeight = FontWeight.Bold) }
                 TextButton(onClick = { confirmSignOut = false }, modifier = Modifier.fillMaxWidth()) { Text("إلغاء", color = FuchsiaColors.TextAccent) }
+            }
+        }
+    }
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!deletingAccount) showDeleteDialog = false },
+            title = { Text("حذف الحساب", fontWeight = FontWeight.ExtraBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("اكتب سببًا واضحًا قبل المتابعة. سيتم إخفاء بياناتك الشخصية وتسجيل الخروج من جميع الأجهزة.", color = FuchsiaColors.Muted)
+                    OutlinedTextField(deletionReason, { deletionReason = it }, modifier = Modifier.fillMaxWidth(), label = { Text("سبب الحذف") }, minLines = 3, maxLines = 5, shape = RoundedCornerShape(14.dp))
+                    if (error.isNotBlank()) Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val sessionToken = token
+                        if (sessionToken.isNullOrBlank()) error = "انتهت الجلسة؛ سجّل الدخول مجددًا."
+                        else {
+                            deletingAccount = true
+                            error = ""
+                            scope.launch {
+                                try {
+                                    FuchsiaApi.deleteAccount(sessionToken, deletionReason.trim())
+                                    showDeleteDialog = false
+                                    SessionVault.clear(context)
+                                    onSignedOut()
+                                } catch (failure: Exception) { error = failure.message ?: "تعذر حذف الحساب." }
+                                finally { deletingAccount = false }
+                            }
+                        }
+                    },
+                    enabled = deletionReason.trim().length >= 10 && !deletingAccount,
+                    colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Error),
+                ) { Text(if (deletingAccount) "جارٍ الحذف…" else "تأكيد حذف الحساب", color = Color.White) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }, enabled = !deletingAccount) { Text("إلغاء", color = FuchsiaColors.TextAccent) } },
+        )
+    }
+}
+
+@Composable
+fun SupportScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val token = remember(context) { SessionVault.token(context) }
+    val scope = rememberCoroutineScope()
+    var category by remember { mutableStateOf("inquiry") }
+    var subject by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var settings by remember { mutableStateOf<JSONObject?>(null) }
+    var sending by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { settings = runCatching { FuchsiaApi.platformSettings() }.getOrNull() }
+    Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
+        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            ScreenHeading("الاقتراحات والاستفسارات والشكاوى", onBack)
+            Text("رسالتك تصل مباشرة إلى فريق فوشيا، ويمكن تغيير بيانات التواصل من لوحة التحكم.", color = FuchsiaColors.Muted)
+            Card(colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    Text("اختر نوع الرسالة", fontWeight = FontWeight.Bold, color = FuchsiaColors.Ink)
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf("suggestion" to "اقتراح", "inquiry" to "استفسار", "complaint" to "شكوى").forEach { (value, label) ->
+                            OutlinedButton(onClick = { category = value }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (category == value) FuchsiaColors.Primary else FuchsiaColors.Muted), border = BorderStroke(1.dp, if (category == value) FuchsiaColors.Primary else FuchsiaColors.Line), contentPadding = PaddingValues(horizontal = 4.dp)) { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                    OutlinedTextField(subject, { subject = it }, modifier = Modifier.fillMaxWidth(), label = { Text("العنوان (اختياري)") }, singleLine = true, shape = RoundedCornerShape(14.dp))
+                    OutlinedTextField(message, { message = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("اكتب رسالتك") }, minLines = 5, maxLines = 8, shape = RoundedCornerShape(14.dp))
+                    if (error.isNotBlank()) Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall)
+                    if (sent) Text("تم إرسال رسالتك بنجاح، شكرًا لتواصلك معنا.", color = FuchsiaColors.Success, fontWeight = FontWeight.Bold)
+                    Button(onClick = {
+                        if (token.isNullOrBlank()) error = "سجّل الدخول لإرسال الرسالة."
+                        else if (message.trim().length < 8) error = "اكتب تفاصيل لا تقل عن 8 أحرف."
+                        else { sending = true; scope.launch { try { FuchsiaApi.sendSupportMessage(token, category, subject.trim(), message.trim()); sent = true; message = ""; subject = "" } catch (failure: Exception) { error = failure.message ?: "تعذر إرسال الرسالة." } finally { sending = false } } }
+                    }, modifier = Modifier.fillMaxWidth().height(50.dp), enabled = !sending, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary), shape = RoundedCornerShape(14.dp)) { Text(if (sending) "جارٍ الإرسال…" else "إرسال إلى فريق فوشيا", color = Color.White, fontWeight = FontWeight.Bold) }
+                }
+            }
+            settings?.let { values ->
+                val phone = values.optString("supportPhone")
+                val whatsapp = values.optString("supportWhatsapp")
+                val email = values.optString("supportEmail")
+                if (phone.isNotBlank() || whatsapp.isNotBlank() || email.isNotBlank()) Card(colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose), shape = RoundedCornerShape(18.dp)) { Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("قنوات التواصل الحالية", fontWeight = FontWeight.Bold, color = FuchsiaColors.TextAccent); if (phone.isNotBlank()) Text("الهاتف: $phone", color = FuchsiaColors.Ink); if (whatsapp.isNotBlank()) Text("واتساب: $whatsapp", color = FuchsiaColors.Ink); if (email.isNotBlank()) Text("البريد: $email", color = FuchsiaColors.Ink) } }
             }
         }
     }
@@ -294,6 +382,7 @@ fun ProfileEditorScreen(onBack: () -> Unit, onSaved: () -> Unit) {
     val scope = rememberCoroutineScope()
     var fullName by remember { mutableStateOf(cachedUser?.optString("fullName").orEmpty()) }
     var phone by remember { mutableStateOf(cachedUser?.optString("phone").orEmpty().takeUnless { it == "null" }.orEmpty()) }
+    var secondPhone by remember { mutableStateOf(cachedUser?.optString("secondPhone").orEmpty().takeUnless { it == "null" }.orEmpty()) }
     var email by remember { mutableStateOf(cachedUser?.optString("email").orEmpty()) }
     var loading by remember { mutableStateOf(token != null) }
     var saving by remember { mutableStateOf(false) }
@@ -309,6 +398,7 @@ fun ProfileEditorScreen(onBack: () -> Unit, onSaved: () -> Unit) {
             val latest = FuchsiaApi.profile(token)
             fullName = latest.optString("fullName").ifBlank { fullName }
             phone = latest.optString("phone").takeUnless { it == "null" }.orEmpty()
+            secondPhone = latest.optString("secondPhone").takeUnless { it == "null" }.orEmpty()
             email = latest.optString("email")
             SessionVault.save(context, latest, token)
         } catch (failure: Exception) {
@@ -327,6 +417,7 @@ fun ProfileEditorScreen(onBack: () -> Unit, onSaved: () -> Unit) {
             Text("يُحفظ الاسم ورقم الهاتف على حسابك لاستخدامهما في الطلبات القادمة.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
             OutlinedTextField(fullName, { fullName = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("الاسم الكامل") }, singleLine = true, shape = RoundedCornerShape(15.dp))
             OutlinedTextField(phone, { phone = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("رقم الهاتف") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(secondPhone, { secondPhone = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("رقم تواصل إضافي (اختياري)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), shape = RoundedCornerShape(15.dp))
             OutlinedTextField(email, {}, modifier = Modifier.fillMaxWidth(), label = { Text("البريد الإلكتروني") }, singleLine = true, readOnly = true, shape = RoundedCornerShape(15.dp))
             if (loading) LinearLoading()
             if (error.isNotBlank()) Text(error, color = FuchsiaColors.Error, style = MaterialTheme.typography.bodySmall)
@@ -342,7 +433,7 @@ fun ProfileEditorScreen(onBack: () -> Unit, onSaved: () -> Unit) {
                         error = ""
                         scope.launch {
                             try {
-                                val updated = FuchsiaApi.updateProfile(sessionToken, fullName.trim(), phone.trim())
+                                val updated = FuchsiaApi.updateProfile(sessionToken, fullName.trim(), phone.trim(), secondPhone.trim())
                                 SessionVault.save(context, updated, sessionToken)
                                 onSaved()
                             } catch (failure: Exception) {
