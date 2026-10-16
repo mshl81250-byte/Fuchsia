@@ -85,6 +85,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 private const val MAX_PRODUCT_IMAGES = 8
@@ -109,6 +110,7 @@ internal fun RentalPartnerHub(
     var productsError by remember { mutableStateOf("") }
     var bookingsError by remember { mutableStateOf("") }
     var maintenanceError by remember { mutableStateOf("") }
+    var lastUpdatedAt by remember { mutableStateOf<Long?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var editorVisible by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<PartnerRentalProduct?>(null) }
@@ -138,16 +140,19 @@ internal fun RentalPartnerHub(
             productsError = ""
             bookingsError = ""
             maintenanceError = ""
+            lastUpdatedAt = null
+            var loadedAny = false
             runCatching { PartnerRentalApi.products(auth, storeId) }
-                .onSuccess { products = it }
+                .onSuccess { products = it; loadedAny = true }
                 .onFailure { productsError = it.message ?: "تعذر تحميل كتالوج الإيجار" }
             runCatching { PartnerRentalApi.bookings(auth, storeId) }
-                .onSuccess { bookings = it }
+                .onSuccess { bookings = it; loadedAny = true }
                 .onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار" }
             runCatching { PartnerRentalApi.maintenance(auth, storeId, SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)) }
-                .onSuccess { maintenance = it }
+                .onSuccess { maintenance = it; loadedAny = true }
                 .onFailure { maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة" }
-            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it }.onFailure { categories = emptyList() }
+            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it; loadedAny = true }.onFailure { categories = emptyList() }
+            if (loadedAny) lastUpdatedAt = System.currentTimeMillis()
             loading = false
         }
     }
@@ -174,6 +179,14 @@ internal fun RentalPartnerHub(
             RentalNotice("بيانات معاينة فقط؛ لا تُرفع صور ولا تُحفظ منتجات أو قرارات حجز حقيقية.")
         } else {
             Text("إدارة كتالوج التأجير والطلبات. قبول الطلب يعني تأكيد التوفر فقط، ولا يعتمد الدفعة المالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+            lastUpdatedAt?.let { timestamp ->
+                Text(
+                    "آخر تحديث ناجح: ${SimpleDateFormat("HH:mm", Locale.US).format(Date(timestamp))}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
         }
 
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
