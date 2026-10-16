@@ -405,7 +405,6 @@ private fun RentalProductEditor(
     var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
     var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(MAX_PRODUCT_IMAGES)) }
-    var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
     var busy by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf("") }
     var uploadStatus by remember { mutableStateOf("") }
@@ -498,10 +497,6 @@ private fun RentalProductEditor(
                         }
                     }
                     if (uploadStatus.isNotBlank()) Text(uploadStatus, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        FilterChip(selected = published, onClick = { published = !published }, label = { Text(if (published) "منشور للعملاء" else "مسودة غير منشورة") }, leadingIcon = { Icon(if (published) Icons.Rounded.Check else Icons.Rounded.Image, null, Modifier.size(16.dp)) })
-                    }
-                    if (published && imageUrls.isEmpty()) RentalNotice("أضف صورة رئيسية قبل نشر المنتج.", isError = true)
                     if (formError.isNotBlank()) RentalNotice(formError, isError = true)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -531,7 +526,7 @@ private fun RentalProductEditor(
                             rentalCategory == "table" && tableWidth <= 0 && tableDiameter <= 0 -> "أدخل عرض الطاولة وطولها أو قطرها"
                             rentalCategory == "table" && tableDiameter <= 0 && tableLength <= 0 -> "أدخل طول الطاولة أو قطرها"
                             rentalCategory == "table" && colors.isEmpty() -> "أدخل لونًا واحدًا على الأقل للطاولات"
-                            published && imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل النشر"
+                            imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل الحفظ"
                             else -> ""
                         }
                         if (formError.isNotBlank()) return@Button
@@ -565,18 +560,17 @@ private fun RentalProductEditor(
                                 .put("availableColors", JSONArray(colors).toString())
                                 .put("stockQuantity", stock)
                                 .put("inStock", stock > 0)
-                                .put("isPublished", published)
+                                .put("isPublished", true)
                                 .put("tags", "[]")
                                 .put("occasionTags", "[]")
                             try {
                                 if (existing == null) {
-                                    val created = PartnerRentalApi.createProduct(auth, JSONObject(payload.toString()).put("isPublished", false))
-                                    if (published) PartnerRentalApi.updateProduct(auth, created.id, JSONObject().put("isPublished", true))
+                                    PartnerRentalApi.createProduct(auth, payload)
                                 } else {
                                     PartnerRentalApi.updateProduct(auth, existing.id, payload)
                                 }
                                 onSaved()
-                                onMessage(if (published) "تم حفظ المنتج ونشره" else "تم حفظ المنتج كمسودة")
+                                onMessage("تم حفظ المنتج ونشره للعملاء مباشرة")
                                 onDismiss()
                             } catch (failure: Exception) {
                                 formError = failure.message ?: "تعذر حفظ المنتج"
