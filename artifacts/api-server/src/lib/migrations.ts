@@ -16,6 +16,7 @@ const PARTNER_ACCOUNTS_MIGRATION_ID = "20261015_partner_accounts_permissions_v1"
 const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
 const PRODUCT_IMAGES_LIMIT_MIGRATION_ID = "20261016_product_images_limit_v1";
 const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
+const DELIVERY_SETTINGS_MIGRATION_ID = "20261016_delivery_settings_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -35,6 +36,25 @@ export async function runMigrations(): Promise<void> {
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  const [deliverySettingsRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [DELIVERY_SETTINGS_MIGRATION_ID],
+  );
+  if ((deliverySettingsRows as Array<{ migration_id: string }>).length === 0) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS delivery_settings (
+      id TINYINT NOT NULL PRIMARY KEY,
+      base_fee DOUBLE NOT NULL DEFAULT 200,
+      per_km DOUBLE NOT NULL DEFAULT 80,
+      free_km DOUBLE NOT NULL DEFAULT 0,
+      origin_latitude DOUBLE NOT NULL DEFAULT 15.3694,
+      origin_longitude DOUBLE NOT NULL DEFAULT 44.1910,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query("INSERT IGNORE INTO delivery_settings (id) VALUES (1)");
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DELIVERY_SETTINGS_MIGRATION_ID]);
+    logger.info({ migrationId: DELIVERY_SETTINGS_MIGRATION_ID }, "Delivery settings migration completed");
+  }
 
   const [rentalDimensionsRows] = await pool.query(
     "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
