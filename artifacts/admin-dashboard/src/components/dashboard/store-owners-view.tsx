@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, RefreshCw, Store, UserRoundCheck, Unlink } from "lucide-react";
+import { KeyRound, Plus, RefreshCw, Store, UserRoundCheck, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,9 @@ export function StoreOwnersView() {
   const [createTarget, setCreateTarget] = useState<StoreOwnerLink | null>(null);
   const [accountForm, setAccountForm] = useState({ fullName: "", email: "", password: "", phone: "", products: true, rentals: true, venueBookings: false });
   const [accountBusy, setAccountBusy] = useState(false);
+  const [newStoreOpen, setNewStoreOpen] = useState(false);
+  const [storeForm, setStoreForm] = useState({ nameAr: "", nameEn: "", phone: "", location: "", description: "" });
+  const [storeBusy, setStoreBusy] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/store-owner-links", { credentials: "include", cache: "no-store" });
@@ -35,6 +38,34 @@ export function StoreOwnersView() {
     void load().catch((error) => toast.error(error instanceof Error ? error.message : "حدث خطأ"))
       .finally(() => setLoading(false));
   }, [load]);
+
+  const createStore = async () => {
+    const nameAr = storeForm.nameAr.trim();
+    if (nameAr.length < 2) { toast.error("أدخل اسم المتجر من حرفين على الأقل"); return; }
+    setStoreBusy(true);
+    try {
+      const response = await fetch("/api/admin/stores", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nameAr,
+          nameEn: storeForm.nameEn.trim() || null,
+          phone: storeForm.phone.trim() || null,
+          location: storeForm.location.trim() || null,
+          description: storeForm.description.trim() || null,
+          logoUrl: "https://fuchsia-wvbrvhtl.manus.space/favicon.svg",
+          isOpen: true,
+          isFeatured: false,
+        }),
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; nameAr?: string };
+      if (!response.ok) throw new Error(body.error || "تعذر إضافة المتجر");
+      toast.success(`تمت إضافة متجر ${body.nameAr || nameAr}`);
+      setStoreForm({ nameAr: "", nameEn: "", phone: "", location: "", description: "" });
+      setNewStoreOpen(false);
+      await load();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "حدث خطأ"); }
+    finally { setStoreBusy(false); }
+  };
 
   const assign = async (storeId: number, forcedOwnerId?: number | null) => {
     const raw = ownerIds[storeId]?.trim() || "";
@@ -90,7 +121,7 @@ export function StoreOwnersView() {
   return <div className="space-y-6">
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="text-2xl font-bold">ملاك متاجر التأجير</h2><p className="text-muted-foreground">اربط متجر الكوش أو الطاولات بحساب مستخدم موثّق حتى يتمكن صاحبه من إدارة كتالوجه.</p></div>
-      <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button>
+      <div className="flex flex-wrap gap-2"><Button onClick={() => setNewStoreOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> إضافة متجر جديد</Button><Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button></div>
     </div>
     <div className="grid gap-4">
       {stores.map((store) => <Card key={store.id}><CardContent className="p-5 flex flex-wrap items-end justify-between gap-4">
@@ -107,6 +138,7 @@ export function StoreOwnersView() {
       </CardContent></Card>)}
       {!loading && stores.length === 0 && <Card><CardContent className="p-8 text-center text-muted-foreground">لا توجد متاجر لربطها.</CardContent></Card>}
     </div>
+    {newStoreOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={() => !storeBusy && setNewStoreOpen(false)}><Card className="w-full max-w-lg" onClick={(event) => event.stopPropagation()}><CardContent className="space-y-4 p-6"><div><h3 className="text-xl font-bold">إضافة متجر جديد</h3><p className="mt-1 text-sm text-muted-foreground">أدخل اسم المتجر، ثم يمكنك إنشاء حساب الشريك وربطه به.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1 sm:col-span-2"><Label>اسم المتجر بالعربية *</Label><Input autoFocus value={storeForm.nameAr} onChange={(event) => setStoreForm((form) => ({ ...form, nameAr: event.target.value }))} placeholder="مثال: متجر البيت الأنيق" /></div><div className="space-y-1"><Label>الاسم بالإنجليزية</Label><Input dir="ltr" value={storeForm.nameEn} onChange={(event) => setStoreForm((form) => ({ ...form, nameEn: event.target.value }))} /></div><div className="space-y-1"><Label>رقم الهاتف</Label><Input dir="ltr" value={storeForm.phone} onChange={(event) => setStoreForm((form) => ({ ...form, phone: event.target.value }))} /></div><div className="space-y-1 sm:col-span-2"><Label>الموقع</Label><Input value={storeForm.location} onChange={(event) => setStoreForm((form) => ({ ...form, location: event.target.value }))} placeholder="المدينة أو العنوان" /></div><div className="space-y-1 sm:col-span-2"><Label>وصف مختصر</Label><Input value={storeForm.description} onChange={(event) => setStoreForm((form) => ({ ...form, description: event.target.value }))} /></div></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewStoreOpen(false)} disabled={storeBusy}>إلغاء</Button><Button onClick={() => void createStore()} disabled={storeBusy || storeForm.nameAr.trim().length < 2}>{storeBusy ? "جارٍ الحفظ…" : "حفظ المتجر"}</Button></div></CardContent></Card></div>}
     {createTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={() => !accountBusy && setCreateTarget(null)}><Card className="w-full max-w-lg" onClick={(event) => event.stopPropagation()}><CardContent className="space-y-4 p-6"><div><h3 className="text-xl font-bold">إنشاء حساب شريك</h3><p className="mt-1 text-sm text-muted-foreground">المتجر: {createTarget.nameAr}. ستظهر بيانات الدخول مرة واحدة بعد الإنشاء.</p></div><div className="grid gap-3 sm:grid-cols-2"><div className="space-y-1 sm:col-span-2"><Label>اسم الشريك</Label><Input value={accountForm.fullName} onChange={(event) => setAccountForm((form) => ({ ...form, fullName: event.target.value }))} /></div><div className="space-y-1"><Label>البريد الإلكتروني أو اسم المستخدم</Label><Input type="text" autoComplete="username" placeholder="name@example.com أو house1232" value={accountForm.email} onChange={(event) => setAccountForm((form) => ({ ...form, email: event.target.value }))} /></div><div className="space-y-1"><Label>كلمة المرور المؤقتة</Label><Input type="text" value={accountForm.password} onChange={(event) => setAccountForm((form) => ({ ...form, password: event.target.value }))} /></div><div className="space-y-1 sm:col-span-2"><Label>رقم الهاتف</Label><Input value={accountForm.phone} onChange={(event) => setAccountForm((form) => ({ ...form, phone: event.target.value }))} /></div></div><div className="space-y-2 rounded-xl border p-3"><p className="text-sm font-bold">الصلاحيات</p><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={accountForm.products} onChange={(event) => setAccountForm((form) => ({ ...form, products: event.target.checked }))} /> إدارة المنتجات والصور</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={accountForm.rentals} onChange={(event) => setAccountForm((form) => ({ ...form, rentals: event.target.checked }))} /> إدارة الإيجارات وحجوزاتها</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={accountForm.venueBookings} onChange={(event) => setAccountForm((form) => ({ ...form, venueBookings: event.target.checked }))} /> حجوزات القاعات</label></div><div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCreateTarget(null)} disabled={accountBusy}>إلغاء</Button><Button onClick={() => void createPartnerAccount()} disabled={accountBusy || !accountForm.fullName || !accountForm.email || accountForm.password.length < 8}>{accountBusy ? "جارٍ الإنشاء…" : "إنشاء الحساب وربط المتجر"}</Button></div></CardContent></Card></div>}
   </div>;
 }
