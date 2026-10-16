@@ -6,9 +6,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.UUID
 
 internal data class PartnerStore(val id: Int, val name: String, val logoUrl: String, val isOpen: Boolean)
 internal data class PartnerCategory(val id: Int, val name: String)
@@ -67,8 +64,6 @@ internal data class PartnerRentalChangeRequest(val id: Int, val type: String, va
 internal data class PartnerMaintenanceBlock(val id: Int, val productId: Int, val productName: String, val startDate: String, val endDate: String, val quantity: Int, val reason: String?)
 
 internal object PartnerRentalApi {
-    private val baseUrl get() = BuildConfig.API_BASE_URL.trimEnd('/')
-
     suspend fun stores(token: String): List<PartnerStore> = withContext(Dispatchers.IO) {
         JSONArray(request("/api/vendor/stores", "GET", token = token)).objects { row ->
             PartnerStore(row.optInt("id"), row.optString("nameAr"), row.optString("logoUrl"), row.optBoolean("isOpen", true))
@@ -126,73 +121,11 @@ internal object PartnerRentalApi {
     }
 
     suspend fun uploadImage(context: Context, uri: Uri, token: String, storeId: Int): String = withContext(Dispatchers.IO) {
-        val contentType = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';')
-            ?: throw IllegalArgumentException("تعذر تحديد نوع الصورة")
-        require(contentType in setOf("image/jpeg", "image/png", "image/webp")) { "اختر صورة JPG أو PNG أو WebP" }
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: throw IllegalStateException("تعذر قراءة الصورة")
-        require(bytes.isNotEmpty() && bytes.size <= 7 * 1024 * 1024) { "يجب ألا يتجاوز حجم كل صورة 7 ميغابايت" }
-
-        val boundary = "----Fuchsia${UUID.randomUUID().toString().replace("-", "") }"
-        val connection = (URL(baseUrl + "/api/uploads/image").openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 20_000
-            readTimeout = 30_000
-            doOutput = true
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Authorization", "Bearer $token")
-            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-        }
-        try {
-            connection.outputStream.use { stream ->
-                val output = stream.buffered()
-                fun field(name: String, value: String) {
-                    output.write("--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n".toByteArray(Charsets.UTF_8))
-                }
-                field("purpose", "rental")
-                field("storeId", storeId.toString())
-                val extension = when (contentType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
-                output.write("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"rental.$extension\"\r\nContent-Type: $contentType\r\n\r\n".toByteArray(Charsets.UTF_8))
-                output.write(bytes)
-                output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8))
-                output.flush()
-            }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                val message = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
-                throw PartnerApiException(message.ifBlank { "تعذر رفع الصورة (HTTP $status)" }, status)
-            }
-            JSONObject(text).optString("url").takeIf(String::isNotBlank)
-                ?: throw IllegalStateException("لم يُرجع الخادم رابط الصورة")
-        } finally { connection.disconnect() }
+        PartnerHttpClient.uploadImage(context, uri, token, storeId)
     }
 
     private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String = withContext(Dispatchers.IO) {
-        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = 15_000
-            readTimeout = 20_000
-            setRequestProperty("Accept", "application/json")
-            if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
-            if (body != null) { doOutput = true; setRequestProperty("Content-Type", "application/json; charset=utf-8") }
-        }
-        try {
-            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                val message = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
-                throw PartnerApiException(message.ifBlank { "تعذر الاتصال بالخادم (HTTP $status)" }, status)
-            }
-            text.ifBlank { "{}" }
-        } catch (error: PartnerApiException) {
-            throw error
-        } catch (error: Exception) {
-            throw PartnerApiException(error.localizedMessage ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.", 0)
-        } finally { connection.disconnect() }
+        PartnerHttpClient.request(path, method, body, token)
     }
 
     private fun product(row: JSONObject) = PartnerRentalProduct(

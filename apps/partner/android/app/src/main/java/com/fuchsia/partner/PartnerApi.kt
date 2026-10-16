@@ -4,10 +4,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-
-class PartnerApiException(message: String, val statusCode: Int) : Exception(message)
 
 data class PartnerVenue(
     val id: Int,
@@ -47,8 +43,6 @@ data class PartnerNotification(val id: Int, val type: String, val title: String,
 data class PartnerLogin(val user: JSONObject, val token: String)
 
 object PartnerApi {
-    private val baseUrl get() = BuildConfig.API_BASE_URL.trimEnd('/')
-
     suspend fun login(email: String, password: String): PartnerLogin = withContext(Dispatchers.IO) {
         val response = JSONObject(request("/api/auth/login", "POST", JSONObject().put("email", email).put("password", password)))
         val token = response.optString("token")
@@ -157,36 +151,8 @@ object PartnerApi {
         expiresAt = if (row.isNull("expiresAt")) null else row.optString("expiresAt").takeIf(String::isNotBlank),
     )
 
-    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String = withContext(Dispatchers.IO) {
-        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = 15_000
-            readTimeout = 20_000
-            setRequestProperty("Accept", "application/json")
-            if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
-            if (body != null) {
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            }
-        }
-        try {
-            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if (status !in 200..299) {
-                val message = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
-                throw PartnerApiException(message.ifBlank { "تعذر الاتصال بالخادم (HTTP $status)" }, status)
-            }
-            text.ifBlank { "{}" }
-        } catch (error: PartnerApiException) {
-            throw error
-        } catch (error: Exception) {
-            throw PartnerApiException(error.localizedMessage ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.", 0)
-        } finally {
-            connection.disconnect()
-        }
-    }
+    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String =
+        PartnerHttpClient.request(path, method, body, token)
 }
 
 private inline fun <T> JSONArray.toObjectList(transform: (JSONObject) -> T): List<T> = buildList {

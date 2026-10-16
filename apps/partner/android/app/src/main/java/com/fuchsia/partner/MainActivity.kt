@@ -144,7 +144,17 @@ private fun PartnerRoot() {
             profileError = ""
             runCatching { PartnerApi.profile(token.orEmpty()) }
                 .onSuccess { profile = it }
-                .onFailure { profile = null; profileError = it.message ?: "تعذر تحميل حساب الشريك" }
+                .onFailure { failure ->
+                    if ((failure as? PartnerApiException)?.isUnauthorized == true) {
+                        PartnerSession.clear(context)
+                        token = null
+                        profile = null
+                        profileError = ""
+                    } else {
+                        profile = null
+                        profileError = failure.message ?: "تعذر تحميل حساب الشريك"
+                    }
+                }
             loading = false
         }
     }
