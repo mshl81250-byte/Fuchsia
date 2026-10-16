@@ -238,7 +238,10 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             uploading = true
-            runCatching { FuchsiaApi.uploadReceipt(context, uri).optString("url") }
+            runCatching {
+                val token = bearerToken ?: throw ApiException("يرجى تسجيل الدخول لرفع إيصال الدفع")
+                FuchsiaApi.uploadReceipt(context, uri, token).optString("url")
+            }
                 .onSuccess { receiptUrl = it }
                 .onFailure { submitError = it.message ?: "تعذر رفع الإيصال." }
             uploading = false
