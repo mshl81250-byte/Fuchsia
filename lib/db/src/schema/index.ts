@@ -14,5 +14,6 @@ export * from "./payment-wallets";
 export * from "./wallet-transactions";
 export * from "./notifications";
 export * from "./notification-channels";
+export * from "./partner-push-tokens";
 export * from "./venues";
 export * from "./partner-phase3";

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, notificationChannelSettingsTable, notificationsTable, partnerNotificationsTable } from "@workspace/db";
+import { dispatchPartnerPushNotification } from "./partner-push";
 
 export async function sendVerificationCodeEmail(input: { email: string; name: string; code: string }): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
@@ -99,5 +100,8 @@ export async function createPartnerNotification(input: {
     type: input.type,
     title: input.title,
     message: input.message,
+  });
+  void dispatchPartnerPushNotification(input).catch((error) => {
+    console.error("Partner push notification dispatch failed", { error, userId: input.recipientUserId });
   });
 }

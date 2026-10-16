@@ -66,6 +66,18 @@ object PartnerApi {
         Unit
     }
 
+    suspend fun registerPushToken(token: String, deviceToken: String) = withContext(Dispatchers.IO) {
+        request("/api/notifications/partner/devices", "POST", JSONObject()
+            .put("token", deviceToken)
+            .put("platform", "android"), token)
+        Unit
+    }
+
+    suspend fun unregisterPushToken(token: String, deviceToken: String) = withContext(Dispatchers.IO) {
+        request("/api/notifications/partner/devices", "DELETE", JSONObject().put("token", deviceToken), token)
+        Unit
+    }
+
     suspend fun requestPartner(token: String, businessName: String, phone: String): JSONObject = withContext(Dispatchers.IO) {
         JSONObject(request("/api/venue-partner/owner-request", "POST", JSONObject()
             .put("businessName", businessName.trim())

@@ -15,6 +15,7 @@ const PARTNER_OPERATIONS_PHASE3_MIGRATION_ID = "20261009_partner_operations_phas
 const PARTNER_ACCOUNTS_MIGRATION_ID = "20261015_partner_accounts_permissions_v1";
 const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
 const PRODUCT_IMAGES_LIMIT_MIGRATION_ID = "20261016_product_images_limit_v1";
+const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -57,6 +58,25 @@ export async function runMigrations(): Promise<void> {
     await pool.query("ALTER TABLE products MODIFY COLUMN images VARCHAR(8000) NOT NULL DEFAULT '[]'");
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PRODUCT_IMAGES_LIMIT_MIGRATION_ID]);
     logger.info({ migrationId: PRODUCT_IMAGES_LIMIT_MIGRATION_ID }, "Product image list capacity migration completed");
+  }
+
+  const [partnerPushTokenRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PARTNER_PUSH_TOKENS_MIGRATION_ID],
+  );
+  if ((partnerPushTokenRows as Array<{ migration_id: string }>).length === 0) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS partner_push_tokens (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      token VARCHAR(512) NOT NULL,
+      platform VARCHAR(16) NOT NULL DEFAULT 'android',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY partner_push_tokens_token_uq (token),
+      INDEX partner_push_tokens_user_idx (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_PUSH_TOKENS_MIGRATION_ID]);
+    logger.info({ migrationId: PARTNER_PUSH_TOKENS_MIGRATION_ID }, "Partner push tokens migration completed");
   }
 
   const [commerceRows] = await pool.query(
