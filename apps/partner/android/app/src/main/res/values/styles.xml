@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.FuchsiaPartner" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#B20A4B</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#171216</item>
+        <item name="android:navigationBarColor">#171216</item>
+    </style>
+</resources>

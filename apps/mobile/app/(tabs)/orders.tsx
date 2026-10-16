@@ -1,0 +1,9 @@
+import React, { useCallback, useState } from "react";
+import { FlatList, Pressable, SafeAreaView, Text, View } from "react-native";
+import { useFocusEffect, router } from "expo-router";
+import { apiRequest } from "../../lib/api";
+import { getSessionId } from "../../lib/auth-storage";
+import { colors, styles } from "../../lib/theme";
+import { EmptyState } from "../../components/ui";
+const labels: Record<string, string> = { received: "تم استلام الطلب", processing: "قيد التجهيز", ready: "جاهز للتسليم", delivering: "جاري التوصيل", delivered: "تم التسليم", cancelled: "ملغى" };
+export default function Orders() { const [orders, setOrders] = useState<any[]>([]); useFocusEffect(useCallback(() => { getSessionId().then(id => { if (id) apiRequest<any[]>(`/api/orders?sessionId=${id}`).then(setOrders).catch(() => setOrders([])); }); }, [])); return <SafeAreaView style={styles.screen}><FlatList data={orders} contentContainerStyle={styles.content} keyExtractor={o => String(o.id)} ListHeaderComponent={<Text style={styles.title}>طلباتي</Text>} ListEmptyComponent={<EmptyState text="لا توجد طلبات بعد. اختاري هدية وابدئي أول فرحة." />} renderItem={({ item }) => <Pressable onPress={() => router.push(`/order/${item.id}`)} style={[styles.card, { marginTop: 12 }]}><View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ fontWeight: "900", color: colors.ink }}>طلب #{item.id}</Text><Text style={{ color: colors.primary, fontWeight: "800" }}>{labels[item.status] || item.status}</Text></View><Text style={[styles.subtitle, { marginTop: 9 }]}>{item.total} ر.س · {item.items?.length || 0} منتجات</Text><Text style={{ color: colors.muted, textAlign: "right", marginTop: 8 }}>{item.paymentStatus === "pending_review" ? "الدفع بانتظار المراجعة" : item.paymentStatus === "paid" ? "تم الدفع" : "الدفع عند التوصيل"}</Text></Pressable>} /></SafeAreaView>; }
