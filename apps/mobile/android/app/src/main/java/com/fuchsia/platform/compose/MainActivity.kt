@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.fuchsia.platform.compose.data.AppPreferences
 import com.fuchsia.platform.compose.data.BiometricAuthenticator
+import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.ThemeMode
 import com.fuchsia.platform.compose.ui.navigation.FuchsiaAppNavHost
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -45,6 +46,7 @@ import com.fuchsia.platform.compose.ui.theme.FuchsiaTheme
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FuchsiaApi.initialize(applicationContext)
         setContent {
             val context = LocalContext.current
             var themeValue by remember { mutableStateOf(AppPreferences.themeMode(context)) }

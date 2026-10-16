@@ -10,6 +10,7 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.UUID
 
 class PartnerApiException(message: String, val statusCode: Int) : Exception(message) {
@@ -20,6 +21,11 @@ class PartnerApiException(message: String, val statusCode: Int) : Exception(mess
 
 internal object PartnerHttpClient {
     private val baseUrl get() = BuildConfig.API_BASE_URL.trimEnd('/')
+    @Volatile private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
+    }
 
     suspend fun request(
         path: String,
@@ -30,6 +36,7 @@ internal object PartnerHttpClient {
         readTimeoutMs: Int = 20_000,
     ): String = withContext(Dispatchers.IO) {
         val canRetry = method.equals("GET", ignoreCase = true)
+        val cacheKey = "r_" + sha256(path + "|" + (token ?: "public"))
         var attempt = 0
         var response: String? = null
         while (response == null) {
@@ -46,9 +53,14 @@ internal object PartnerHttpClient {
             }
             try {
                 if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                response = readResponse(connection)
+                response = readResponse(connection).also { body ->
+                    if (canRetry) appContext?.let { PartnerOfflineCache.put(it, cacheKey, body) }
+                }
             } catch (error: PartnerApiException) {
-                if (!canRetry || !error.isRetryable || attempt > 0) throw error
+                if (!canRetry || !error.isRetryable || attempt > 0) {
+                    if (canRetry && error.statusCode != 401) appContext?.let { PartnerOfflineCache.get(it, cacheKey) }?.let { return@withContext it }
+                    throw error
+                }
                 attempt++
                 delay(350L)
             } catch (error: Exception) {
@@ -57,7 +69,10 @@ internal object PartnerHttpClient {
                         ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.",
                     0,
                 )
-                if (!canRetry || !wrapped.isRetryable || attempt > 0) throw wrapped
+                if (!canRetry || !wrapped.isRetryable || attempt > 0) {
+                    if (canRetry) appContext?.let { PartnerOfflineCache.get(it, cacheKey) }?.let { return@withContext it }
+                    throw wrapped
+                }
                 attempt++
                 delay(350L)
             } finally {
@@ -149,6 +164,9 @@ internal object PartnerHttpClient {
         }
         return text.ifBlank { "{}" }
     }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
     private fun errorMessage(status: Int, body: String): String {
         val serverMessage = runCatching {

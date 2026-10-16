@@ -260,6 +260,11 @@ class ApiException(message: String, val statusCode: Int = 0) : Exception(message
 object FuchsiaApi {
     private const val CONNECT_TIMEOUT_MS = 18_000
     private const val READ_TIMEOUT_MS = 22_000
+    @Volatile private var appContext: Context? = null
+
+    fun initialize(context: Context) {
+        appContext = context.applicationContext
+    }
 
     suspend fun login(email: String, password: String): AuthSession =
         parseSession(post("/api/auth/login", JSONObject().put("email", email).put("password", password)))
@@ -893,15 +898,31 @@ object FuchsiaApi {
         }
     }
 
-    private suspend fun getJson(path: String, bearerToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
-        val connection = open(path, "GET", bearerToken)
-        try { readJson(connection) } finally { connection.disconnect() }
-    }
+    private suspend fun getJson(path: String, bearerToken: String? = null): JSONObject =
+        JSONObject(getText(path, bearerToken))
 
     private suspend fun getText(path: String, bearerToken: String? = null): String = withContext(Dispatchers.IO) {
-        val connection = open(path, "GET", bearerToken)
-        try { readBody(connection) } finally { connection.disconnect() }
+        val cacheable = bearerToken.isNullOrBlank() && isOfflineCacheable(path)
+        val cacheKey = path.take(180)
+        try {
+            val connection = open(path, "GET", bearerToken)
+            val body = try { readBody(connection) } finally { connection.disconnect() }
+            if (cacheable) appContext?.let { OfflineCache.put(it, cacheKey, body) }
+            body
+        } catch (failure: ApiException) {
+            if (cacheable && (failure.statusCode == 0 || failure.statusCode >= 500)) {
+                appContext?.let { OfflineCache.get(it, cacheKey) }?.let { return@withContext it }
+            }
+            throw failure
+        } catch (failure: Exception) {
+            if (cacheable) appContext?.let { OfflineCache.get(it, cacheKey) }?.let { return@withContext it }
+            throw ApiException("لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مجددًا.", 0)
+        }
     }
+
+    private fun isOfflineCacheable(path: String): Boolean = path == "/api/categories" ||
+        path == "/api/products/featured" || path.startsWith("/api/products?") ||
+        path == "/api/stores" || path == "/api/venues" || path.startsWith("/api/venues?")
 
     private fun open(path: String, method: String, bearerToken: String? = null): HttpURLConnection =
         (URL(BuildConfig.API_BASE_URL.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {

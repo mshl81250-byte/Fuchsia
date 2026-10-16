@@ -1,5 +1,5 @@
 package com.fuchsia.partner
-
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -43,6 +43,10 @@ data class PartnerNotification(val id: Int, val type: String, val title: String,
 data class PartnerLogin(val user: JSONObject, val token: String)
 
 object PartnerApi {
+    fun initialize(context: Context) {
+        PartnerHttpClient.initialize(context)
+    }
+
     suspend fun login(email: String, password: String): PartnerLogin = withContext(Dispatchers.IO) {
         val response = JSONObject(request("/api/auth/login", "POST", JSONObject().put("email", email).put("password", password)))
         val token = response.optString("token")
