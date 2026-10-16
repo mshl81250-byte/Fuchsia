@@ -4,12 +4,14 @@
 
 > **حالة المشروع:** نسخة تشغيلية قابلة للبناء والنشر. قاعدة البيانات المستخدمة في النسخة الحالية هي **MySQL** عبر Drizzle ORM، وليست PostgreSQL.
 
+> **المصدر الموحد للتطوير:** استخدم فرع [`integration/customer-partner-admin`](https://github.com/mshl81250-byte/Fuchsia/tree/integration/customer-partner-admin) من هذا المستودع؛ فهو يجمع تطبيق Android العميل، تطبيق Android الشريك، لوحة الإدارة الويب الجديدة، والـAPI المشترك. راجع [تعليمات التكامل والتسليم](./INTEGRATION_HANDOFF_AR.md) قبل أي تعديل.
+
 ## روابط مهمة
 
-- المستودع: <https://github.com/mshl81250-byte/Fuchsia-Platform>
+- المستودع: <https://github.com/mshl81250-byte/Fuchsia>
 - المعاينة/الموقع المنشور: <https://fuchsia-x7dwxpzd.manus.space>
-- الفرع الرئيسي: `main`
-- أحدث مصدر لتطبيق Android الأصلي: الفرع [`feat/android-expo-app`](https://github.com/mshl81250-byte/Fuchsia-Platform/tree/feat/android-expo-app)؛ لم يُدمج إلى `main`.
+- فرع التكامل: `integration/customer-partner-admin`
+- النشر الافتراضي: لوحة الإدارة الجديدة فقط من `artifacts/admin-dashboard/` تحت `/admin-dashboard/`. تطبيقات Android تبقى مبنية ومربوطة بالـAPI المشترك ولا تُنشر تلقائيًا كجزء من نشر الويب.
 
 ## المزايا
 
