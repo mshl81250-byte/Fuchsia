@@ -5,10 +5,10 @@ import { eq, desc, asc, sql, and, or, inArray } from "drizzle-orm";
 import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { authenticatedUserId } from "../lib/user-session";
+import { deliveryQuote } from "../lib/delivery-pricing";
 
 const router = Router();
 
-const DELIVERY_FEE = 500;
 
 function maskPaymentReference(reference: string | null): string | null {
   if (!reference) return null;
@@ -196,7 +196,11 @@ router.post("/", async (req, res): Promise<void> => {
       return sum + item.price * item.quantity * days;
     }, 0);
     const rentalDeposit = cartItems.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
-    const deliveryFee = needsDelivery ? DELIVERY_FEE : 0;
+    const deliveryFee = needsDelivery
+      ? (typeof deliveryLatitude === "number" && typeof deliveryLongitude === "number"
+        ? (await deliveryQuote(deliveryLatitude, deliveryLongitude)).fee
+        : 0)
+      : 0;
     const total = subtotal + rentalDeposit + deliveryFee;
     if (normalizedPaymentType !== "cash_on_delivery") {
       if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {

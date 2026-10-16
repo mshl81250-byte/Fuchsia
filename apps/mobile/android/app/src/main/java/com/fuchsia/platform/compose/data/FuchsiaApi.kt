@@ -547,6 +547,9 @@ object FuchsiaApi {
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
 
+    suspend fun deliveryQuote(latitude: Double, longitude: Double): JSONObject =
+        getJson("/api/delivery/quote?latitude=$latitude&longitude=$longitude")
+
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
             getJson("/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days&quantity=$quantity")
@@ -659,14 +662,14 @@ object FuchsiaApi {
     suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
 
-    suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
+    suspend fun uploadReceipt(context: Context, uri: Uri, bearerToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
             ?: throw ApiException("تعذر معرفة نوع ملف الإيصال")
         if (mimeType !in setOf("image/jpeg", "image/png", "image/webp")) {
             throw ApiException("يرجى اختيار صورة JPG أو PNG أو WebP")
         }
         val boundary = "Fuchsia-${UUID.randomUUID()}"
-        val connection = open("/api/uploads/receipt", "POST")
+        val connection = open("/api/uploads/receipt", "POST", bearerToken)
         try {
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             connection.doOutput = true

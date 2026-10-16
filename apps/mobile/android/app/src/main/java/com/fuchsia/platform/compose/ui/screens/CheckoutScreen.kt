@@ -34,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -106,6 +108,8 @@ fun CheckoutScreen(
     var address by remember { mutableStateOf(user?.optString("address").orEmpty()) }
     var latitude by remember { mutableStateOf<Double?>(null) }
     var longitude by remember { mutableStateOf<Double?>(null) }
+    var deliveryQuoteLoading by remember { mutableStateOf(false) }
+    var deliveryDistanceKm by remember { mutableStateOf<Double?>(null) }
     var locating by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf("") }
     var paymentType by remember { mutableStateOf("cash_on_delivery") }
@@ -116,6 +120,8 @@ fun CheckoutScreen(
     var recipientName by remember { mutableStateOf("") }
     var giftMessage by remember { mutableStateOf("") }
     var hidePrice by remember { mutableStateOf(true) }
+    var editRecipient by remember { mutableStateOf(false) }
+    var showPaymentOptions by remember { mutableStateOf(false) }
 
     LaunchedEffect(sessionId, userToken, directRental) {
         if (sessionId == null) {
@@ -152,7 +158,7 @@ fun CheckoutScreen(
                 val dailyPrice = directRental.product.rentalDailyPrice ?: directRental.product.price
                 val subtotal = dailyPrice * directRental.days * directRental.quantity
                 val depositTotal = directRental.product.rentalDeposit * directRental.quantity
-                val deliveryFee = if (directRental.fulfillment == "delivery") 500.0 else 0.0
+                val deliveryFee = 0.0
                 paymentType = "partial"
                 ShoppingCart(
                     sessionId = sessionId,
@@ -198,6 +204,19 @@ fun CheckoutScreen(
         longitude = longitudeValue
         locating = false
         locationError = if (isSanaaLocation(latitudeValue, longitudeValue)) "" else "الموقع خارج نطاق التوصيل الحالي في صنعاء."
+        if (directRental?.fulfillment == "delivery" && isSanaaLocation(latitudeValue, longitudeValue)) {
+            scope.launch {
+                deliveryQuoteLoading = true
+                runCatching { FuchsiaApi.deliveryQuote(latitudeValue, longitudeValue) }
+                    .onSuccess { quote ->
+                        deliveryDistanceKm = quote.optDouble("distanceKm").takeIf { it.isFinite() }
+                        val fee = quote.optDouble("fee", 0.0)
+                        cart = cart?.let { current -> current.copy(deliveryFee = fee, total = current.subtotal + current.rentalDeposit + fee) }
+                    }
+                    .onFailure { locationError = "تعذر حساب رسوم التوصيل؛ حاول تحديث الموقع." }
+                deliveryQuoteLoading = false
+            }
+        }
     }
 
     fun applyLocation(location: Location?) {
@@ -236,7 +255,7 @@ fun CheckoutScreen(
             scope.launch {
                 uploading = true
                 try {
-                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri).optString("url")
+                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri, userToken).optString("url")
                     snackbar.showSnackbar("تم رفع الإيصال إلى الخادم")
                 } catch (failure: Throwable) {
                     receiptUrl = ""
@@ -394,9 +413,20 @@ fun CheckoutScreen(
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 30.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = FuchsiaColors.Primary) } }
             } else if (cart != null && !cart?.items.isNullOrEmpty()) {
                 item {
-                    CommerceSectionTitle("بيانات المستلم", "تُستخدم للتواصل والتوصيل")
-                    CommerceField(fullName, { fullName = it }, "الاسم الكامل")
-                    CommerceField(phone, { phone = it }, "رقم الهاتف", keyboardType = KeyboardType.Phone)
+                    CommerceSectionTitle("بيانات المستلم", "بيانات حسابك جاهزة ويمكن تغييرها عند الحاجة")
+                    if (!editRecipient) {
+                        Card(colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), shape = RoundedCornerShape(16.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(fullName.ifBlank { "لم يحدد الاسم" }, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                                Text(phone.ifBlank { "لم يحدد رقم الهاتف" }, color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { editRecipient = true }) { Text("هل تريد تغيير اسم المستلم ورقم جواله؟", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
+                            }
+                        }
+                    } else {
+                        CommerceField(fullName, { fullName = it }, "اسم المستلم")
+                        CommerceField(phone, { phone = it }, "رقم جوال المستلم", keyboardType = KeyboardType.Phone)
+                        TextButton(onClick = { editRecipient = false }) { Text("استخدام بيانات الحساب", color = FuchsiaColors.TextAccent) }
+                    }
                     if (needsDelivery && !userToken.isNullOrBlank()) {
                         TextButton(onClick = {
                             showAddressPicker = true
@@ -463,7 +493,8 @@ fun CheckoutScreen(
                                 Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
-                            if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")
+                            if (deliveryQuoteLoading) CommerceNotice("جارٍ حساب رسوم التوصيل حسب المسافة…")
+                            else if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("${deliveryDistanceKm?.let { "المسافة التقريبية %.2f كم · " .format(it) } ?: ""}تم حساب رسوم التوصيل تلقائيًا حسب إعدادات المنصة.")
                         }
                     }
                 }
@@ -498,14 +529,19 @@ fun CheckoutScreen(
                     }
                 }
                 item {
-                    CommerceSectionTitle("طريقة الدفع", "اختيار الطريقة المناسبة")
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Card(onClick = { showPaymentOptions = !showPaymentOptions }, colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), shape = RoundedCornerShape(16.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) { Text("طريقة الدفع", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold); Text(if (paymentType == "partial") "دفع عربون" else if (paymentType == "full") "دفع كامل" else "عند التوصيل", color = FuchsiaColors.Muted, fontSize = 12.sp) }
+                            Icon(if (showPaymentOptions) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = FuchsiaColors.Primary)
+                        }
+                    }
+                    if (showPaymentOptions) Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         if (!isRentalCheckout) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
                         PaymentChoice("نصف المبلغ", paymentType == "partial", Modifier.weight(1f)) { paymentType = "partial" }
                         PaymentChoice("كامل المبلغ", paymentType == "full", Modifier.weight(1f)) { paymentType = "full" }
                     }
                 }
-                if (paymentType != "cash_on_delivery") {
+                if (paymentType != "cash_on_delivery" && showPaymentOptions) {
                     item {
                         CommerceSectionTitle("المحفظة", "حسابات فعالة من الخادم")
                         if (wallets.isEmpty()) {

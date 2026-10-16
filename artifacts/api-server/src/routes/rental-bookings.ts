@@ -5,9 +5,9 @@ import { db, paymentWalletsTable, pool, usersTable, storesTable } from "@workspa
 import { authenticatedUserId } from "../lib/user-session";
 import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 import { addDateDays, getRentalOccupancy } from "../lib/rental-availability";
+import { deliveryQuote } from "../lib/delivery-pricing";
 
 const router = Router();
-const DELIVERY_FEE = 500;
 const MAX_LEAD_DAYS = 180;
 
 class RequestError extends Error {
@@ -212,7 +212,9 @@ router.post("/", async (req, res): Promise<void> => {
 
     const subtotal = dailyPrice * days * quantity;
     const rentalDeposit = Number(product.rental_deposit || 0) * quantity;
-    const deliveryFee = fulfillment === "delivery" ? DELIVERY_FEE : 0;
+    const deliveryFee = fulfillment === "delivery"
+      ? (await deliveryQuote(Number(latitude), Number(longitude))).fee
+      : 0;
     const total = subtotal + rentalDeposit + deliveryFee;
     const expectedPayment = paymentType === "full" ? total : Math.ceil(total / 2);
     if (Math.abs(paymentAmount - expectedPayment) > 0.5) throw new RequestError(409, "تغير الإجمالي؛ راجع السعر ثم أعد المحاولة");

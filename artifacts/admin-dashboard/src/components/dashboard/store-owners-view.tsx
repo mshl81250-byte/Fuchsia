@@ -13,6 +13,7 @@ type StoreOwnerLink = {
   ownerName: string | null;
   ownerEmail: string | null;
 };
+type DeliverySettings = { baseFee: number; perKm: number; freeKm: number; originLatitude: number; originLongitude: number };
 
 export function StoreOwnersView() {
   const [stores, setStores] = useState<StoreOwnerLink[]>([]);
@@ -25,6 +26,8 @@ export function StoreOwnersView() {
   const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [storeForm, setStoreForm] = useState({ nameAr: "", nameEn: "", phone: "", location: "", description: "" });
   const [storeBusy, setStoreBusy] = useState(false);
+  const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
+  const [deliveryBusy, setDeliveryBusy] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/store-owner-links", { credentials: "include", cache: "no-store" });
@@ -38,6 +41,20 @@ export function StoreOwnersView() {
     void load().catch((error) => toast.error(error instanceof Error ? error.message : "حدث خطأ"))
       .finally(() => setLoading(false));
   }, [load]);
+
+  useEffect(() => { fetch("/api/admin/delivery-settings", { credentials: "include" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("تعذر تحميل إعدادات التوصيل"))).then(setDeliverySettings).catch((error) => toast.error(error.message)); }, []);
+
+  const saveDeliverySettings = async () => {
+    if (!deliverySettings) return;
+    setDeliveryBusy(true);
+    try {
+      const response = await fetch("/api/admin/delivery-settings", { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(deliverySettings) });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "تعذر حفظ إعدادات التوصيل");
+      setDeliverySettings(body); toast.success("تم حفظ تسعيرة التوصيل");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حفظ الإعدادات"); }
+    finally { setDeliveryBusy(false); }
+  };
 
   const createStore = async () => {
     const nameAr = storeForm.nameAr.trim();
@@ -123,6 +140,7 @@ export function StoreOwnersView() {
       <div><h2 className="text-2xl font-bold">ملاك متاجر التأجير</h2><p className="text-muted-foreground">اربط متجر الكوش أو الطاولات بحساب مستخدم موثّق حتى يتمكن صاحبه من إدارة كتالوجه.</p></div>
       <div className="flex flex-wrap gap-2"><Button onClick={() => setNewStoreOpen(true)} className="gap-2"><Plus className="h-4 w-4" /> إضافة متجر جديد</Button><Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button></div>
     </div>
+    {deliverySettings && <Card className="border-fuchsia-200 bg-fuchsia-50/40"><CardContent className="space-y-4 p-5"><div><h3 className="text-lg font-bold">تسعيرة التوصيل حسب المسافة</h3><p className="text-sm text-muted-foreground">تُحسب الرسوم من نقطة الانطلاق إلى موقع العميل بالكيلومتر.</p></div><div className="grid gap-3 sm:grid-cols-3"><div className="space-y-1"><Label>رسوم البداية</Label><Input type="number" value={deliverySettings.baseFee} onChange={(event) => setDeliverySettings({ ...deliverySettings, baseFee: Number(event.target.value) })} /></div><div className="space-y-1"><Label>سعر كل كم</Label><Input type="number" value={deliverySettings.perKm} onChange={(event) => setDeliverySettings({ ...deliverySettings, perKm: Number(event.target.value) })} /></div><div className="space-y-1"><Label>المسافة المجانية كم</Label><Input type="number" value={deliverySettings.freeKm} onChange={(event) => setDeliverySettings({ ...deliverySettings, freeKm: Number(event.target.value) })} /></div></div><Button onClick={() => void saveDeliverySettings()} disabled={deliveryBusy}>{deliveryBusy ? "جارٍ الحفظ…" : "حفظ تسعيرة التوصيل"}</Button></CardContent></Card>}
     <div className="grid gap-4">
       {stores.map((store) => <Card key={store.id}><CardContent className="p-5 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-[220px] space-y-2">

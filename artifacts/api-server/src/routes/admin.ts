@@ -15,6 +15,7 @@ import { requireAdmin, authenticateAdmin, getAdminEmail, setAdminSession, clearA
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
+import { getDeliverySettings, updateDeliverySettings } from "../lib/delivery-pricing";
 
 const router = Router();
 
@@ -1060,5 +1061,25 @@ router.delete("/banners/:id", async (req, res): Promise<void> => {
   try { await db.delete(bannersTable).where(eq(bannersTable.id, Number(req.params.id))); res.json({ success: true }); }
   catch (error) { req.log.error({ error }, "Admin delete banner failed"); res.status(400).json({ error: "تعذر حذف البنر" }); }
 });
-
+router.get("/delivery-settings", async (_req, res): Promise<void> => {
+  try { res.json(await getDeliverySettings()); }
+  catch (error) { res.status(500).json({ error: "تعذر تحميل إعدادات التوصيل" }); }
+});
+router.patch("/delivery-settings", async (req, res): Promise<void> => {
+  try {
+    const body = req.body ?? {};
+    const values = ["baseFee", "perKm", "freeKm", "originLatitude", "originLongitude"];
+    if (values.some((key) => body[key] !== undefined && (!Number.isFinite(Number(body[key])) || Number(body[key]) < 0))) {
+      res.status(400).json({ error: "قيم رسوم التوصيل يجب أن تكون أرقامًا موجبة" });
+      return;
+    }
+    res.json(await updateDeliverySettings({
+      baseFee: body.baseFee === undefined ? undefined : Number(body.baseFee),
+      perKm: body.perKm === undefined ? undefined : Number(body.perKm),
+      freeKm: body.freeKm === undefined ? undefined : Number(body.freeKm),
+      originLatitude: body.originLatitude === undefined ? undefined : Number(body.originLatitude),
+      originLongitude: body.originLongitude === undefined ? undefined : Number(body.originLongitude),
+    }));
+  } catch (error) { res.status(400).json({ error: "تعذر حفظ إعدادات التوصيل" }); }
+});
 export default router;
