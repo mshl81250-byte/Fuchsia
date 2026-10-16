@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +50,14 @@ fun FuchsiaNoticeHost(hostState: SnackbarHostState, modifier: Modifier = Modifie
         else -> Icons.Rounded.CheckCircle
     }
     val accent = if (isError) FuchsiaColors.Error else FuchsiaColors.Primary
-    val background = if (isError) Color(0xFFF8EFEC) else FuchsiaColors.White
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.2f
+    val background = when {
+        isError && isDark -> Color(0xFF3A1723)
+        isError -> Color(0xFFF8EFEC)
+        isDark -> Color(0xFF2B1B24)
+        else -> Color.White
+    }
+    val foreground = if (isError && isDark) Color(0xFFFFDAD6) else if (isError) Color(0xFF5F1218) else MaterialTheme.colorScheme.onSurface
 
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.TopCenter) {
         AnimatedVisibility(
@@ -60,12 +69,12 @@ fun FuchsiaNoticeHost(hostState: SnackbarHostState, modifier: Modifier = Modifie
                 onClick = { data?.dismiss() },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = background),
+                colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
             ) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(25.dp))
-                    Text(message, color = FuchsiaColors.Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(message, color = foreground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(2.dp))
                 }
             }

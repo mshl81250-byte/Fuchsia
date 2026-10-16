@@ -54,6 +54,7 @@ import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.StoreSummary
 import com.fuchsia.platform.compose.data.TableReservation
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -97,15 +98,21 @@ fun ReservationScreen(onBack: () -> Unit) {
             loading = false
             return@LaunchedEffect
         }
-        loading = true
-        try {
-            stores = FuchsiaApi.stores()
-            if (selectedStoreId == 0) selectedStoreId = stores.firstOrNull { it.isOpen }?.id ?: stores.firstOrNull()?.id ?: 0
-            previousReservations = runCatching { FuchsiaApi.reservations(bearerToken) }.getOrDefault(emptyList())
-        } catch (failure: Throwable) {
-            error = failure.message ?: "تعذر تحميل الفروع."
-        } finally {
-            loading = false
+        while (true) {
+            loading = stores.isEmpty() && previousReservations.isEmpty()
+            try {
+                if (stores.isEmpty()) {
+                    stores = FuchsiaApi.stores()
+                    if (selectedStoreId == 0) selectedStoreId = stores.firstOrNull { it.isOpen }?.id ?: stores.firstOrNull()?.id ?: 0
+                }
+                previousReservations = FuchsiaApi.reservations(bearerToken)
+                error = ""
+            } catch (failure: Throwable) {
+                error = failure.message ?: "تعذر تحديث حجوزات الطاولات."
+            } finally {
+                loading = false
+            }
+            delay(15_000)
         }
     }
 
@@ -216,10 +223,10 @@ fun ReservationScreen(onBack: () -> Unit) {
                     colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary),
                 ) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(29.dp))
+                        Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = FuchsiaColors.OnPrimary, modifier = Modifier.size(29.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text("تنسيق أنيق للمناسبات", color = FuchsiaColors.White, fontWeight = FontWeight.ExtraBold)
-                            Text("إرسال طلب الحجز، ثم يتواصل الفرع لتأكيد التوفر.", color = FuchsiaColors.White.copy(alpha = 0.9f), style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
+                            Text("تنسيق أنيق للمناسبات", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.ExtraBold)
+                            Text("إرسال طلب الحجز، ثم يتواصل الفرع لتأكيد التوفر.", color = FuchsiaColors.OnPrimary.copy(alpha = 0.9f), style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
                         }
                     }
                 }
@@ -296,7 +303,7 @@ fun ReservationScreen(onBack: () -> Unit) {
                     CommerceField(notes, { notes = it }, "ملاحظات للفرع", minLines = 2, maxLines = 4, placeholder = "تفضيلات الجلسة أو أي طلب خاص")
                 }
                 item {
-                    CommerceNotice("الطلب لا يُعدّ حجزًا مؤكدًا حتى يراجعه الفرع ويتواصل مع صاحب الطلب. ستظهر الحالة «بانتظار التأكيد» بعد الإرسال.")
+                    CommerceNotice("الطلب لا يُعدّ حجزًا مؤكدًا حتى يراجعه الفرع ويتواصل مع صاحب الطلب. ستظهر الحالة «بانتظار التأكيد» بعد الإرسال وتتحدث تلقائيًا عند فتح الشاشة.")
                 }
                 if (error.isNotBlank()) item { CommerceNotice(error, isError = true) }
                 submitted?.let { reservation ->
@@ -368,7 +375,7 @@ private fun RoundCountButton(label: String, enabled: Boolean, onClick: () -> Uni
         modifier = Modifier.size(34.dp),
         contentPadding = PaddingValues(0.dp),
         shape = androidx.compose.foundation.shape.CircleShape,
-        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose, contentColor = FuchsiaColors.Primary),
+        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary, contentColor = FuchsiaColors.OnPrimary),
     ) { Text(label, fontWeight = FontWeight.ExtraBold) }
 }
 

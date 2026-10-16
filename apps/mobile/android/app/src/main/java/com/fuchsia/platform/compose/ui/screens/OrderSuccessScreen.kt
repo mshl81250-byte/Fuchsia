@@ -80,7 +80,7 @@ fun OrderSuccessScreen(orderId: Int, onContinueShopping: () -> Unit, onTrackOrde
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
         ) {
-            Text("العودة إلى المتجر", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
+            Text("العودة إلى المتجر", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.Bold)
         }
     }
 }

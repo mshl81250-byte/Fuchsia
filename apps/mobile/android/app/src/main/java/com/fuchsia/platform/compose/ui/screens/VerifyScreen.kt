@@ -63,7 +63,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun VerifyScreen(
     email: String,
-    debugCode: String? = null,
     onBack: () -> Unit,
     onVerified: () -> Unit,
 ) {
@@ -126,34 +125,6 @@ fun VerifyScreen(
             textAlign = TextAlign.Center,
         )
 
-        if (!debugCode.isNullOrBlank()) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        "رمز التجربة — لاستخدام الاختبار فقط",
-                        color = FuchsiaColors.TextAccent,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        debugCode,
-                        modifier = Modifier.padding(top = 3.dp),
-                        color = FuchsiaColors.Primary,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 8.sp,
-                    )
-                }
-            }
-        }
-
         OutlinedTextField(
             value = code,
             onValueChange = { value -> code = value.filter(Char::isDigit).take(6); error = "" },
@@ -167,10 +138,15 @@ fun VerifyScreen(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = FuchsiaColors.Primary,
                 unfocusedBorderColor = FuchsiaColors.Line,
-                focusedLabelColor = FuchsiaColors.TextAccent,
                 cursorColor = FuchsiaColors.Primary,
                 focusedContainerColor = FuchsiaColors.White,
                 unfocusedContainerColor = FuchsiaColors.White,
+                focusedTextColor = FuchsiaColors.Ink,
+                unfocusedTextColor = FuchsiaColors.Ink,
+                focusedPlaceholderColor = FuchsiaColors.Muted,
+                unfocusedPlaceholderColor = FuchsiaColors.Muted,
+                focusedLabelColor = FuchsiaColors.TextAccent,
+                unfocusedLabelColor = FuchsiaColors.Muted,
             ),
         )
         if (error.isNotBlank()) {
@@ -205,7 +181,7 @@ fun VerifyScreen(
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         ) {
-            if (busy) CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
+            if (busy) CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp)
             else Text("تأكيد وإنشاء الحساب", fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(15.dp))

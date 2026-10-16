@@ -18,6 +18,7 @@ object FuchsiaColors {
     val Line: Color @Composable get() = SharedFuchsiaColors.Line
     val Gold: Color @Composable get() = SharedFuchsiaColors.Gold
     val White: Color @Composable get() = SharedFuchsiaColors.White
+    val OnPrimary: Color @Composable get() = SharedFuchsiaColors.OnPrimary
     val TextAccent: Color @Composable get() = SharedFuchsiaColors.TextAccent
     val IconAccent: Color @Composable get() = SharedFuchsiaColors.IconAccent
     val Success: Color @Composable get() = SharedFuchsiaColors.Success

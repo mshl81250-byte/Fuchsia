@@ -1,8 +1,10 @@
 package com.fuchsia.partner
-
-import android.Manifest
-import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
@@ -39,12 +41,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Business
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Collections
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Logout
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -60,9 +66,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -78,13 +86,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -119,22 +132,24 @@ private data class UnifiedCalendarEvent(val id: String, val startDate: String, v
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        PartnerApi.initialize(applicationContext)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST_CODE)
-        }
+        val nightBackground = android.graphics.Color.parseColor("#100B0F")
+        window.statusBarColor = nightBackground
+        window.navigationBarColor = nightBackground
         setContent {
-            FuchsiaTheme { PartnerRoot() }
+            var darkMode by remember { mutableStateOf(getPreferences(Context.MODE_PRIVATE).getBoolean("partner_dark_mode", true)) }
+            FuchsiaTheme(darkTheme = darkMode) { PartnerRoot(darkMode = darkMode, onDarkModeChange = { enabled ->
+                darkMode = enabled
+                getPreferences(Context.MODE_PRIVATE).edit().putBoolean("partner_dark_mode", enabled).apply()
+                val background = android.graphics.Color.parseColor(if (enabled) "#100B0F" else "#FBF7F2")
+                window.statusBarColor = background
+                window.navigationBarColor = background
+            }) }
         }
-    }
-
-    private companion object {
-        const val NOTIFICATION_PERMISSION_REQUEST_CODE = 7001
     }
 }
 
 @Composable
-private fun PartnerRoot() {
+private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf(PartnerSession.token(context)) }
@@ -147,6 +162,27 @@ private fun PartnerRoot() {
     var partnerRequestError by remember { mutableStateOf("") }
     var preview by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
+    var showLaunchSplash by remember { mutableStateOf(true) }
+    var showLogoutConfirmation by remember { mutableStateOf(false) }
+    var lastDashboardBackAt by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        delay(1450L)
+        showLaunchSplash = false
+    }
+    BackHandler(enabled = !showLaunchSplash && !token.isNullOrBlank() && !preview) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastDashboardBackAt <= 1800L) {
+            lastDashboardBackAt = 0L
+            (context as? ComponentActivity)?.finish()
+        } else {
+            lastDashboardBackAt = now
+            android.widget.Toast.makeText(context, "اضغط مرة أخرى للخروج", android.widget.Toast.LENGTH_SHORT).show()
+            scope.launch {
+                delay(1800L)
+                if (lastDashboardBackAt == now) lastDashboardBackAt = 0L
+            }
+        }
+    }
 
     LaunchedEffect(token, reloadKey, preview) {
         if (!preview && !token.isNullOrBlank()) {
@@ -154,30 +190,19 @@ private fun PartnerRoot() {
             profileError = ""
             runCatching { PartnerApi.profile(token.orEmpty()) }
                 .onSuccess { profile = it }
-                .onFailure { failure ->
-                    if ((failure as? PartnerApiException)?.isUnauthorized == true) {
-                        PartnerSession.clear(context)
-                        token = null
-                        profile = null
-                        profileError = ""
-                    } else {
-                        profile = null
-                        profileError = failure.message ?: "تعذر تحميل حساب الشريك"
-                    }
-                }
+                .onFailure { profile = null; profileError = it.message ?: "تعذر تحميل حساب الشريك" }
             loading = false
         }
     }
 
-    LaunchedEffect(token) {
-        val authToken = token ?: return@LaunchedEffect
-        runCatching { PartnerPushRegistration.register(context, authToken) }
-    }
-
-    when {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    if (showLaunchSplash) {
+        PartnerLaunchSplash()
+    } else when {
         preview -> PartnerDashboard(
             token = null, profile = null, preview = true,
             onExit = { preview = false },
+            darkMode = darkMode, onDarkModeChange = onDarkModeChange,
         )
         token.isNullOrBlank() -> LoginScreen(
             busy = loginBusy,
@@ -241,8 +266,48 @@ private fun PartnerRoot() {
                     token = token,
                     profile = profile,
                     preview = false,
-                    onExit = { PartnerSession.clear(context); token = null; profile = null },
+                    onExit = { showLogoutConfirmation = true },
+                    darkMode = darkMode, onDarkModeChange = onDarkModeChange,
                 )
+            }
+        }
+    }
+    if (showLogoutConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirmation = false },
+            title = { Text("هل تريد تسجيل الخروج؟", fontWeight = FontWeight.ExtraBold) },
+            text = { Text("ستحتاج إلى تسجيل الدخول مجددًا للوصول إلى مساحة أعمال فوشيا بوكينج.", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            confirmButton = {
+                Button(onClick = {
+                    showLogoutConfirmation = false
+                    PartnerSession.clear(context)
+                    token = null
+                    profile = null
+                }, colors = ButtonDefaults.buttonColors(containerColor = Fuchsia)) { Text("تسجيل الخروج") }
+            },
+            dismissButton = { TextButton(onClick = { showLogoutConfirmation = false }) { Text("إلغاء") } },
+        )
+    }
+    }
+}
+
+@Composable
+private fun PartnerLaunchSplash() {
+    var entered by remember { mutableStateOf(false) }
+    val darkTheme = MaterialTheme.colorScheme.onSurface.luminance() > 0.8f
+    LaunchedEffect(Unit) { entered = true }
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+        AnimatedVisibility(
+            visible = entered,
+            enter = fadeIn(tween(500)) + slideInVertically(tween(650)) { it / 5 },
+            exit = fadeOut(tween(180)),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                BrandMark()
+                Spacer(Modifier.height(14.dp))
+                Text("أعمال فوشيا بوكينج", color = if (darkTheme) Color.White else Fuchsia, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("إدارة أعمالك وحجوزاتك بسهولة", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
         }
     }
@@ -264,7 +329,7 @@ private fun LoginScreen(busy: Boolean, error: String, onLogin: (String, String) 
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 BrandMark()
                 Spacer(Modifier.height(18.dp))
-                Text("فوشيا للشركاء", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                Text("أعمال فوشيا بوكينج", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                 Text("إدارة قاعاتك وحجوزاتك بسهولة", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 24.dp))
                 FuchsiaSurfaceCard {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -285,14 +350,14 @@ private fun LoginScreen(busy: Boolean, error: String, onLogin: (String, String) 
                         )
                         if (error.isNotBlank()) AnimatedVisibility(visible = true, enter = fadeIn(tween(220))) { Notice(error, error = true) }
                         FuchsiaPrimaryButton(
-                            text = "دخول إلى مساحة الشريك",
+                            text = "دخول إلى أعمال فوشيا بوكينج",
                             enabled = email.isNotBlank() && password.isNotBlank(),
                             busy = busy,
                             onClick = { onLogin(email, password) },
                         )
                     }
                 }
-                Text("استخدم حسابك في فوشيا بوتيك. يلزم اعتماد الحساب كشريك من الإدارة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
+                Text("استخدم حسابك في فوشيا بوكينج. يلزم اعتماد الحساب كشريك من الإدارة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 18.dp))
                 if (BuildConfig.DEBUG) {
                     TextButton(onClick = onPreview, modifier = Modifier.padding(top = 4.dp)) { Text("معاينة الواجهة دون اتصال", color = MaterialTheme.colorScheme.primary) }
                 }
@@ -359,15 +424,11 @@ private fun ServiceErrorScreen(message: String, onRetry: () -> Unit, onPreview: 
 }
 
 @Composable
-private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Boolean, onExit: () -> Unit) {
+private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Boolean, onExit: () -> Unit, darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    var notifications by remember(preview) { mutableStateOf(emptyList<PartnerNotification>()) }
-    var showNotifications by remember { mutableStateOf(false) }
-    var knownNotificationIds by remember { mutableStateOf(emptySet<Int>()) }
-    val venueBookingsAllowed = preview || profile?.optJSONObject("account")?.optJSONObject("permissions")?.optBoolean("venueBookings", true) != false
-    val venueRows = remember(profile, preview, venueBookingsAllowed) { if (preview && venueBookingsAllowed) demoVenues() else if (venueBookingsAllowed) parseVenues(profile?.optJSONArray("venues")) else emptyList() }
+    val venueRows = remember(profile, preview) { if (preview) demoVenues() else parseVenues(profile?.optJSONArray("venues")) }
     val rentalStores = remember(profile, preview) { if (preview) demoRentalStores() else parseRentalStores(profile?.optJSONArray("rentalStores")) }
     var selectedVenueId by remember(venueRows) { mutableStateOf(venueRows.firstOrNull()?.id ?: 0) }
     val selectedVenue = venueRows.firstOrNull { it.id == selectedVenueId } ?: venueRows.firstOrNull()
@@ -394,21 +455,10 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     var showCloseDialog by remember { mutableStateOf(false) }
     var closeReason by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var showVenueGallery by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val businessName = profile?.optJSONObject("owner")?.optString("businessName")?.takeIf(String::isNotBlank)
         ?: rentalStores.firstOrNull()?.name.orEmpty()
-
-    LaunchedEffect(token, preview) {
-        if (preview || token.isNullOrBlank()) return@LaunchedEffect
-        while (true) {
-            runCatching { PartnerApi.notifications(token) }.onSuccess { fresh ->
-                val newUnread = fresh.filter { !it.isRead && it.id !in knownNotificationIds }
-                notifications = fresh
-                if (knownNotificationIds.isNotEmpty() && newUnread.isNotEmpty()) snackbar.showSnackbar(newUnread.first().title)
-                knownNotificationIds = fresh.map { it.id }.toSet()
-            }
-            delay(15_000)
-        }
-    }
 
     suspend fun reloadBookings() {
         if (preview) {
@@ -423,22 +473,22 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                 UnifiedCalendarEvent("demo-rental-2", second, second, "إيجار طاولات مناسبات", "طلب معاينة · كمية 8", "rental_pending_confirmation", "rental"),
             ) + demoBookings().filter { it.status in setOf("pending", "confirmed") }.map { booking ->
                 val end = (Calendar.getInstance().apply { time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(booking.dateOnly) ?: Date(); add(Calendar.DAY_OF_MONTH, booking.bookingDays - 1) }).time
-                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.customerName} · ${booking.partySize} ضيف · ${booking.bookingDays} يوم · ${paymentLabel(booking.paymentStatus)}", booking.status, "venue")
+                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.partySize} ضيف · ${booking.bookingDays} يوم", booking.status, "venue")
             }
             return
         }
         val auth = token ?: return
         loadingBookings = true
         bookingsError = ""
-        val venueResult = if (venueBookingsAllowed) runCatching { PartnerApi.bookings(auth) } else Result.success(emptyList())
+        val venueResult = runCatching { PartnerApi.bookings(auth) }
         venueResult.onSuccess { bookings = it }.onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات القاعات" }
         val rentalResult = runCatching { rentalStores.flatMap { store -> PartnerRentalApi.bookings(auth, store.id).flatMap { booking ->
-                booking.items.map { item -> UnifiedCalendarEvent("rental-${booking.id}-${item.name}", item.startDate.take(10), item.endDate.take(10), "إيجار · ${item.name}", "${store.name} · ${booking.customerName} · كمية ${item.quantity} · ${paymentLabel(booking.paymentStatus)}", booking.status, "rental") }
+            booking.items.map { item -> UnifiedCalendarEvent("rental-${booking.id}-${item.name}", item.startDate.take(10), item.endDate.take(10), "إيجار · ${item.name}", "${store.name} · ${booking.customerName} · كمية ${item.quantity}", booking.status, "rental") }
         } } }
         rentalResult.onSuccess { rentalEvents ->
             val venueEvents = (venueResult.getOrNull() ?: bookings).filter { it.status in setOf("pending", "confirmed") && !isBookingExpired(it) }.map { booking ->
                 val end = Calendar.getInstance().apply { time = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(booking.dateOnly) ?: Date(); add(Calendar.DAY_OF_MONTH, booking.bookingDays.coerceAtLeast(1) - 1) }
-                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end.time), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.customerName} · ${booking.partySize} ضيف · ${booking.bookingDays} يوم · ${paymentLabel(booking.paymentStatus)}", booking.status, "venue")
+                UnifiedCalendarEvent("venue-${booking.id}", booking.dateOnly, SimpleDateFormat("yyyy-MM-dd", Locale.US).format(end.time), "حجز قاعة · ${venueRows.firstOrNull { it.id == booking.venueId }?.name.orEmpty()}", "${booking.partySize} ضيف · ${booking.bookingDays} يوم", booking.status, "venue")
             }
             unifiedEvents = venueEvents + rentalEvents.filter { it.status !in setOf("rental_rejected", "rental_cancelled", "rental_returned") }
         }.onFailure { if (bookingsError.isBlank()) bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار للتقويم الموحد" }
@@ -471,19 +521,26 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
         loadingCalendar = false
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { insets ->
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(snackbar) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionColor = MaterialTheme.colorScheme.inversePrimary,
+                )
+            }
+        },
+    ) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandMark(compact = true)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text("مساحة الشريك", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                    Text("أعمال فوشيا بوكينج", fontWeight = FontWeight.Bold, fontSize = 15.sp, letterSpacing = 0.1.sp, color = MaterialTheme.colorScheme.onSurface)
                     Text(if (preview) "معاينة فقط · لا تحفظ أي تغييرات" else businessName.ifBlank { "إدارة القاعات والحجوزات" }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                 }
-                Box {
-                    IconButton(onClick = { showNotifications = true }) { Icon(Icons.Rounded.Notifications, contentDescription = "الإشعارات") }
-                    val unread = notifications.count { !it.isRead }
-                    if (unread > 0) Text(unread.coerceAtMost(99).toString(), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopEnd).clip(CircleShape).background(Fuchsia).padding(horizontal = 5.dp, vertical = 2.dp))
-                }
+                IconButton(onClick = { showSettings = true }) { Icon(Icons.Rounded.Settings, contentDescription = "إعدادات التطبيق") }
                 TextButton(onClick = onExit) { Icon(Icons.Rounded.Logout, contentDescription = "تسجيل الخروج"); Text("خروج", fontSize = 12.sp) }
             }
             if (preview) Notice("وضع معاينة محلي — البيانات والأزرار لا تنشئ حجوزات أو تغييرات حقيقية.")
@@ -496,6 +553,12 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                 VenuePicker(venueRows, selectedVenueId) { venue ->
                     selectedVenueId = venue.id
                     audience = if (venue.audienceScope == "men") "men" else "women"
+                }
+                if (selectedVenue != null) {
+                    OutlinedButton(onClick = { showVenueGallery = true }, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                        Icon(Icons.Rounded.Collections, contentDescription = null)
+                        Text("إدارة صور القاعة", modifier = Modifier.padding(start = 7.dp))
+                    }
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatCard("طلبات جديدة", bookings.count { it.venueId == selectedVenue?.id && it.status == "pending" && !isBookingExpired(it) }.toString(), Modifier.weight(1f), Fuchsia)
@@ -562,7 +625,6 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                     UnifiedPartnerCalendar(
                         modifier = Modifier.weight(1f),
                         events = unifiedEvents,
-                        maintenance = blackouts,
                         monthAnchor = monthAnchor,
                         onMonth = { delta -> monthAnchor = (monthAnchor.clone() as Calendar).apply { add(Calendar.MONTH, delta) } },
                         loading = loadingBookings,
@@ -680,31 +742,132 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
             dismissButton = { TextButton(onClick = { showCloseDialog = false }) { Text("إلغاء") } },
         )
     }
-    if (showNotifications) AlertDialog(
-        onDismissRequest = { showNotifications = false },
-        title = { Text("إشعارات الشريك", fontWeight = FontWeight.ExtraBold) },
+    if (showVenueGallery && selectedVenue != null) {
+        VenueGalleryDialog(selectedVenue!!, token, preview, onDismiss = { showVenueGallery = false }) { message ->
+            scope.launch { snackbar.showSnackbar(message) }
+        }
+    }
+    if (showSettings) {
+        PartnerSettingsDialog(
+            darkMode = darkMode,
+            onDarkModeChange = onDarkModeChange,
+            onDismiss = { showSettings = false },
+        )
+    }
+}
+
+@Composable
+private fun VenueGalleryDialog(venue: PartnerVenue, token: String?, preview: Boolean, onDismiss: () -> Unit, onMessage: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var images by remember(venue.id) { mutableStateOf((listOf(venue.primaryImageUrl) + venue.images).filter(String::isNotBlank).distinct().take(12)) }
+    var busy by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (preview || uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            busy = true
+            runCatching {
+                val uploaded = uris.take(12 - images.size).map { PartnerApi.uploadVenueImage(context, it, token.orEmpty()) }
+                images = (images + uploaded).distinct().take(12)
+                PartnerApi.updateVenueImages(token.orEmpty(), venue.id, images.first(), images)
+            }.onSuccess { onMessage("تم رفع وحفظ صور القاعة؛ ستظهر للعميل في المعرض") }
+                .onFailure { onMessage(it.message ?: "تعذر رفع صور القاعة") }
+            busy = false
+        }
+    }
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text("صور ${venue.name}") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("يمكنك إضافة حتى 12 صورة واضحة للقاعة. الصورة الأولى هي الصورة الرئيسية.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            Text("عدد الصور الحالية: ${images.size}", fontWeight = FontWeight.Bold)
+            if (images.isNotEmpty()) Text(images.joinToString("\n") { "${images.indexOf(it) + 1}. ${it.takeLast(48)}" }, maxLines = 5, overflow = TextOverflow.Ellipsis, fontSize = 11.sp)
+            if (preview) Text("المعاينة لا ترفع صورًا حقيقية.", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+        }
+    }, confirmButton = {
+        Button(onClick = { picker.launch("image/*") }, enabled = !busy && !preview && images.size < 12) { Text(if (busy) "جارٍ الرفع…" else "اختيار صور") }
+    }, dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("إغلاق") } })
+}
+
+@Composable
+private fun PartnerSettingsDialog(
+    darkMode: Boolean,
+    onDarkModeChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var policy by remember { mutableStateOf<String?>(null) }
+    if (policy != null) {
+        PartnerPolicyDialog(
+            title = if (policy == "privacy") "سياسة الخصوصية للتاجر" else "شروط استخدام تطبيق التاجر",
+            body = if (policy == "privacy") partnerPrivacyText else partnerTermsText,
+            onDismiss = { policy = null },
+        )
+        return
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("إعدادات التطبيق", fontWeight = FontWeight.ExtraBold) },
         text = {
-            if (notifications.isEmpty()) Text("لا توجد إشعارات جديدة.")
-            else Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                notifications.forEach { notification ->
-                    Card(onClick = {
-                        if (!notification.isRead && !preview && !token.isNullOrBlank()) scope.launch {
-                            runCatching { PartnerApi.markNotificationRead(token, notification.id) }
-                                .onSuccess { notifications = notifications.map { if (it.id == notification.id) it.copy(isRead = true) else it } }
-                        }
-                    }, colors = CardDefaults.cardColors(containerColor = if (notification.isRead) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer)) {
-                        Column(Modifier.padding(10.dp)) {
-                            Text(notification.title, fontWeight = FontWeight.Bold)
-                            Text(notification.message, fontSize = 12.sp)
-                            Text(notification.createdAt.replace("T", " ").take(16), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(if (darkMode) Icons.Rounded.DarkMode else Icons.Rounded.LightMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text(if (darkMode) "الوضع الليلي" else "الوضع النهاري", fontWeight = FontWeight.Bold)
+                        Text("يتم حفظ اختيارك على هذا الجهاز", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     }
+                    Switch(checked = darkMode, onCheckedChange = onDarkModeChange)
                 }
+                TextButton(onClick = { policy = "privacy" }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Policy, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("سياسة الخصوصية للتاجر")
+                }
+                TextButton(onClick = { policy = "terms" }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Policy, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("شروط استخدام تطبيق التاجر")
+                }
+                Text("الإصدار الحالي · أعمال فوشيا بوكينج", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
         },
-        confirmButton = { TextButton(onClick = { showNotifications = false }) { Text("إغلاق") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق") } },
     )
 }
+
+@Composable
+private fun PartnerPolicyDialog(title: String, body: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 21.sp, fontSize = 13.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("فهمت") } },
+    )
+}
+
+private val partnerPrivacyText = """
+نحترم خصوصية الشريك ونستخدم البيانات اللازمة لتشغيل خدمات فوشيا بوكينج فقط. قد تشمل البيانات اسم النشاط، بيانات التواصل، بيانات القاعات، صورها، الطلبات والحجوزات وحالة الحساب.
+
+نستخدم هذه البيانات لإدارة القاعات والطلبات والحجوزات، التواصل بشأن العمليات، تحسين الخدمة، ومنع الاستخدام غير المصرح به. لا نبيع بيانات الشريك، ولا نشاركها إلا عند الحاجة لتقديم الخدمة أو تنفيذ المتطلبات النظامية.
+
+يجب على الشريك عدم رفع صور أو بيانات لا يملك حق استخدامها، وعدم إدخال بيانات عملاء إلا لغرض تنفيذ الطلب. يمكنك طلب تصحيح بيانات نشاطك أو الاستفسار عن استخدامها عبر قنوات الدعم المعتمدة.
+""".trimIndent()
+
+private val partnerTermsText = """
+باستخدام تطبيق التاجر، يقر الشريك بأن البيانات التي يقدمها صحيحة ومحدثة، وأنه مسؤول عن الأسعار، التوفر، الصور، وصف القاعة، وسياسات التنفيذ التي يعرضها للعملاء.
+
+يلتزم الشريك بتأكيد أو تحديث حالات الطلبات والحجوزات من التطبيق، وتقديم بيانات موصل صحيحة عند اختيار التوصيل، والمحافظة على سرية حسابه ورمز الدخول.
+
+لا يجوز نشر محتوى مخالف أو مضلل أو صور لا يملك الشريك حقوق استخدامها. يحق للإدارة مراجعة المحتوى وتعليق الحساب عند وجود مخالفة أو إساءة استخدام، مع إشعار الشريك بحسب الإجراءات المعتمدة.
+
+تظل شروط المنصة وسياسة الخصوصية قابلة للتحديث، ويظهر الإصدار الأحدث داخل التطبيق.
+""".trimIndent()
+
 
 @Composable
 private fun CalendarContent(
@@ -815,31 +978,34 @@ private fun CalendarContent(
 
 @Composable
 private fun DayCell(day: Int, status: String, selected: Boolean, today: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.2f
     val background = when {
         selected -> Fuchsia
-        status == "طلب" -> Color(0xFFFFE7B5)
-        status == "مؤكد" || status == "مشغول" -> Color(0xFFDDE9FF)
+        status == "طلب" -> if (isDark) Color(0xFF5B4211) else Color(0xFFFFE7B5)
+        status == "مؤكد" || status == "مشغول" -> if (isDark) Color(0xFF1D365A) else Color(0xFFDDE9FF)
         status == "مغلق" || status == "دوام" -> MaterialTheme.colorScheme.surfaceVariant
-        else -> Color(0xFFE3F3E9)
+        else -> if (isDark) Color(0xFF1D4A32) else Color(0xFFE3F3E9)
     }
-    val foreground = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+    val foreground = if (selected) Color.White else if (isDark) Color(0xFFFFF3F5) else MaterialTheme.colorScheme.onSurface
+    val statusForeground = if (selected) Color.White else if (isDark) Color(0xFFD9C8CE) else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier.padding(2.dp).aspectRatio(0.92f).clip(RoundedCornerShape(10.dp)).background(background).clickable(onClick = onClick).padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Text(day.toString(), color = foreground, fontWeight = if (today) FontWeight.ExtraBold else FontWeight.SemiBold, fontSize = 13.sp)
-        Text(if (today) "اليوم" else status.take(4), color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp, maxLines = 1)
+        Text(if (today) "اليوم" else status.take(4), color = statusForeground, fontSize = 8.sp, maxLines = 1)
     }
 }
 
 @Composable
 private fun CalendarLegend() {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.2f
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            LegendDot(Color(0xFFE3F3E9), "متاح")
-            LegendDot(Color(0xFFFFE7B5), "طلب جديد")
-            LegendDot(Color(0xFFDDE9FF), "مؤكد")
+            LegendDot(if (isDark) Color(0xFF1D4A32) else Color(0xFFE3F3E9), "متاح")
+            LegendDot(if (isDark) Color(0xFF5B4211) else Color(0xFFFFE7B5), "طلب جديد")
+            LegendDot(if (isDark) Color(0xFF1D365A) else Color(0xFFDDE9FF), "مؤكد")
             LegendDot(MaterialTheme.colorScheme.surfaceVariant, "مغلق")
         }
         Text("اضغط على يوم متاح لاختيار بداية الإغلاق. الأيام ذات الحجز لا يمكن إغلاقها.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
@@ -979,9 +1145,14 @@ private fun StatCard(title: String, value: String, modifier: Modifier, accent: C
 
 @Composable
 private fun BrandMark(compact: Boolean = false) {
-    Box(Modifier.size(if (compact) 42.dp else 68.dp).clip(RoundedCornerShape(if (compact) 14.dp else 22.dp)).background(Fuchsia), contentAlignment = Alignment.Center) {
-        Text("F", color = Color.White, fontWeight = FontWeight.Black, fontSize = if (compact) 25.sp else 38.sp)
-    }
+    val darkTheme = MaterialTheme.colorScheme.onSurface.luminance() > 0.8f
+    androidx.compose.foundation.Image(
+        painter = painterResource(com.fuchsia.partner.R.drawable.fuchsia_app_icon),
+        contentDescription = "شعار فوشيا بوكينج",
+        modifier = Modifier.width(if (compact) 64.dp else 150.dp).height(if (compact) 42.dp else 100.dp),
+        contentScale = ContentScale.Fit,
+        colorFilter = if (darkTheme) ColorFilter.tint(Color.White) else null,
+    )
 }
 
 @Composable
@@ -1029,6 +1200,8 @@ private fun parseVenues(rows: org.json.JSONArray?): List<PartnerVenue> {
                 city = row.optString("city"),
                 capacity = row.optInt("capacity"),
                 dailyPrice = row.optDouble("dailyPrice"),
+                primaryImageUrl = row.optString("primaryImageUrl"),
+                images = buildList { val values = row.optJSONArray("images") ?: runCatching { org.json.JSONArray(row.optString("images", "[]")) }.getOrDefault(org.json.JSONArray()); for (i in 0 until values.length()) values.optString(i).takeIf(String::isNotBlank)?.let(::add) },
             ))
         }
     }
@@ -1100,31 +1273,18 @@ private fun isBookingExpired(booking: PartnerBooking): Boolean {
 private fun UnifiedPartnerCalendar(
     modifier: Modifier = Modifier,
     events: List<UnifiedCalendarEvent>,
-    maintenance: List<PartnerBlackout>,
     monthAnchor: Calendar,
     onMonth: (Int) -> Unit,
     loading: Boolean,
     error: String,
     onRefresh: () -> Unit,
 ) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.2f
     val year = monthAnchor.get(Calendar.YEAR)
     val month = monthAnchor.get(Calendar.MONTH)
     var selectedDate by remember(year, month) { mutableStateOf(todayKey().takeIf { it.substring(0, 7) == String.format(Locale.US, "%04d-%02d", year, month + 1) } ?: dateKey(year, month, 1)) }
     val cells = buildMonthCells(monthAnchor)
-    val maintenanceEvents = maintenance.map { blackout ->
-        UnifiedCalendarEvent(
-            id = "maintenance-${blackout.id}",
-            startDate = blackout.startDate.take(10),
-            endDate = blackout.endDate.take(10),
-            title = "صيانة / إغلاق",
-            details = "${blackout.reason?.takeIf(String::isNotBlank) ?: "يوم غير متاح"} · ${audienceLabel(blackout.audienceScope)}",
-            status = "maintenance",
-            kind = "maintenance",
-        )
-    }
-    val allEvents = events + maintenanceEvents
-    val monthKey = String.format(Locale.US, "%04d-%02d", year, month + 1)
-    val monthEvents = allEvents.filter { it.startDate.take(7) <= monthKey && it.endDate.take(7) >= monthKey }
+    val monthEvents = events.filter { it.startDate.take(7) <= String.format(Locale.US, "%04d-%02d", year, month + 1) && it.endDate.take(7) >= String.format(Locale.US, "%04d-%02d", year, month + 1) }
     val selectedEvents = monthEvents.filter { selectedDate >= it.startDate && selectedDate <= it.endDate }
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -1135,12 +1295,7 @@ private fun UnifiedPartnerCalendar(
                 TextButton(onClick = onRefresh, enabled = !loading) { if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Rounded.Refresh, "تحديث") }
             }
         }
-        Text("اليوم: ${prettyDate(todayKey())} · ${Weekdays[Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1]}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CalendarSummaryCard("الحجوزات", monthEvents.count { it.kind != "maintenance" }.toString(), Fuchsia, Modifier.weight(1f))
-            CalendarSummaryCard("الصيانة", monthEvents.count { it.kind == "maintenance" }.toString(), Amber, Modifier.weight(1f))
-            CalendarSummaryCard("الأيام المحددة", selectedEvents.size.toString(), Green, Modifier.weight(1f))
-        }
+        Text("اليوم: ${prettyDate(todayKey())} · ${Weekdays[Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1]}", color = if (isDark) FuchsiaColors.TextAccent else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         Card(shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
             Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(Modifier.fillMaxWidth()) {
@@ -1161,12 +1316,7 @@ private fun UnifiedPartnerCalendar(
                                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                         Text(day.toString(), color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface, fontWeight = if (isToday || isSelected) FontWeight.ExtraBold else FontWeight.Medium, fontSize = 12.sp)
                                         if (dayEvents.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            dayEvents.take(3).forEach { event ->
-                                                Box(Modifier.size(4.dp).clip(CircleShape).background(
-                                                    if (isSelected) MaterialTheme.colorScheme.onPrimary
-                                                    else when (event.kind) { "venue" -> Fuchsia; "maintenance" -> Amber; else -> Green },
-                                                ))
-                                            }
+                                            dayEvents.take(3).forEach { event -> Box(Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) MaterialTheme.colorScheme.onPrimary else if (event.kind == "venue") Fuchsia else Green)) }
                                         }
                                     }
                                 }
@@ -1177,53 +1327,28 @@ private fun UnifiedPartnerCalendar(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("● القاعات", color = Fuchsia, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("● الإيجارات", color = Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text("● الصيانة", color = Amber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("● القاعات", color = if (isDark) FuchsiaColors.TextAccent else Fuchsia, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("● الإيجارات", color = if (isDark) FuchsiaColors.Success else Green, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text("${monthEvents.size} حجز هذا الشهر", modifier = Modifier.weight(1f), textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         }
-        Text("${monthEvents.size} عنصر مجدول هذا الشهر", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         Text("${prettyDate(selectedDate)} · ${Weekdays[(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(selectedDate)?.let { Calendar.getInstance().apply { time = it }.get(Calendar.DAY_OF_WEEK) } ?: Calendar.SUNDAY) - 1]}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
         if (selectedEvents.isEmpty()) {
             Card(shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Text("لا توجد حجوزات أو أيام صيانة في هذا اليوم", Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                Text("لا توجد حجوزات في هذا اليوم", Modifier.fillMaxWidth().padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
         } else selectedEvents.forEach { event ->
-            val isMaintenance = event.kind == "maintenance"
-            Card(
-                shape = RoundedCornerShape(15.dp),
-                border = BorderStroke(1.dp, if (isMaintenance) Amber.copy(alpha = .45f) else MaterialTheme.colorScheme.outlineVariant),
-                colors = CardDefaults.cardColors(containerColor = if (isMaintenance) Amber.copy(alpha = .08f) else MaterialTheme.colorScheme.surface),
-            ) {
+            Card(shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(Modifier.fillMaxWidth().padding(13.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(11.dp).clip(CircleShape).background(if (isMaintenance) Amber else if (event.kind == "venue") Fuchsia else Green))
+                    Box(Modifier.size(9.dp).clip(CircleShape).background(if (event.kind == "venue") Fuchsia else Green))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(event.title, fontWeight = FontWeight.Bold)
                         Text(event.details, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                         if (event.endDate > event.startDate) Text("${prettyDate(event.startDate)} – ${prettyDate(event.endDate)}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                     }
-                    Text(
-                        when {
-                            isMaintenance -> "غير متاح"
-                            event.status == "pending" || event.status == "rental_pending_confirmation" -> "بانتظار الرد"
-                            else -> "مؤكد"
-                        },
-                        color = if (isMaintenance || event.status == "pending" || event.status == "rental_pending_confirmation") Amber else Green,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                    )
+                    Text(if (event.status == "pending" || event.status == "rental_pending_confirmation") "بانتظار الرد" else "مؤكد", color = if (event.status == "pending" || event.status == "rental_pending_confirmation") Amber else Green, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun CalendarSummaryCard(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = .09f))) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp)) {
-            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1)
-            Text(value, color = accent, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
         }
     }
 }

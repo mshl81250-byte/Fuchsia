@@ -59,6 +59,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -113,10 +116,16 @@ fun AuthScreen(
         }
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-            Image(painter = painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.size(width = 68.dp, height = 66.dp), contentScale = ContentScale.Fit)
+            Image(
+                painter = painterResource(R.drawable.fuchsia_app_icon),
+                contentDescription = "شعار فوشيا بوكينج",
+                modifier = Modifier.width(68.dp).height(48.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = if (MaterialTheme.colorScheme.onSurface.luminance() > 0.8f) ColorFilter.tint(Color.White) else null,
+            )
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+                Text("فوشيا بوكينج", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 0.1.sp)
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -246,11 +255,10 @@ fun AuthScreen(
                             scope.launch {
                                 try {
                                     if (isRegister) {
-                                        val response = FuchsiaApi.requestRegistrationCode(
+                                        FuchsiaApi.requestRegistrationCode(
                                             fullName.trim(), normalizedEmail, password, phone.trim(),
                                         )
-                                        val debugCode = response.optString("debugCode").takeIf { it.length == 6 }
-                                        onCodeRequested(normalizedEmail, debugCode)
+                                        onCodeRequested(normalizedEmail, null)
                                     } else {
                                         val session = FuchsiaApi.login(normalizedEmail, password)
                                         SessionVault.save(context, session.user, session.token)
@@ -277,7 +285,7 @@ fun AuthScreen(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
                 ) {
                     if (busy) {
-                        CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp)
                     } else {
                         Text(if (isRegister) "متابعة إلى التحقق" else "تسجيل الدخول", fontWeight = FontWeight.Bold)
                     }
@@ -345,10 +353,15 @@ private fun AuthField(
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = FuchsiaColors.Primary,
     unfocusedBorderColor = FuchsiaColors.Line,
-    focusedLabelColor = FuchsiaColors.TextAccent,
     cursorColor = FuchsiaColors.Primary,
     focusedContainerColor = FuchsiaColors.White,
     unfocusedContainerColor = FuchsiaColors.White,
+    focusedTextColor = FuchsiaColors.Ink,
+    unfocusedTextColor = FuchsiaColors.Ink,
+    focusedPlaceholderColor = FuchsiaColors.Muted,
+    unfocusedPlaceholderColor = FuchsiaColors.Muted,
+    focusedLabelColor = FuchsiaColors.TextAccent,
+    unfocusedLabelColor = FuchsiaColors.Muted,
 )
 
 @Composable

@@ -46,11 +46,6 @@ data class StoreProduct(
     val rentalCategory: String = "other",
     val eventAudience: String = "both",
     val tableHeightCm: Double? = null,
-    val tableWidthCm: Double? = null,
-    val tableLengthCm: Double? = null,
-    val tableDiameterCm: Double? = null,
-    val tableSeats: Int? = null,
-    val setupNotes: String = "",
     val availableColors: List<String> = emptyList(),
     val stockQuantity: Int? = null,
 )
@@ -260,11 +255,6 @@ class ApiException(message: String, val statusCode: Int = 0) : Exception(message
 object FuchsiaApi {
     private const val CONNECT_TIMEOUT_MS = 18_000
     private const val READ_TIMEOUT_MS = 22_000
-    @Volatile private var appContext: Context? = null
-
-    fun initialize(context: Context) {
-        appContext = context.applicationContext
-    }
 
     suspend fun login(email: String, password: String): AuthSession =
         parseSession(post("/api/auth/login", JSONObject().put("email", email).put("password", password)))
@@ -296,7 +286,7 @@ object FuchsiaApi {
         bearerToken: String,
         fullName: String,
         phone: String,
-        secondPhone: String = "",
+        secondPhone: String,
     ): JSONObject = sendJson(
         "/api/auth/profile",
         "PATCH",
@@ -304,11 +294,15 @@ object FuchsiaApi {
         bearerToken = bearerToken,
     )
 
-    suspend fun sendSupportMessage(bearerToken: String, category: String, subject: String, message: String): JSONObject =
-        sendJson("/api/support/messages", "POST", JSONObject().put("category", category).put("subject", subject).put("message", message), bearerToken = bearerToken)
+    suspend fun submitSupport(kind: String, subject: String, message: String, bearerToken: String) {
+        sendJson("/api/support", "POST", JSONObject().put("kind", kind).put("subject", subject).put("message", message), bearerToken = bearerToken)
+    }
 
-    suspend fun deleteAccount(bearerToken: String, reason: String): JSONObject =
-        sendJson("/api/auth/account", "DELETE", JSONObject().put("reason", reason), bearerToken = bearerToken)
+    suspend fun deleteAccount(reason: String, bearerToken: String) {
+        sendJson("/api/auth/delete-account", "POST", JSONObject().put("reason", reason), bearerToken = bearerToken)
+    }
+
+
 
     suspend fun addresses(bearerToken: String): List<DeliveryAddress> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/addresses", bearerToken))
@@ -362,15 +356,16 @@ object FuchsiaApi {
         getJson("/api/products/$productId").toStoreProduct()
     }
 
-    suspend fun favorites(userId: Int): List<StoreProduct> = withContext(Dispatchers.IO) {
-        parseProducts(getText("/api/favorites?userId=$userId"))
+    suspend fun favorites(userId: Int, bearerToken: String? = null): List<StoreProduct> = withContext(Dispatchers.IO) {
+        parseProducts(getText("/api/favorites?userId=$userId", bearerToken))
     }
 
-    suspend fun toggleFavorite(userId: Int, productId: Int): Boolean = withContext(Dispatchers.IO) {
+    suspend fun toggleFavorite(userId: Int, productId: Int, bearerToken: String? = null): Boolean = withContext(Dispatchers.IO) {
         sendJson(
             "/api/favorites",
             "POST",
             JSONObject().put("userId", userId).put("productId", productId),
+            bearerToken = bearerToken,
         ).optBoolean("isFavorite", false)
     }
 
@@ -554,11 +549,6 @@ object FuchsiaApi {
 
     suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
 
-    suspend fun deliveryQuote(latitude: Double, longitude: Double): JSONObject =
-        getJson("/api/delivery/quote?latitude=$latitude&longitude=$longitude")
-
-    suspend fun platformSettings(): JSONObject = getJson("/api/delivery/settings")
-
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
             getJson("/api/rental-bookings/availability?productId=$productId&startDate=${urlEncode(startDate)}&days=$days&quantity=$quantity")
@@ -671,14 +661,14 @@ object FuchsiaApi {
     suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
 
-    suspend fun uploadReceipt(context: Context, uri: Uri, bearerToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
+    suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
             ?: throw ApiException("تعذر معرفة نوع ملف الإيصال")
         if (mimeType !in setOf("image/jpeg", "image/png", "image/webp")) {
             throw ApiException("يرجى اختيار صورة JPG أو PNG أو WebP")
         }
         val boundary = "Fuchsia-${UUID.randomUUID()}"
-        val connection = open("/api/uploads/receipt", "POST", bearerToken)
+        val connection = open("/api/uploads/receipt", "POST")
         try {
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             connection.doOutput = true
@@ -790,11 +780,6 @@ object FuchsiaApi {
             rentalCategory = rentalCategory,
             eventAudience = optString("eventAudience").ifBlank { "both" },
             tableHeightCm = if (isNull("tableHeightCm")) null else optDouble("tableHeightCm"),
-            tableWidthCm = if (isNull("tableWidthCm")) null else optDouble("tableWidthCm"),
-            tableLengthCm = if (isNull("tableLengthCm")) null else optDouble("tableLengthCm"),
-            tableDiameterCm = if (isNull("tableDiameterCm")) null else optDouble("tableDiameterCm"),
-            tableSeats = if (isNull("tableSeats")) null else optInt("tableSeats"),
-            setupNotes = optString("setupNotes"),
             availableColors = optStringArray("availableColors"),
             stockQuantity = if (isNull("stockQuantity")) null else optInt("stockQuantity"),
         )
@@ -910,31 +895,15 @@ object FuchsiaApi {
         }
     }
 
-    private suspend fun getJson(path: String, bearerToken: String? = null): JSONObject =
-        JSONObject(getText(path, bearerToken))
-
-    private suspend fun getText(path: String, bearerToken: String? = null): String = withContext(Dispatchers.IO) {
-        val cacheable = bearerToken.isNullOrBlank() && isOfflineCacheable(path)
-        val cacheKey = path.take(180)
-        try {
-            val connection = open(path, "GET", bearerToken)
-            val body = try { readBody(connection) } finally { connection.disconnect() }
-            if (cacheable) appContext?.let { OfflineCache.put(it, cacheKey, body) }
-            body
-        } catch (failure: ApiException) {
-            if (cacheable && (failure.statusCode == 0 || failure.statusCode >= 500)) {
-                appContext?.let { OfflineCache.get(it, cacheKey) }?.let { return@withContext it }
-            }
-            throw failure
-        } catch (failure: Exception) {
-            if (cacheable) appContext?.let { OfflineCache.get(it, cacheKey) }?.let { return@withContext it }
-            throw ApiException("لا يوجد اتصال بالإنترنت. تحقق من الشبكة وحاول مجددًا.", 0)
-        }
+    private suspend fun getJson(path: String, bearerToken: String? = null): JSONObject = withContext(Dispatchers.IO) {
+        val connection = open(path, "GET", bearerToken)
+        try { readJson(connection) } finally { connection.disconnect() }
     }
 
-    private fun isOfflineCacheable(path: String): Boolean = path == "/api/categories" ||
-        path == "/api/products/featured" || path.startsWith("/api/products?") ||
-        path == "/api/stores" || path == "/api/venues" || path.startsWith("/api/venues?")
+    private suspend fun getText(path: String, bearerToken: String? = null): String = withContext(Dispatchers.IO) {
+        val connection = open(path, "GET", bearerToken)
+        try { readBody(connection) } finally { connection.disconnect() }
+    }
 
     private fun open(path: String, method: String, bearerToken: String? = null): HttpURLConnection =
         (URL(BuildConfig.API_BASE_URL.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
@@ -942,7 +911,7 @@ object FuchsiaApi {
             connectTimeout = CONNECT_TIMEOUT_MS
             readTimeout = READ_TIMEOUT_MS
             setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "FuchsiaBoutique-Android/1.3")
+            setRequestProperty("User-Agent", "FuchsiaBooking-Android/1.3")
             if (!bearerToken.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $bearerToken")
         }
 

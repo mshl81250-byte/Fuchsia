@@ -109,6 +109,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val userId = remember(context) { SessionVault.userId(context) }
+    val bearerToken = remember(context) { SessionVault.token(context) }
     val sessionUser = remember(context) { SessionVault.read(context)?.optJSONObject("user") }
     val isGuest = sessionUser?.optBoolean("isGuest", false) == true || sessionUser?.optString("email").orEmpty().endsWith("@guest.fuchsia")
     val greetingName = sessionUser?.optString("fullName")?.takeIf { !it.isNullOrBlank() && it != "null" && !isGuest }
@@ -161,7 +162,7 @@ fun HomeScreen(
             favoriteIds = emptySet()
             return@LaunchedEffect
         }
-        runCatching { FuchsiaApi.favorites(userId) }.onSuccess { favoriteIds = it.mapTo(mutableSetOf()) { product -> product.id } }
+        runCatching { FuchsiaApi.favorites(userId, bearerToken) }.onSuccess { favoriteIds = it.mapTo(mutableSetOf()) { product -> product.id } }
     }
 
     fun toggleFavorite(productId: Int) {
@@ -171,7 +172,7 @@ fun HomeScreen(
             return
         }
         scope.launch {
-            runCatching { FuchsiaApi.toggleFavorite(id, productId) }
+            runCatching { FuchsiaApi.toggleFavorite(id, productId, bearerToken) }
                 .onSuccess { isFavorite ->
                     favoriteIds = if (isFavorite) favoriteIds + productId else favoriteIds - productId
                     snackbar.showSnackbar(if (isFavorite) "تم حفظ المنتج في المفضلة" else "تمت إزالة المنتج من المفضلة")
@@ -214,6 +215,12 @@ fun HomeScreen(
                     shape = RoundedCornerShape(18.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         unfocusedContainerColor = FuchsiaColors.White,
+                        focusedTextColor = FuchsiaColors.Ink,
+                        unfocusedTextColor = FuchsiaColors.Ink,
+                        focusedPlaceholderColor = FuchsiaColors.Muted,
+                        unfocusedPlaceholderColor = FuchsiaColors.Muted,
+                        focusedLabelColor = FuchsiaColors.TextAccent,
+                        unfocusedLabelColor = FuchsiaColors.Muted,
                         focusedContainerColor = FuchsiaColors.White,
                         unfocusedBorderColor = FuchsiaColors.Line,
                         focusedBorderColor = FuchsiaColors.Primary,
@@ -340,9 +347,15 @@ private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
     ) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Image(painterResource(R.drawable.fuchsia_logo), contentDescription = "فوشيا بوتيك", modifier = Modifier.width(62.dp).height(52.dp), contentScale = ContentScale.Fit, colorFilter = if (darkTheme) ColorFilter.tint(Color.White) else null)
+            Image(
+                painter = painterResource(R.drawable.fuchsia_app_icon),
+                contentDescription = "شعار فوشيا بوكينج",
+                modifier = Modifier.width(64.dp).height(44.dp),
+                contentScale = ContentScale.Fit,
+                colorFilter = if (darkTheme) ColorFilter.tint(Color.White) else null,
+            )
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text("فوشيا بوكينج", color = if (darkTheme) Color.White else FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp, letterSpacing = 0.1.sp)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {

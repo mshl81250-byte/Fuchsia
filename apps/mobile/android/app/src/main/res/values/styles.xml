@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.FuchsiaBoutique" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.FuchsiaBooking" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#A80D51</item>
         <item name="android:statusBarColor">#FBF7F2</item>

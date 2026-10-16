@@ -64,7 +64,7 @@ internal fun CommerceHeader(
         ) {
             Surface(
                 shape = RoundedCornerShape(15.dp),
-                color = FuchsiaColors.White,
+                color = FuchsiaColors.OnPrimary,
                 border = BorderStroke(1.dp, FuchsiaColors.Line),
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) {
@@ -110,10 +110,15 @@ internal fun CommerceField(
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = FuchsiaColors.Primary,
             unfocusedBorderColor = FuchsiaColors.Line,
-            focusedLabelColor = FuchsiaColors.TextAccent,
             cursorColor = FuchsiaColors.Primary,
             focusedContainerColor = FuchsiaColors.White,
             unfocusedContainerColor = FuchsiaColors.White,
+            focusedTextColor = FuchsiaColors.Ink,
+            unfocusedTextColor = FuchsiaColors.Ink,
+            focusedPlaceholderColor = FuchsiaColors.Muted,
+            unfocusedPlaceholderColor = FuchsiaColors.Muted,
+            focusedLabelColor = FuchsiaColors.TextAccent,
+            unfocusedLabelColor = FuchsiaColors.Muted,
         ),
     )
 }

@@ -164,7 +164,7 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                     PartnerPanel(title = "طلبك قيد المراجعة") {
                         Text(ownerBusinessName, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                         Text("بعد اعتماد الحساب ستتمكن من إضافة القاعات وتحديد الأيام والقسم والأسعار.", color = FuchsiaColors.Muted)
-                        Button(onClick = { scope.launch { runCatching { reload() }.onFailure { error = it.message.orEmpty() } } }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) { Text("تحديث الحالة", color = FuchsiaColors.TextAccent) }
+                        Button(onClick = { scope.launch { runCatching { reload() }.onFailure { error = it.message.orEmpty() } } }, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تحديث الحالة", color = FuchsiaColors.TextAccent) }
                     }
                 }
             } else if (ownerStatus == "suspended") {
@@ -186,7 +186,7 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                         PartnerField(description, { description = it }, "وصف القاعة", singleLine = false)
                         PartnerField(capacity, { capacity = it.filter(Char::isDigit).take(5) }, "السعة القصوى للضيوف", keyboardType = KeyboardType.Number)
                         PartnerField(dailyPrice, { dailyPrice = it.filter(Char::isDigit).take(12) }, "سعر الحجز لليوم بالريال", keyboardType = KeyboardType.Number)
-                        Button(onClick = { imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+                        Button(onClick = { imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                             Text("اختيار ورفع صور من الجهاز", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                         }
                         PartnerField(imageLinks, { imageLinks = it }, "أو روابط الصور المستضافة (مفصولة بفاصلة)", singleLine = false)
@@ -390,7 +390,7 @@ private fun RentalOwnerPanel(token: String, context: android.content.Context) {
                 PartnerField(tableHeight, { tableHeight = it.filter { char -> char in '0'..'9' || char == '.' }.take(6) }, "ارتفاع الطاولة بالسنتيمتر", keyboardType = KeyboardType.Decimal)
                 PartnerField(colors, { colors = it }, "الألوان المتوفرة مفصولة بفاصلة")
             }
-            Button(onClick = { selectedImagePurpose = "rental"; imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+            Button(onClick = { selectedImagePurpose = "rental"; imagePicker.launch("image/*") }, enabled = !busy, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                 Text("اختيار ورفع صور القطعة", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
             }
             PartnerField(imageLinks, { imageLinks = it }, "أو روابط صور مستضافة (مفصولة بفاصلة)", singleLine = false)

@@ -2,6 +2,7 @@ package com.fuchsia.platform.compose.ui.navigation
 
 import android.app.Activity
 import android.net.Uri
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
@@ -23,6 +24,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -39,6 +42,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -58,6 +64,7 @@ import com.fuchsia.platform.compose.data.RentalBookingDraft
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.ui.screens.AboutScreen
 import com.fuchsia.platform.compose.ui.screens.AccountScreen
+import com.fuchsia.platform.compose.ui.screens.AccountInfoScreen
 import com.fuchsia.platform.compose.ui.screens.AddressBookScreen
 import com.fuchsia.platform.compose.ui.screens.AuthScreen
 import com.fuchsia.platform.compose.ui.screens.CategoryScreen
@@ -75,14 +82,15 @@ import com.fuchsia.platform.compose.ui.screens.ProductDetailsScreen
 import com.fuchsia.platform.compose.ui.screens.ProfileEditorScreen
 import com.fuchsia.platform.compose.ui.screens.ReservationScreen
 import com.fuchsia.platform.compose.ui.screens.SettingsScreen
-import com.fuchsia.platform.compose.ui.screens.SupportScreen
 import com.fuchsia.platform.compose.ui.screens.VerifyScreen
 import com.fuchsia.platform.compose.ui.screens.WelcomeScreen
 import com.fuchsia.platform.compose.ui.screens.WishlistScreen
+import com.fuchsia.platform.compose.ui.screens.AdvancedSettingsScreen
+import com.fuchsia.platform.compose.ui.screens.FeedbackScreen
 import com.fuchsia.platform.compose.ui.screens.VenueBookingScreen
-import com.fuchsia.platform.compose.ui.screens.VenuePartnerScreen
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 object AppRoutes {
     const val Welcome = "welcome"
@@ -98,20 +106,21 @@ object AppRoutes {
     const val GiftOrder = "gift-order"
     const val Reservation = "reservation"
     const val VenueBooking = "venue-booking"
-    const val VenuePartner = "venue-partner"
     const val OrderSuccess = "order-success/{orderId}"
     const val Orders = "orders?focusOrderId={focusOrderId}"
     const val OrdersRoot = "orders?focusOrderId=0"
     const val Account = "account"
     const val Settings = "settings"
     const val ProfileEdit = "profile-edit"
+    const val AccountInfo = "account-info"
     const val AddressBook = "address-book"
     const val Privacy = "privacy"
     const val Terms = "terms"
     const val Help = "help"
     const val Contact = "contact"
-    const val Support = "support"
     const val About = "about"
+    const val Advanced = "advanced-settings"
+    const val Feedback = "feedback"
 
     fun auth(register: Boolean): String = "auth?register=$register"
     fun verify(email: String): String = "verify/${Uri.encode(email)}"
@@ -146,10 +155,28 @@ fun FuchsiaAppNavHost(
     val currentEntry by navController.currentBackStackEntryAsState()
     val routeNow = currentEntry?.destination?.route
     var showExitSheet by remember { mutableStateOf(false) }
+    var lastHomeBackAt by remember { mutableStateOf(0L) }
     var guestStarting by remember { mutableStateOf(false) }
     var guestError by remember { mutableStateOf("") }
 
-    BackHandler(enabled = routeNow == AppRoutes.Home) { showExitSheet = true }
+    BackHandler(enabled = routeNow == AppRoutes.Home || showExitSheet) {
+        if (showExitSheet) {
+            showExitSheet = false
+        } else {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastHomeBackAt <= 1800L) {
+                lastHomeBackAt = 0L
+                showExitSheet = true
+            } else {
+                lastHomeBackAt = now
+                android.widget.Toast.makeText(context, "اضغط مرة أخرى للخروج", android.widget.Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    delay(1800L)
+                    if (lastHomeBackAt == now) lastHomeBackAt = 0L
+                }
+            }
+        }
+    }
 
     fun selectTab(route: String) {
         navController.navigate(route) {
@@ -203,11 +230,11 @@ fun FuchsiaAppNavHost(
             fadeOut(tween(170)) + scaleOut(tween(250, easing = FastOutSlowInEasing), targetScale = 0.975f)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
             enterTransition = forwardEnter,
             exitTransition = forwardExit,
             popEnterTransition = backEnter,
@@ -232,14 +259,11 @@ fun FuchsiaAppNavHost(
                     onBack = { navController.popBackStack() },
                     onAuthComplete = {
                         navController.navigate(AppRoutes.Home) {
-                            popUpTo(AppRoutes.Home) { inclusive = false }
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
-                    onCodeRequested = { email, debugCode ->
-                        navController.currentBackStackEntry?.savedStateHandle?.set("debugCode", debugCode)
-                        navController.navigate(AppRoutes.verify(email))
-                    },
+                    onCodeRequested = { email, _ -> navController.navigate(AppRoutes.verify(email)) },
                 )
             }
             composable(
@@ -250,11 +274,10 @@ fun FuchsiaAppNavHost(
             ) { entry ->
                 VerifyScreen(
                     email = entry.arguments?.getString("email").orEmpty(),
-                    debugCode = navController.previousBackStackEntry?.savedStateHandle?.get<String>("debugCode"),
                     onBack = { navController.popBackStack() },
                     onVerified = {
                         navController.navigate(AppRoutes.Home) {
-                            popUpTo(AppRoutes.Home) { inclusive = false }
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
@@ -365,23 +388,22 @@ fun FuchsiaAppNavHost(
             composable(AppRoutes.Account) {
                 AccountScreen(
                     onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
-                    onEditProfile = { navController.navigate(AppRoutes.ProfileEdit) },
+                    onAccountInfo = { navController.navigate(AppRoutes.AccountInfo) },
                     onAddresses = { navController.navigate(AppRoutes.AddressBook) },
                     onOrders = { selectTab(AppRoutes.OrdersRoot) },
                     onWishlist = { selectTab(AppRoutes.Wishlist) },
                     onSettings = { selectTab(AppRoutes.Settings) },
-                    onSupport = { navController.navigate(AppRoutes.Support) },
+                    onContact = { navController.navigate(AppRoutes.Contact) },
+                    onPrivacy = { navController.navigate(AppRoutes.Privacy) },
+                    onTerms = { navController.navigate(AppRoutes.Terms) },
                     onSignedOut = {
-                        navController.navigate(AppRoutes.Account) {
-                            popUpTo(AppRoutes.Account) { inclusive = true }
+                        navController.navigate(AppRoutes.auth(register = false)) {
+                            popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Account, ::selectTab) },
                 )
-            }
-            composable(AppRoutes.VenuePartner) {
-                VenuePartnerScreen(onBack = { navController.popBackStack() })
             }
             composable(AppRoutes.Settings) {
                 SettingsScreen(
@@ -396,7 +418,15 @@ fun FuchsiaAppNavHost(
                     onHelp = { navController.navigate(AppRoutes.Help) },
                     onContact = { navController.navigate(AppRoutes.Contact) },
                     onAbout = { navController.navigate(AppRoutes.About) },
+                    onAdvanced = { navController.navigate(AppRoutes.Advanced) },
+                    onFeedback = { navController.navigate(AppRoutes.Feedback) },
                     bottomBar = { FuchsiaBottomBar(AppRoutes.Settings, ::selectTab) },
+                )
+            }
+            composable(AppRoutes.AccountInfo) {
+                AccountInfoScreen(
+                    onBack = { navController.popBackStack() },
+                    onEdit = { navController.navigate(AppRoutes.ProfileEdit) },
                 )
             }
             composable(AppRoutes.ProfileEdit) {
@@ -417,15 +447,21 @@ fun FuchsiaAppNavHost(
             composable(AppRoutes.Terms) { PolicyScreen(isTerms = true, onBack = { navController.popBackStack() }) }
             composable(AppRoutes.Help) { HelpScreen(onBack = { navController.popBackStack() }) }
             composable(AppRoutes.Contact) { ContactScreen(onBack = { navController.popBackStack() }) }
-            composable(AppRoutes.Support) { SupportScreen(onBack = { navController.popBackStack() }) }
             composable(AppRoutes.About) { AboutScreen(onBack = { navController.popBackStack() }) }
+            composable(AppRoutes.Advanced) { AdvancedSettingsScreen(onBack = { navController.popBackStack() }, onDeleted = { SessionVault.clear(context); navController.navigate(AppRoutes.Welcome) { popUpTo(0) } }) }
+            composable(AppRoutes.Feedback) { FeedbackScreen(onBack = { navController.popBackStack() }) }
             composable(
                 route = AppRoutes.OrderSuccess,
                 arguments = listOf(navArgument("orderId") { type = NavType.IntType }),
             ) { entry ->
                 OrderSuccessScreen(
                     orderId = entry.arguments?.getInt("orderId") ?: 0,
-                    onTrackOrder = { navController.navigate(AppRoutes.orders(entry.arguments?.getInt("orderId") ?: 0)) },
+                    onTrackOrder = {
+                        navController.navigate(AppRoutes.orders(entry.arguments?.getInt("orderId") ?: 0)) {
+                            popUpTo(AppRoutes.OrderSuccess) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                     onContinueShopping = { selectTab(AppRoutes.Home) },
                 )
             }
@@ -442,10 +478,11 @@ fun FuchsiaAppNavHost(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.fuchsia_logo),
-                        contentDescription = "فوشيا",
-                        modifier = Modifier.size(width = 118.dp, height = 96.dp),
+                        painter = painterResource(R.drawable.fuchsia_app_icon),
+                        contentDescription = "شعار فوشيا بوكينج",
+                        modifier = Modifier.width(150.dp).height(100.dp),
                         contentScale = ContentScale.Fit,
+                        colorFilter = if (MaterialTheme.colorScheme.onSurface.luminance() > 0.8f) ColorFilter.tint(Color.White) else null,
                     )
                     if (guestStarting) {
                         Text("نجهّز لك التصفح دون حساب", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -469,9 +506,9 @@ fun FuchsiaAppNavHost(
                 containerColor = FuchsiaColors.White,
             ) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("هل تريد مغادرة التطبيق؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                    Text("هل تريد الخروج من التطبيق؟", color = FuchsiaColors.Ink, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
                     Text("شكراً لاستخدام فوشيا، نتطلع لخدمتك مجدداً.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp, bottom = 20.dp))
-                    Button(onClick = { (context as? Activity)?.finish() }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("خروج", fontWeight = FontWeight.Bold) }
+                    Button(onClick = { (context as? Activity)?.finish() }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("نعم، الخروج", fontWeight = FontWeight.Bold) }
                     TextButton(onClick = { showExitSheet = false }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text("البقاء", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
                 }
             }

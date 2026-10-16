@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.LocalShipping
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Refresh
@@ -85,10 +86,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
-
-private const val MAX_PRODUCT_IMAGES = 8
 
 @Composable
 internal fun RentalPartnerHub(
@@ -104,14 +102,13 @@ internal fun RentalPartnerHub(
     var activeTab by remember { mutableIntStateOf(0) }
     var products by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerRentalProduct>()) }
     var bookings by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerRentalBooking>()) }
+    var storeOrders by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerStoreOrder>()) }
     var maintenance by remember(preview, selectedStoreId) { mutableStateOf(emptyList<PartnerMaintenanceBlock>()) }
     var categories by remember { mutableStateOf(emptyList<PartnerCategory>()) }
     var loading by remember { mutableStateOf(false) }
     var productsError by remember { mutableStateOf("") }
     var bookingsError by remember { mutableStateOf("") }
     var maintenanceError by remember { mutableStateOf("") }
-    var lastUpdatedAt by remember { mutableStateOf<Long?>(null) }
-    var connectionIssue by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var editorVisible by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<PartnerRentalProduct?>(null) }
@@ -123,6 +120,7 @@ internal fun RentalPartnerHub(
         if (preview) {
             products = demoRentalProducts()
             bookings = demoRentalBookings()
+            storeOrders = emptyList()
             categories = demoRentalCategories()
             loading = false
             productsError = ""
@@ -141,31 +139,19 @@ internal fun RentalPartnerHub(
             productsError = ""
             bookingsError = ""
             maintenanceError = ""
-            lastUpdatedAt = null
-            connectionIssue = false
-            var loadedAny = false
-            var transientFailure = false
             runCatching { PartnerRentalApi.products(auth, storeId) }
-                .onSuccess { products = it; loadedAny = true }
-                .onFailure {
-                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
-                    productsError = it.message ?: "تعذر تحميل كتالوج الإيجار"
-                }
+                .onSuccess { products = it }
+                .onFailure { productsError = it.message ?: "تعذر تحميل كتالوج الإيجار" }
             runCatching { PartnerRentalApi.bookings(auth, storeId) }
-                .onSuccess { bookings = it; loadedAny = true }
-                .onFailure {
-                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
-                    bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار"
-                }
+                .onSuccess { bookings = it }
+                .onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار" }
+            runCatching { PartnerRentalApi.orders(auth, storeId) }
+                .onSuccess { storeOrders = it }
+                .onFailure { onMessage(it.message ?: "تعذر تحميل طلبات المتجر") }
             runCatching { PartnerRentalApi.maintenance(auth, storeId, SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)) }
-                .onSuccess { maintenance = it; loadedAny = true }
-                .onFailure {
-                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
-                    maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة"
-                }
-            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it; loadedAny = true }.onFailure { categories = emptyList() }
-            if (loadedAny) lastUpdatedAt = System.currentTimeMillis()
-            connectionIssue = transientFailure
+                .onSuccess { maintenance = it }
+                .onFailure { maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة" }
+            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it }.onFailure { categories = emptyList() }
             loading = false
         }
     }
@@ -192,26 +178,12 @@ internal fun RentalPartnerHub(
             RentalNotice("بيانات معاينة فقط؛ لا تُرفع صور ولا تُحفظ منتجات أو قرارات حجز حقيقية.")
         } else {
             Text("إدارة كتالوج التأجير والطلبات. قبول الطلب يعني تأكيد التوفر فقط، ولا يعتمد الدفعة المالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
-            if (connectionIssue) {
-                RentalNotice(
-                    if (lastUpdatedAt != null) "الاتصال بالخادم غير مستقر؛ البيانات المعروضة قد لا تكون الأحدث. اضغط تحديث عند استقرار الاتصال."
-                    else "تعذر الوصول إلى الخادم. تحقق من الإنترنت ثم اضغط تحديث.",
-                    isError = true,
-                )
-            }
-            lastUpdatedAt?.let { timestamp ->
-                Text(
-                    "آخر تحديث ناجح: ${SimpleDateFormat("HH:mm", Locale.US).format(Date(timestamp))}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    modifier = Modifier.padding(bottom = 6.dp),
-                )
-            }
         }
 
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = activeTab == 0, onClick = { activeTab = 0 }, label = { Text("الكوش والطاولات") }, leadingIcon = { Icon(Icons.Rounded.Inventory2, null, Modifier.size(18.dp)) })
             FilterChip(selected = activeTab == 1, onClick = { activeTab = 1 }, label = { Text("طلبات الإيجار ${bookings.count { it.status == "rental_pending_confirmation" }}") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
+            FilterChip(selected = activeTab == 3, onClick = { activeTab = 3 }, label = { Text("طلبات التوصيل ${storeOrders.count { it.status !in setOf("delivered", "cancelled") }}") }, leadingIcon = { Icon(Icons.Rounded.LocalShipping, null, Modifier.size(18.dp)) })
             FilterChip(selected = activeTab == 2, onClick = { activeTab = 2 }, label = { Text("الصيانة ${maintenance.size}") }, leadingIcon = { Icon(Icons.Rounded.Event, null, Modifier.size(18.dp)) })
             IconButton(onClick = { refreshKey++ }, enabled = !loading) {
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -247,6 +219,8 @@ internal fun RentalPartnerHub(
             )
         } else if (activeTab == 1) {
             RentalBookingsList(bookings, modifier = Modifier.weight(1f), onOpen = { selectedBooking = it })
+        } else if (activeTab == 3) {
+            StoreOrdersList(token, selectedStore?.id ?: 0, storeOrders, preview, onMessage, modifier = Modifier.weight(1f))
         } else {
             RentalMaintenanceManager(
                 products = products, blocks = maintenance, modifier = Modifier.weight(1f),
@@ -334,6 +308,83 @@ internal fun RentalPartnerHub(
 }
 
 @Composable
+private fun StoreOrdersList(
+    token: String?,
+    storeId: Int,
+    orders: List<PartnerStoreOrder>,
+    preview: Boolean,
+    onMessage: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scope = rememberCoroutineScope()
+    var selected by remember { mutableStateOf<PartnerStoreOrder?>(null) }
+    LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Text("طلبات متجرك", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold); Text("عيّن الموصّل وحالة الطلب مباشرة من تطبيق الشريك.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+        if (orders.isEmpty()) item { EmptyRentalState("لا توجد طلبات متجر", "ستظهر هنا الطلبات التي تحتوي منتجات من متجرك.", Icons.Rounded.LocalShipping) }
+        items(orders, key = { it.id }) { order ->
+            Card(Modifier.fillMaxWidth().clickable { selected = order }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Text("طلب #${order.id}", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text(orderStatusLabel(order.status), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) }
+                    Text(order.customerName.ifBlank { "عميل" }, fontWeight = FontWeight.SemiBold)
+                    Text(order.deliveryAddress.ifBlank { "لم يحدد العميل العنوان" }, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
+                    Text(if (order.driverName.isNullOrBlank()) "لم يُعيّن موصّل بعد" else "الموصّل: ${order.driverName} · ${order.driverPhone.orEmpty()}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+    selected?.let { order ->
+        DriverOrderDialog(order, preview, onDismiss = { selected = null }) { status, name, phone ->
+            if (preview) { onMessage("المعاينة لا تحفظ تغييرات حقيقية"); return@DriverOrderDialog }
+            scope.launch {
+                runCatching { PartnerApi.updateOrder(token.orEmpty(), order.id, status, name, phone) }
+                    .onSuccess { selected = null; onMessage("تم حفظ حالة الطلب وبيانات الموصّل") }
+                    .onFailure { onMessage(it.message ?: "تعذر حفظ بيانات الموصّل") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DriverOrderDialog(order: PartnerStoreOrder, preview: Boolean, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+    var name by remember(order.id) { mutableStateOf(order.driverName.orEmpty()) }
+    var phone by remember(order.id) { mutableStateOf(order.driverPhone.orEmpty()) }
+    var status by remember(order.id) { mutableStateOf(normalizeOrderStatus(order.status)) }
+    val phoneLooksValid = phone.trim().matches(Regex("^[+0-9][0-9\\s-]{6,19}$"))
+    val requiresDriver = status in setOf("delivering", "delivered", "rental_out")
+    val canSave = !requiresDriver || (name.trim().length >= 2 && phoneLooksValid)
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("بيانات موصّل الطلب #${order.id}") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Text("العميل: ${order.customerName}", fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(name, { name = it.take(120) }, modifier = Modifier.fillMaxWidth(), label = { Text("اسم الموصّل") }, placeholder = { Text("مثال: محمد علي") }, singleLine = true, isError = requiresDriver && name.trim().length < 2)
+            OutlinedTextField(phone, { phone = it.take(40) }, modifier = Modifier.fillMaxWidth(), label = { Text("رقم الموصّل") }, placeholder = { Text("مثال: 777123456") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), isError = requiresDriver && !phoneLooksValid, supportingText = { if (requiresDriver && !phoneLooksValid) Text("أدخل رقمًا صحيحًا من 7 إلى 20 خانة") })
+            Text(if (requiresDriver) "يجب إدخال بيانات الموصّل قبل تحويل الطلب إلى حالة توصيل أو تسليم." else "يمكنك إضافة بيانات الموصّل الآن أو قبل بدء التوصيل.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf("received" to "مستلم", "preparing" to "قيد التجهيز", "delivering" to "مع الموصّل", "delivered" to "تم التسليم").forEach { (value, label) -> FilterChip(selected = status == value, onClick = { status = value }, label = { Text(label, fontSize = 11.sp) }) }
+            }
+            if (preview) Text("المعاينة لا تحفظ أي تغيير.", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+        }
+    }, confirmButton = { TextButton(onClick = { onSave(status, name.trim(), phone.trim()) }, enabled = canSave) { Text("حفظ") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } })
+}
+
+private fun orderStatusLabel(status: String) = when (status) {
+    "received", "rental_received" -> "مستلم"
+    "preparing", "rental_preparing" -> "قيد التجهيز"
+    "delivering", "rental_out" -> "مع الموصّل"
+    "delivered", "rental_returned" -> "تم التسليم"
+    "cancelled", "rental_cancelled" -> "ملغى"
+    "pending", "rental_pending_confirmation" -> "بانتظار التأكيد"
+    else -> status.ifBlank { "غير محدد" }
+}
+
+private fun normalizeOrderStatus(status: String) = when (status) {
+    "rental_received", "rental_pending_confirmation" -> "received"
+    "rental_preparing" -> "preparing"
+    "rental_out" -> "delivering"
+    "rental_returned" -> "delivered"
+    else -> status
+}
+
+@Composable
 private fun RentalProductsList(
     products: List<PartnerRentalProduct>,
     loading: Boolean,
@@ -388,9 +439,6 @@ private fun RentalProductCard(product: PartnerRentalProduct, busy: Boolean, onCl
                     add("الكمية ${product.stockQuantity}")
                     if (product.bufferDays > 0) add("مهلة تجهيز ${product.bufferDays} يوم")
                     if (product.tableHeightCm != null) add("الارتفاع ${rentNumber(product.tableHeightCm)} سم")
-                    if (product.tableWidthCm != null && product.tableLengthCm != null) add("المقاس ${rentNumber(product.tableWidthCm)} × ${rentNumber(product.tableLengthCm)} سم")
-                    if (product.tableDiameterCm != null) add("القطر ${rentNumber(product.tableDiameterCm)} سم")
-                    if (product.tableSeats != null) add("${product.tableSeats} مقعد")
                     if (product.colors.isNotEmpty()) add(product.colors.take(3).joinToString("، "))
                 }.joinToString(" · ")
                 Text(specification, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -428,16 +476,12 @@ private fun RentalProductEditor(
     var deposit by remember(existing?.id) { mutableStateOf(existing?.deposit?.let(::rentNumber)?.takeIf { it != "0" }.orEmpty()) }
     var quantity by remember(existing?.id) { mutableStateOf(existing?.stockQuantity?.takeIf { it > 0 }?.toString() ?: "1") }
     var height by remember(existing?.id) { mutableStateOf(existing?.tableHeightCm?.let(::rentNumber).orEmpty()) }
-    var width by remember(existing?.id) { mutableStateOf(existing?.tableWidthCm?.let(::rentNumber).orEmpty()) }
-    var length by remember(existing?.id) { mutableStateOf(existing?.tableLengthCm?.let(::rentNumber).orEmpty()) }
-    var diameter by remember(existing?.id) { mutableStateOf(existing?.tableDiameterCm?.let(::rentNumber).orEmpty()) }
-    var seats by remember(existing?.id) { mutableStateOf(existing?.tableSeats?.takeIf { it > 0 }?.toString().orEmpty()) }
-    var setupNotes by remember(existing?.id) { mutableStateOf(existing?.setupNotes.orEmpty()) }
     var minDays by remember(existing?.id) { mutableStateOf(existing?.minDays?.coerceAtLeast(1)?.toString() ?: "1") }
     var maxDays by remember(existing?.id) { mutableStateOf(existing?.maxDays?.coerceAtLeast(1)?.toString() ?: "3") }
     var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
-    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(MAX_PRODUCT_IMAGES)) }
+    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(6)) }
+    var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
     var busy by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf("") }
     var uploadStatus by remember { mutableStateOf("") }
@@ -448,15 +492,15 @@ private fun RentalProductEditor(
             else scope.launch {
                 val auth = token ?: return@launch
                 busy = true
-                val remaining = (MAX_PRODUCT_IMAGES - imageUrls.size).coerceAtLeast(0)
+                val remaining = (6 - imageUrls.size).coerceAtLeast(0)
                 if (remaining == 0) {
-                    onMessage("الحد الأعلى $MAX_PRODUCT_IMAGES صور للمنتج")
+                    onMessage("الحد الأعلى 6 صور للمنتج")
                 } else {
                     val selected = uris.take(remaining)
                     selected.forEachIndexed { index, uri ->
                         uploadStatus = "رفع الصورة ${index + 1} من ${selected.size}…"
                         runCatching { PartnerRentalApi.uploadImage(context, uri, auth, storeId) }
-                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(MAX_PRODUCT_IMAGES) }
+                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(6) }
                             .onFailure { onMessage(it.message ?: "تعذر رفع الصورة") }
                     }
                 }
@@ -497,27 +541,17 @@ private fun RentalProductEditor(
                     OutlinedTextField(deposit, { deposit = it }, Modifier.fillMaxWidth(), label = { Text("مبلغ التأمين (اختياري)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     OutlinedTextField(quantity, { quantity = it }, Modifier.fillMaxWidth(), label = { Text(if (rentalCategory == "table") "عدد الطاولات المتاحة" else "عدد الكوش المتاحة") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     if (rentalCategory == "table") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(width, { width = it }, Modifier.weight(1f), label = { Text("العرض (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                            OutlinedTextField(length, { length = it }, Modifier.weight(1f), label = { Text("الطول (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(height, { height = it }, Modifier.weight(1f), label = { Text("الارتفاع (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                            OutlinedTextField(diameter, { diameter = it }, Modifier.weight(1f), label = { Text("القطر إن كانت دائرية (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                        }
-                        OutlinedTextField(seats, { seats = it }, Modifier.fillMaxWidth(), label = { Text("عدد المقاعد/الأشخاص") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                        OutlinedTextField(height, { height = it }, Modifier.fillMaxWidth(), label = { Text("ارتفاع الطاولة (سم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                         OutlinedTextField(colorsText, { colorsText = it }, Modifier.fillMaxWidth(), label = { Text("الألوان المتوفرة، افصل بينها بفاصلة") }, singleLine = true)
-                        OutlinedTextField(setupNotes, { setupNotes = it }, Modifier.fillMaxWidth(), label = { Text("ملاحظات التجهيز والتركيب") }, minLines = 2, maxLines = 4)
                     } else {
                         OutlinedTextField(colorsText, { colorsText = it }, Modifier.fillMaxWidth(), label = { Text("الألوان/التنسيقات المتوفرة") }, singleLine = true)
-                        OutlinedTextField(setupNotes, { setupNotes = it }, Modifier.fillMaxWidth(), label = { Text("ملاحظات التجهيز والتركيب") }, minLines = 2, maxLines = 4)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(minDays, { minDays = it }, Modifier.weight(1f), label = { Text("أقل مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                         OutlinedTextField(maxDays, { maxDays = it }, Modifier.weight(1f), label = { Text("أقصى مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                     OutlinedTextField(bufferDays, { bufferDays = it }, Modifier.fillMaxWidth(), label = { Text("مهلة التجهيز بعد الحجز (أيام، 0–14)") }, supportingText = { Text("تمنع حجز المنتج خلال فترة التنظيف/التجهيز التالية.") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Text("صور المنتج · ${imageUrls.size}/$MAX_PRODUCT_IMAGES", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("صور المنتج · ${imageUrls.size}/6", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         imageUrls.forEachIndexed { index, url ->
                             Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
@@ -525,11 +559,15 @@ private fun RentalProductEditor(
                                 TextButton(onClick = { imageUrls = imageUrls.filterIndexed { i, _ -> i != index } }, modifier = Modifier.align(Alignment.BottomEnd).background(Color.Black.copy(alpha = .55f)), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("×", color = Color.White) }
                             }
                         }
-                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < MAX_PRODUCT_IMAGES, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
+                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < 6, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
                             Icon(Icons.Rounded.CloudUpload, null); Text("صور", fontSize = 10.sp)
                         }
                     }
                     if (uploadStatus.isNotBlank()) Text(uploadStatus, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FilterChip(selected = published, onClick = { published = !published }, label = { Text(if (published) "منشور للعملاء" else "مسودة غير منشورة") }, leadingIcon = { Icon(if (published) Icons.Rounded.Check else Icons.Rounded.Image, null, Modifier.size(16.dp)) })
+                    }
+                    if (published && imageUrls.isEmpty()) RentalNotice("أضف صورة رئيسية قبل نشر المنتج.", isError = true)
                     if (formError.isNotBlank()) RentalNotice(formError, isError = true)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -542,10 +580,6 @@ private fun RentalProductEditor(
                         val max = rentParseInt(maxDays)
                         val buffer = rentParseInt(bufferDays)
                         val tableHeight = rentParseNumber(height)
-                        val tableWidth = rentParseNumber(width)
-                        val tableLength = rentParseNumber(length)
-                        val tableDiameter = rentParseNumber(diameter)
-                        val tableSeats = rentParseInt(seats)
                         val colors = colorsText.split(',', '،', ';').map(String::trim).filter(String::isNotBlank).distinct().take(20)
                         formError = when {
                             name.isBlank() -> "اكتب اسم المنتج"
@@ -555,11 +589,8 @@ private fun RentalProductEditor(
                             min < 1 || max < min -> "تحقق من أقل وأقصى مدة للإيجار"
                             buffer !in 0..14 -> "مهلة التجهيز يجب أن تكون بين 0 و14 يومًا"
                             rentalCategory == "table" && tableHeight <= 0 -> "أدخل ارتفاع الطاولة بالسنتيمتر"
-                            rentalCategory == "table" && tableSeats < 1 -> "أدخل عدد المقاعد أو الأشخاص"
-                            rentalCategory == "table" && tableWidth <= 0 && tableDiameter <= 0 -> "أدخل عرض الطاولة وطولها أو قطرها"
-                            rentalCategory == "table" && tableDiameter <= 0 && tableLength <= 0 -> "أدخل طول الطاولة أو قطرها"
                             rentalCategory == "table" && colors.isEmpty() -> "أدخل لونًا واحدًا على الأقل للطاولات"
-                            imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل الحفظ"
+                            published && imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل النشر"
                             else -> ""
                         }
                         if (formError.isNotBlank()) return@Button
@@ -585,25 +616,21 @@ private fun RentalProductEditor(
                                 .put("rentalMaxDays", max)
                                 .put("rentalBufferDays", buffer)
                                 .put("tableHeightCm", if (rentalCategory == "table") tableHeight else JSONObject.NULL)
-                                .put("tableWidthCm", if (rentalCategory == "table" && tableWidth > 0) tableWidth else JSONObject.NULL)
-                                .put("tableLengthCm", if (rentalCategory == "table" && tableLength > 0) tableLength else JSONObject.NULL)
-                                .put("tableDiameterCm", if (rentalCategory == "table" && tableDiameter > 0) tableDiameter else JSONObject.NULL)
-                                .put("tableSeats", if (rentalCategory == "table") tableSeats else JSONObject.NULL)
-                                .put("setupNotes", setupNotes.trim())
                                 .put("availableColors", JSONArray(colors).toString())
                                 .put("stockQuantity", stock)
                                 .put("inStock", stock > 0)
-                                .put("isPublished", true)
+                                .put("isPublished", published)
                                 .put("tags", "[]")
                                 .put("occasionTags", "[]")
                             try {
                                 if (existing == null) {
-                                    PartnerRentalApi.createProduct(auth, payload)
+                                    val created = PartnerRentalApi.createProduct(auth, JSONObject(payload.toString()).put("isPublished", false))
+                                    if (published) PartnerRentalApi.updateProduct(auth, created.id, JSONObject().put("isPublished", true))
                                 } else {
                                     PartnerRentalApi.updateProduct(auth, existing.id, payload)
                                 }
                                 onSaved()
-                                onMessage("تم حفظ المنتج ونشره للعملاء مباشرة")
+                                onMessage(if (published) "تم حفظ المنتج ونشره" else "تم حفظ المنتج كمسودة")
                                 onDismiss()
                             } catch (failure: Exception) {
                                 formError = failure.message ?: "تعذر حفظ المنتج"
@@ -869,18 +896,8 @@ private fun rentDate(value: String): String = runCatching {
 
 private fun demoRentalCategories() = listOf(PartnerCategory(1, "كوش الأعراس"), PartnerCategory(2, "طاولات المناسبات"))
 private fun demoRentalProducts() = listOf(
-    PartnerRentalProduct(
-        id = -901, storeId = -901, name = "كوش ملكية بالورود الطبيعية", description = "تنسيق ملكي للزفاف",
-        categoryId = 1, rentalCategory = "kosh", audience = "women", dailyPrice = 150000.0, deposit = 30000.0,
-        minDays = 1, maxDays = 3, tableHeightCm = null, colors = listOf("أبيض", "ذهبي"), stockQuantity = 1,
-        inStock = true, isPublished = true, imageUrl = "", images = emptyList(),
-    ),
-    PartnerRentalProduct(
-        id = -902, storeId = -901, name = "طاولات مناسبات دائرية", description = "طاولات مع مفارش وألوان متعددة",
-        categoryId = 2, rentalCategory = "table", audience = "both", dailyPrice = 12000.0, deposit = 2000.0,
-        minDays = 1, maxDays = 5, tableHeightCm = 75.0, colors = listOf("أبيض", "ذهبي", "وردي"), stockQuantity = 24,
-        inStock = true, isPublished = true, imageUrl = "", images = emptyList(),
-    ),
+    PartnerRentalProduct(-901, -901, "كوش ملكية بالورود الطبيعية", "تنسيق ملكي للزفاف", 1, "kosh", "women", 150000.0, 30000.0, 1, 3, null, listOf("أبيض", "ذهبي"), 1, true, true, "", emptyList()),
+    PartnerRentalProduct(-902, -901, "طاولات مناسبات دائرية", "طاولات مع مفارش وألوان متعددة", 2, "table", "both", 12000.0, 2000.0, 1, 5, 75.0, listOf("أبيض", "ذهبي", "وردي"), 24, true, true, "", emptyList()),
 )
 private fun demoRentalBookings() = listOf(
     PartnerRentalBooking(-9901, "rental_pending_confirmation", "سارة محمد", "77XXXXXXX", 186000.0, 50000.0, "pending_review", null, "DEMO-REF-081", "حفل زفاف نسائي", listOf(PartnerRentalItem("كوش ملكية بالورود الطبيعية", 1, 150000.0, demoDate(12), 1, demoDate(12), "delivery", "evening", ""))),

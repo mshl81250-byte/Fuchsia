@@ -7,10 +7,10 @@
     <application
         android:allowBackup="false"
         android:icon="@drawable/fuchsia_app_icon"
-        android:label="فوشيا بوتيك"
+        android:label="فوشيا بوكينج"
         android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FuchsiaBoutique"
+        android:theme="@style/Theme.FuchsiaBooking"
         android:usesCleartextTraffic="false">
         <activity
             android:name="com.fuchsia.platform.compose.MainActivity"

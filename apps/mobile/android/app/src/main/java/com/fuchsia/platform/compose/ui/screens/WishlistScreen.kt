@@ -49,8 +49,10 @@ fun WishlistScreen(
     bottomBar: @Composable () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val userId = remember(context) { SessionVault.userId(context) }
-    val sessionId = remember(context) { SessionVault.sessionId(context) }
+    val sessionSnapshot = SessionVault.read(context)
+    val userId = sessionSnapshot?.optJSONObject("user")?.optInt("id")?.takeIf { it > 0 }
+    val sessionId = sessionSnapshot?.optJSONObject("user")?.opt("id")?.toString()?.takeIf { it.isNotBlank() && it != "null" }
+    val bearerToken = sessionSnapshot?.optString("token")?.takeIf { it.isNotBlank() }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var products by remember { mutableStateOf<List<StoreProduct>>(emptyList()) }
@@ -65,7 +67,7 @@ fun WishlistScreen(
         }
         loading = true
         error = ""
-        runCatching { FuchsiaApi.favorites(userId) }
+        runCatching { FuchsiaApi.favorites(userId, bearerToken) }
             .onSuccess { products = it }
             .onFailure { error = it.message ?: "تعذر تحميل المفضلة." }
         loading = false
@@ -115,7 +117,7 @@ fun WishlistScreen(
                                 onFavorite = {
                                     val id = requireNotNull(userId)
                                     scope.launch {
-                                        runCatching { FuchsiaApi.toggleFavorite(id, product.id) }
+                                        runCatching { FuchsiaApi.toggleFavorite(id, product.id, bearerToken) }
                                             .onSuccess {
                                                 products = products.filterNot { it.id == product.id }
                                                 snackbar.showSnackbar("تمت إزالة ${product.name} من المفضلة")

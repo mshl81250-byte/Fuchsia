@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,14 +15,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Info
@@ -35,14 +41,17 @@ import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -53,21 +62,29 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.fuchsia.platform.compose.BuildConfig
+import com.fuchsia.platform.compose.R
 import com.fuchsia.platform.compose.data.BiometricAuthenticator
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.AppPreferences
 import com.fuchsia.platform.compose.data.ThemeMode
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -82,6 +99,8 @@ fun SettingsScreen(
     onHelp: () -> Unit,
     onContact: () -> Unit,
     onAbout: () -> Unit,
+    onAdvanced: () -> Unit,
+    onFeedback: () -> Unit,
     bottomBar: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -104,11 +123,11 @@ fun SettingsScreen(
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Primary)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 17.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
                         Box(Modifier.size(48.dp).background(FuchsiaColors.White.copy(alpha = .16f), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Tune, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Rounded.Tune, contentDescription = null, tint = FuchsiaColors.OnPrimary, modifier = Modifier.size(28.dp))
                         }
                         Column(Modifier.weight(1f)) {
-                            Text("إعدادات فوشيا", color = FuchsiaColors.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text("خصّص تجربتك بالطريقة التي تناسبك", color = FuchsiaColors.White.copy(alpha = .82f), style = MaterialTheme.typography.bodySmall)
+                            Text("إعدادات فوشيا", color = FuchsiaColors.OnPrimary, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("خصّص تجربتك بالطريقة التي تناسبك", color = FuchsiaColors.OnPrimary.copy(alpha = .82f), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -197,11 +216,11 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
                         shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose),
+                        colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                     ) {
-                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = FuchsiaColors.OnPrimary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(7.dp))
-                        Text("إدارة إشعارات Android", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                        Text("إدارة إشعارات Android", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -213,6 +232,8 @@ fun SettingsScreen(
             item { SettingsRow(Icons.Rounded.Policy, "شروط الاستخدام", "قواعد استخدام خدمات فوشيا", onTerms) }
             item { SettingsRow(Icons.AutoMirrored.Rounded.HelpOutline, "كيفية استخدام التطبيق", "الطلبات والهدايا والحجوزات والتتبع", onHelp) }
             item { SettingsRow(Icons.Rounded.Phone, "تواصل معنا", "اتصال أو واتساب مع المتجر", onContact) }
+            item { SettingsRow(Icons.Rounded.ChatBubbleOutline, "اقتراحات واستفسارات وشكاوى", "أرسل رسالتك مباشرة لفريق فوشيا", onFeedback) }
+            item { SettingsRow(Icons.Rounded.Security, "إعدادات متقدمة", "إدارة البيانات وحذف الحساب بطلب مؤكد", onAdvanced) }
             item { SettingsRow(Icons.Rounded.Info, "عن التطبيق والتحديثات", "الإصدار الحالي ومعلومات التوزيع", onAbout) }
             item {
                 OutlinedButton(
@@ -222,7 +243,7 @@ fun SettingsScreen(
                 ) {
                     Icon(Icons.Rounded.Share, contentDescription = null, tint = FuchsiaColors.Primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("مشاركة فوشيا بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                    Text("مشاركة فوشيا بوكينج", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -334,11 +355,9 @@ fun HelpScreen(onBack: () -> Unit) {
 @Composable
 fun ContactScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var settings by remember { mutableStateOf<org.json.JSONObject?>(null) }
-    LaunchedEffect(Unit) { settings = runCatching { FuchsiaApi.platformSettings() }.getOrNull() }
-    val shopPhone = settings?.optString("supportPhone").orEmpty().ifBlank { "778360009" }
-    val whatsapp = settings?.optString("supportWhatsapp").orEmpty().ifBlank { shopPhone }
-    val address = settings?.optString("originAddress").orEmpty().ifBlank { "صنعاء - اليمن" }
+    var shopPhone by remember { mutableStateOf("778360009") }
+    var address by remember { mutableStateOf("يتم تحميل عنوان المتجر…") }
+    LaunchedEffect(Unit) { runCatching { FuchsiaApi.stores().firstOrNull() }.getOrNull()?.let { store -> shopPhone = store.phone.ifBlank { shopPhone }; address = store.location.ifBlank { "عنوان المتجر غير محدد حاليًا" } } }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
         Column(
             Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp),
@@ -354,12 +373,12 @@ fun ContactScreen(onBack: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                 shape = RoundedCornerShape(15.dp),
             ) {
-                Icon(Icons.Rounded.Phone, contentDescription = null, tint = FuchsiaColors.White)
+                Icon(Icons.Rounded.Phone, contentDescription = null, tint = FuchsiaColors.OnPrimary)
                 Spacer(Modifier.width(8.dp))
-                Text("اتصال بالمتجر", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
+                Text("اتصال بالمتجر", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
-                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${whatsapp.filter { it.isDigit() }}"))) },
+                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/967$shopPhone"))) },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(15.dp),
             ) {
@@ -382,11 +401,17 @@ fun AboutScreen(onBack: () -> Unit) {
     }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
         Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-            UtilityHeader("عن فوشيا بوتيك", onBack)
+            UtilityHeader("عن فوشيا بوكينج", onBack)
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Icon(Icons.Rounded.Storefront, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(38.dp))
-                    Text("فوشيا بوتيك", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge)
+                    Image(
+                        painter = painterResource(R.drawable.fuchsia_app_icon),
+                        contentDescription = "شعار فوشيا بوكينج",
+                        modifier = Modifier.width(150.dp).height(100.dp),
+                        contentScale = ContentScale.Fit,
+                        colorFilter = if (MaterialTheme.colorScheme.onSurface.luminance() > 0.8f) ColorFilter.tint(Color.White) else null,
+                    )
+                    Text("فوشيا بوكينج", color = FuchsiaColors.Ink, style = MaterialTheme.typography.titleLarge)
                     Text("هدايا تليق بلحظتك", color = FuchsiaColors.Muted)
                     Text("الإصدار $version · Android", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
                 }
@@ -404,13 +429,68 @@ fun AboutScreen(onBack: () -> Unit) {
     }
 }
 
+@Composable
+fun FeedbackScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val token = remember(context) { com.fuchsia.platform.compose.data.SessionVault.token(context) }
+    val scope = rememberCoroutineScope()
+    var kind by remember { mutableStateOf("inquiry") }
+    var subject by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
+        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            UtilityHeader("اقتراحات واستفسارات وشكاوى", onBack)
+            Text("نقرأ رسالتك بعناية ونستخدمها لتحسين تجربة فوشيا.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                listOf("suggestion" to "اقتراح", "inquiry" to "استفسار", "complaint" to "شكوى").forEach { (value, label) ->
+                    FilterChip(selected = kind == value, onClick = { kind = value }, label = { Text(label, fontWeight = FontWeight.Bold) }, modifier = Modifier.weight(1f))
+                }
+            }
+            OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text("عنوان الرسالة (اختياري)") }, singleLine = true, shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(message, { message = it }, Modifier.fillMaxWidth().heightIn(min = 150.dp), label = { Text("اكتب رسالتك") }, minLines = 5, shape = RoundedCornerShape(15.dp))
+            if (status.isNotBlank()) Text(status, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+            Button(onClick = {
+                if (token.isNullOrBlank()) { status = "سجّل الدخول أولًا لإرسال الرسالة."; return@Button }
+                if (message.trim().length < 5) { status = "اكتب تفاصيل كافية لرسالتك."; return@Button }
+                sending = true; status = ""
+                scope.launch { runCatching { FuchsiaApi.submitSupport(kind, subject.trim(), message.trim(), token) }.onSuccess { message = ""; subject = ""; status = "تم إرسال رسالتك بنجاح." }.onFailure { status = it.message ?: "تعذر إرسال الرسالة." }; sending = false }
+            }, Modifier.fillMaxWidth().height(52.dp), enabled = !sending, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary), shape = RoundedCornerShape(15.dp)) {
+                if (sending) CircularProgressIndicator(Modifier.size(20.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp) else Text("إرسال الرسالة", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+fun AdvancedSettingsScreen(onBack: () -> Unit, onDeleted: () -> Unit) {
+    val context = LocalContext.current
+    val token = remember(context) { com.fuchsia.platform.compose.data.SessionVault.token(context) }
+    val scope = rememberCoroutineScope()
+    var reason by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
+        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            UtilityHeader("إعدادات متقدمة", onBack)
+            PolicyCard("حذف الحساب", "سيتم إخفاء بيانات الحساب الشخصية وإزالة الجلسة والعناوين والمفضلة. لا يمكن تنفيذ الطلب إلا بعد كتابة سبب واضح.")
+            OutlinedTextField(reason, { reason = it }, Modifier.fillMaxWidth().heightIn(min = 140.dp), label = { Text("سبب حذف الحساب (مطلوب)") }, minLines = 4, shape = RoundedCornerShape(15.dp))
+            if (status.isNotBlank()) Text(status, color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
+            Button(onClick = { if (reason.trim().length < 5) status = "اكتب سببًا لا يقل عن 5 أحرف." else { status = ""; confirm = true } }, Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Error), shape = RoundedCornerShape(15.dp)) { Text("متابعة حذف الحساب", color = Color.White, fontWeight = FontWeight.Bold) }
+        }
+    }
+    if (confirm) AlertDialog(onDismissRequest = { if (!busy) confirm = false }, title = { Text("تأكيد نهائي") }, text = { Text("هل أنت متأكد؟ لا يمكن التراجع عن حذف بيانات الحساب.") }, confirmButton = { TextButton(enabled = !busy, onClick = { val session = token; if (session.isNullOrBlank()) { status = "انتهت الجلسة."; confirm = false } else { busy = true; scope.launch { runCatching { FuchsiaApi.deleteAccount(reason.trim(), session) }.onSuccess { confirm = false; onDeleted() }.onFailure { status = it.message ?: "تعذر حذف الحساب."; confirm = false }; busy = false } } }) { Text("نعم، احذف الحساب", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold) } }, dismissButton = { TextButton(enabled = !busy, onClick = { confirm = false }) { Text("إلغاء") } })
+}
+
 private fun shareFuchsiaApp(context: android.content.Context) {
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "فوشيا بوتيك")
-        putExtra(Intent.EXTRA_TEXT, "فوشيا بوتيك — هدايا تليق بلحظتك\nhttps://fuchsia-x7dwxpzd.manus.space")
+        putExtra(Intent.EXTRA_SUBJECT, "فوشيا بوكينج")
+        putExtra(Intent.EXTRA_TEXT, "فوشيا بوكينج — هدايا تليق بلحظتك\nhttps://fuchsia-x7dwxpzd.manus.space")
     }
-    context.startActivity(Intent.createChooser(shareIntent, "مشاركة فوشيا بوتيك"))
+    context.startActivity(Intent.createChooser(shareIntent, "مشاركة فوشيا بوكينج"))
 }
 
 @Composable

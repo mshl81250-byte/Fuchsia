@@ -57,6 +57,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -98,17 +100,25 @@ fun WelcomeScreen(
         modifier = Modifier.fillMaxSize(),
     ) { currentPage ->
         when (currentPage) {
-            0 -> FirstWelcomePage(onNext = { page = 1 }, onSkip = { page = 2 })
+            0 -> FirstWelcomePage(onNext = { page = 1 }, onSkip = onExplore)
             1 -> SecondWelcomePage(
                 onBack = { page = 0 },
-                onNext = { page = 2 },
+                onNext = onExplore,
                 onLogin = onLogin,
                 onRegister = onRegister,
                 onCategory = onCategory,
                 onReservation = onReservation,
                 onGiftOrder = onGiftOrder,
             )
-            else -> ThirdWelcomePage(onBack = { page = 1 }, onExplore = onExplore, onLogin = onLogin, onRegister = onRegister)
+            else -> SecondWelcomePage(
+                onBack = { page = 0 },
+                onNext = onExplore,
+                onLogin = onLogin,
+                onRegister = onRegister,
+                onCategory = onCategory,
+                onReservation = onReservation,
+                onGiftOrder = onGiftOrder,
+            )
         }
     }
 }
@@ -157,7 +167,7 @@ private fun FirstWelcomePage(onNext: () -> Unit, onSkip: () -> Unit) {
                     Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
                 TextButton(onClick = onSkip, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("تخطي", color = FuchsiaColors.Muted) }
-                Text("ثلاث شاشات ترحيبية تظهر عند التثبيت الجديد فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text("تظهر هذه الجولة مرة واحدة عند التثبيت الأول فقط.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -212,7 +222,7 @@ private fun SecondWelcomePage(
                 ) {
                     Icon(Icons.Rounded.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(9.dp))
-                    Text("التالي", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("ابدأ الآن", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
                 TextButton(onClick = onBack, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                     Text("العودة إلى الصفحة الأولى", color = FuchsiaColors.Muted)
@@ -238,7 +248,7 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
                     Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                         Text("تسجيل الدخول", fontWeight = FontWeight.Bold)
                     }
-                    Button(onClick = onRegister, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Rose)) {
+                    Button(onClick = onRegister, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
                         Text("إنشاء حساب جديد", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
                     }
                     TextButton(onClick = onExplore) { Text("تصفح دون حساب", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
@@ -253,14 +263,14 @@ private fun ThirdWelcomePage(onBack: () -> Unit, onExplore: () -> Unit, onLogin:
 @Composable
 private fun WelcomePageIndicator(page: Int) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        repeat(3) { index ->
+        repeat(2) { index ->
             Box(
                 Modifier.padding(horizontal = 3.dp).size(width = if (index == page) 22.dp else 7.dp, height = 7.dp)
                     .background(if (index == page) FuchsiaColors.Primary else FuchsiaColors.Line, CircleShape),
             )
         }
         Spacer(Modifier.width(7.dp))
-        Text("${page + 1} من ٣", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
+        Text("${page + 1} من ٢", color = FuchsiaColors.Muted, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -292,13 +302,14 @@ private fun BrandHeader() {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Image(
-                painter = painterResource(R.drawable.fuchsia_logo),
-                contentDescription = "شعار فوشيا بوتيك",
-                modifier = Modifier.width(68.dp).height(64.dp),
+                painter = painterResource(R.drawable.fuchsia_app_icon),
+                contentDescription = "شعار فوشيا بوكينج",
+                modifier = Modifier.width(68.dp).height(48.dp),
                 contentScale = ContentScale.Fit,
+                colorFilter = if (MaterialTheme.colorScheme.onSurface.luminance() > 0.8f) ColorFilter.tint(Color.White) else null,
             )
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                Text("بوتيك", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 19.sp)
+                Text("فوشيا بوكينج", color = FuchsiaColors.Primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 0.1.sp)
             }
         }
         Surface(shape = RoundedCornerShape(50), color = FuchsiaColors.White, tonalElevation = 0.dp, shadowElevation = 1.dp) {

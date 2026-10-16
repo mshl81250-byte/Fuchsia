@@ -56,20 +56,22 @@ private val LightPalette = FuchsiaPalette(
 )
 
 private val DarkPalette = FuchsiaPalette(
-    primary = Color(0xFFC40045),
-    primaryDark = Color(0xFFFF4778),
-    rose = Color(0xFF421322),
-    roseLight = Color(0xFF2A0D18),
+    // ألوان مأخوذة من الصورة المرجعية: خلفية #100B0F ولون الشعار #760032.
+    primary = Color(0xFF760032),
+    primaryDark = Color(0xFF560024),
+    rose = Color(0xFF760032),
+    roseLight = Color(0xFF3A0019),
     cream = Color(0xFF100B0F),
-    ink = Color(0xFFFFFFFF),
-    muted = Color(0xFFFFFFFF),
-    line = Color(0xFF6D2A43),
-    gold = Color(0xFFD8BE89),
-    surface = Color(0xFF1D1017),
-    textAccent = Color(0xFFFFFFFF),
-    iconAccent = Color(0xFFFF86AA),
-    success = Color(0xFF88D6A8),
-    warning = Color(0xFFF1D08A),
+    ink = Color(0xFFFFF3F5),
+    muted = Color(0xFFCBB8C0),
+    line = Color(0xFF4A2033),
+    gold = Color(0xFFD2B27A),
+    surface = Color(0xFF100B0F),
+    // درجة عنابية فاتحة مشتقة من لون الشعار لضمان وضوح الأيقونات والنصوص على الخلفية الليلية.
+    textAccent = Color(0xFFD9A6B8),
+    iconAccent = Color(0xFFD9A6B8),
+    success = Color(0xFF8BD8AA),
+    warning = Color(0xFFEBCB83),
     error = Color(0xFFFFB4AB),
     info = Color(0xFFA9D1F0),
 )
@@ -87,6 +89,7 @@ object FuchsiaColors {
     val Line: Color @Composable get() = LocalFuchsiaPalette.current.line
     val Gold: Color @Composable get() = LocalFuchsiaPalette.current.gold
     val White: Color @Composable get() = LocalFuchsiaPalette.current.surface
+    val OnPrimary: Color @Composable get() = Color.White
     val TextAccent: Color @Composable get() = LocalFuchsiaPalette.current.textAccent
     val IconAccent: Color @Composable get() = LocalFuchsiaPalette.current.iconAccent
     val Success: Color @Composable get() = LocalFuchsiaPalette.current.success
@@ -114,12 +117,12 @@ private val BoutiqueTypography = Typography(
     titleLarge = cairoStyle(19, 28, FontWeight.Bold),
     titleMedium = cairoStyle(16, 24, FontWeight.SemiBold),
     titleSmall = cairoStyle(14, 21, FontWeight.SemiBold),
-    bodyLarge = cairoStyle(17, 27, FontWeight.Medium),
-    bodyMedium = cairoStyle(15, 24, FontWeight.Medium),
-    bodySmall = cairoStyle(13, 20, FontWeight.Medium),
-    labelLarge = cairoStyle(14, 20, FontWeight.SemiBold),
-    labelMedium = cairoStyle(12, 18, FontWeight.SemiBold),
-    labelSmall = cairoStyle(11, 16, FontWeight.SemiBold),
+    bodyLarge = cairoStyle(18, 28),
+    bodyMedium = cairoStyle(16, 25),
+    bodySmall = cairoStyle(14, 21),
+    labelLarge = cairoStyle(15, 21, FontWeight.SemiBold),
+    labelMedium = cairoStyle(13, 19, FontWeight.SemiBold),
+    labelSmall = cairoStyle(12, 17, FontWeight.SemiBold),
 )
 
 @Composable
@@ -133,23 +136,26 @@ fun FuchsiaTheme(
             primary = palette.primary,
             onPrimary = Color.White,
             primaryContainer = palette.rose,
-            onPrimaryContainer = Color.White,
+            onPrimaryContainer = Color(0xFFFFE8EC),
             secondary = palette.gold,
-            onSecondary = Color(0xFF231B12),
-            secondaryContainer = palette.rose,
-            onSecondaryContainer = Color.White,
+            onSecondary = Color(0xFF2B1B06),
+            secondaryContainer = Color(0xFF40301A),
+            onSecondaryContainer = Color(0xFFFFEBC0),
             tertiary = palette.info,
             onTertiary = Color(0xFF102030),
             background = palette.cream,
-            onBackground = Color.White,
+            onBackground = palette.ink,
             surface = palette.surface,
-            onSurface = Color.White,
+            onSurface = palette.ink,
             surfaceVariant = palette.roseLight,
-            onSurfaceVariant = Color.White,
+            onSurfaceVariant = palette.muted,
             outline = palette.line,
             outlineVariant = palette.line,
             error = palette.error,
             onError = Color(0xFF3B0808),
+            inverseSurface = Color(0xFFF5EDEF),
+            inverseOnSurface = Color(0xFF2D1519),
+            inversePrimary = Color(0xFF9A174D),
             surfaceTint = Color.Transparent,
         )
     } else {
@@ -174,6 +180,9 @@ fun FuchsiaTheme(
             outlineVariant = palette.line,
             error = palette.error,
             onError = Color.White,
+            inverseSurface = Color(0xFF3A2A30),
+            inverseOnSurface = Color(0xFFFFF3F5),
+            inversePrimary = Color(0xFFFFB0C7),
             surfaceTint = Color.Transparent,
         )
     }

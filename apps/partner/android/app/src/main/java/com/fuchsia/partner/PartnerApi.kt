@@ -1,9 +1,15 @@
 package com.fuchsia.partner
+
 import android.content.Context
+import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+
+class PartnerApiException(message: String, val statusCode: Int) : Exception(message)
 
 data class PartnerVenue(
     val id: Int,
@@ -12,6 +18,8 @@ data class PartnerVenue(
     val city: String,
     val capacity: Int,
     val dailyPrice: Double,
+    val primaryImageUrl: String = "",
+    val images: List<String> = emptyList(),
 )
 
 data class PartnerBooking(
@@ -38,14 +46,11 @@ data class PartnerBooking(
 data class PartnerWeeklySlot(val audienceScope: String, val weekDay: Int, val isOpen: Boolean)
 data class PartnerBlackout(val id: Int, val startDate: String, val endDate: String, val audienceScope: String, val reason: String?)
 data class PartnerMonthAvailability(val booked: Set<String>, val closed: Set<String>)
-data class PartnerNotification(val id: Int, val type: String, val title: String, val message: String, val isRead: Boolean, val createdAt: String, val bookingType: String?, val bookingId: Int?)
 
 data class PartnerLogin(val user: JSONObject, val token: String)
 
 object PartnerApi {
-    fun initialize(context: Context) {
-        PartnerHttpClient.initialize(context)
-    }
+    private val baseUrl get() = BuildConfig.API_BASE_URL.trimEnd('/')
 
     suspend fun login(email: String, password: String): PartnerLogin = withContext(Dispatchers.IO) {
         val response = JSONObject(request("/api/auth/login", "POST", JSONObject().put("email", email).put("password", password)))
@@ -57,29 +62,6 @@ object PartnerApi {
 
     suspend fun profile(token: String): JSONObject = withContext(Dispatchers.IO) {
         JSONObject(request("/api/venue-partner/me", "GET", token = token))
-    }
-
-    suspend fun notifications(token: String): List<PartnerNotification> = withContext(Dispatchers.IO) {
-        JSONArray(request("/api/notifications/partner", "GET", token = token)).toObjectList { row ->
-            PartnerNotification(row.optInt("id"), row.optString("type"), row.optString("title"), row.optString("message"), row.optBoolean("isRead"), row.optString("createdAt"), row.optString("bookingType").takeIf(String::isNotBlank), if (row.isNull("bookingId")) null else row.optInt("bookingId"))
-        }
-    }
-
-    suspend fun markNotificationRead(token: String, notificationId: Int) = withContext(Dispatchers.IO) {
-        request("/api/notifications/partner/$notificationId/read", "PATCH", token = token)
-        Unit
-    }
-
-    suspend fun registerPushToken(token: String, deviceToken: String) = withContext(Dispatchers.IO) {
-        request("/api/notifications/partner/devices", "POST", JSONObject()
-            .put("token", deviceToken)
-            .put("platform", "android"), token)
-        Unit
-    }
-
-    suspend fun unregisterPushToken(token: String, deviceToken: String) = withContext(Dispatchers.IO) {
-        request("/api/notifications/partner/devices", "DELETE", JSONObject().put("token", deviceToken), token)
-        Unit
     }
 
     suspend fun requestPartner(token: String, businessName: String, phone: String): JSONObject = withContext(Dispatchers.IO) {
@@ -96,6 +78,51 @@ object PartnerApi {
         val payload = JSONObject().put("status", status)
         reason?.takeIf(String::isNotBlank)?.let { payload.put("reason", it.trim().take(500)) }
         request("/api/venue-partner/bookings/$bookingId", "PATCH", payload, token)
+        Unit
+    }
+
+    suspend fun updateOrder(token: String, orderId: Int, status: String, driverName: String?, driverPhone: String?) = withContext(Dispatchers.IO) {
+        request("/api/vendor/orders/$orderId", "PATCH", JSONObject()
+            .put("status", status)
+            .put("driverName", driverName?.trim().orEmpty())
+            .put("driverPhone", driverPhone?.trim().orEmpty()), token)
+        Unit
+    }
+
+    suspend fun uploadVenueImage(context: Context, uri: Uri, token: String): String = withContext(Dispatchers.IO) {
+        val contentType = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';')
+            ?: throw IllegalArgumentException("تعذر تحديد نوع الصورة")
+        require(contentType in setOf("image/jpeg", "image/png", "image/webp")) { "اختر صورة JPG أو PNG أو WebP" }
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: throw IllegalStateException("تعذر قراءة الصورة")
+        require(bytes.isNotEmpty() && bytes.size <= 7 * 1024 * 1024) { "يجب ألا يتجاوز حجم الصورة 7 ميغابايت" }
+        val boundary = "----Fuchsia${java.util.UUID.randomUUID().toString().replace("-", "") }"
+        val connection = (URL(baseUrl + "/api/uploads/image").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"; connectTimeout = 20_000; readTimeout = 30_000; doOutput = true
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        }
+        try {
+            connection.outputStream.use { stream ->
+                val output = stream.buffered()
+                output.write("--$boundary\r\nContent-Disposition: form-data; name=\"purpose\"\r\n\r\nvenue\r\n".toByteArray())
+                val extension = when (contentType) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
+                output.write("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"venue.$extension\"\r\nContent-Type: $contentType\r\n\r\n".toByteArray())
+                output.write(bytes); output.write("\r\n--$boundary--\r\n".toByteArray()); output.flush()
+            }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) throw PartnerApiException(JSONObject(text).optString("error").ifBlank { "تعذر رفع الصورة" }, status)
+            JSONObject(text).optString("url").takeIf(String::isNotBlank) ?: throw IllegalStateException("لم يُرجع التخزين رابط الصورة")
+        } finally { connection.disconnect() }
+    }
+
+    suspend fun updateVenueImages(token: String, venueId: Int, primaryImageUrl: String, images: List<String>) = withContext(Dispatchers.IO) {
+        request("/api/venue-partner/venues/$venueId", "PATCH", JSONObject()
+            .put("primaryImageUrl", primaryImageUrl)
+            .put("images", JSONArray(images.take(12))), token)
         Unit
     }
 
@@ -167,8 +194,36 @@ object PartnerApi {
         expiresAt = if (row.isNull("expiresAt")) null else row.optString("expiresAt").takeIf(String::isNotBlank),
     )
 
-    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String =
-        PartnerHttpClient.request(path, method, body, token)
+    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String = withContext(Dispatchers.IO) {
+        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            setRequestProperty("Accept", "application/json")
+            if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+        }
+        try {
+            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) {
+                val message = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
+                throw PartnerApiException(message.ifBlank { "تعذر الاتصال بالخادم (HTTP $status)" }, status)
+            }
+            text.ifBlank { "{}" }
+        } catch (error: PartnerApiException) {
+            throw error
+        } catch (error: Exception) {
+            throw PartnerApiException(error.localizedMessage ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.", 0)
+        } finally {
+            connection.disconnect()
+        }
+    }
 }
 
 private inline fun <T> JSONArray.toObjectList(transform: (JSONObject) -> T): List<T> = buildList {
