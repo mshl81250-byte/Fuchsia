@@ -11,7 +11,7 @@ import {
   notificationsTable, orderStatusEventsTable
 } from "@workspace/db";
 import { and, eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
-import { requireAdmin, authenticateAdmin, setAdminSession, clearAdminSession } from "../lib/admin-auth";
+import { requireAdmin, authenticateAdmin, getAdminEmail, setAdminSession, clearAdminSession } from "../lib/admin-auth";
 import { createCustomerNotification } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
@@ -26,7 +26,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       return;
     }
 
-    setAdminSession(res, admin.id);
+    setAdminSession(req, res, admin.id);
     res.json({ admin });
   } catch (err) {
     req.log.error({ err }, "Admin login failed");
@@ -40,7 +40,7 @@ router.get("/auth/me", requireAdmin, async (req, res): Promise<void> => {
       id: usersTable.id,
       fullName: usersTable.fullName,
       email: usersTable.email,
-    }).from(usersTable).where(eq(usersTable.email, "admin@fuchsia.ye"));
+    }).from(usersTable).where(eq(usersTable.email, getAdminEmail()));
 
     if (!admin) {
       clearAdminSession(res);
@@ -74,11 +74,13 @@ router.post("/partner-accounts", async (req, res): Promise<void> => {
       rentals: req.body?.permissions?.rentals !== false,
       venueBookings: req.body?.permissions?.venueBookings === true,
     };
-    if (fullName.length < 2 || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || password.length > 128 || !Number.isInteger(storeId) || storeId < 1) {
-      res.status(400).json({ error: "أدخل الاسم والبريد وكلمة مرور من 8 أحرف ومعرف متجر صحيح" }); return;
+    const validEmail = /^\S+@\S+\.\S+$/.test(email);
+    const validUsername = /^[a-z0-9][a-z0-9._-]{2,63}$/i.test(email);
+    if (fullName.length < 2 || (!validEmail && !validUsername) || password.length < 8 || password.length > 128 || !Number.isInteger(storeId) || storeId < 1) {
+      res.status(400).json({ error: "أدخل اسم الشريك وبريدًا صحيحًا أو اسم مستخدم من 3 أحرف وكلمة مرور من 8 أحرف ومعرف متجر صحيح" }); return;
     }
     const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
-    if (existingUser) { res.status(409).json({ error: "البريد الإلكتروني مستخدم بالفعل" }); return; }
+    if (existingUser) { res.status(409).json({ error: "البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل" }); return; }
     const [store] = await db.select({ id: storesTable.id, nameAr: storesTable.nameAr, ownerUserId: storesTable.ownerUserId }).from(storesTable).where(eq(storesTable.id, storeId));
     if (!store) { res.status(404).json({ error: "المتجر غير موجود" }); return; }
     if (store.ownerUserId) { res.status(409).json({ error: "المتجر مرتبط بحساب شريك بالفعل؛ فك الربط أولًا" }); return; }
@@ -707,7 +709,7 @@ router.post("/venues/:id/blackouts", async (req, res): Promise<void> => {
     const [venue] = await db.select({ id: venuesTable.id, audienceScope: venuesTable.audienceScope }).from(venuesTable).where(eq(venuesTable.id, venueId));
     if (!venue) { res.status(404).json({ error: "القاعة غير موجودة" }); return; }
     if (venue.audienceScope !== "both" && audienceScope !== "both" && venue.audienceScope !== audienceScope) { res.status(400).json({ error: "القسم غير متاح في هذه القاعة" }); return; }
-    const [admin] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, "admin@fuchsia.ye"));
+    const [admin] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, getAdminEmail()));
     if (!admin) { res.status(500).json({ error: "حساب الإدارة غير موجود" }); return; }
     const [created] = await db.insert(venueBlackoutsTable).values({ venueId, audienceScope, startDate, endDate, reason: typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : null, createdByUserId: admin.id });
     res.status(201).json({ id: Number(created.insertId), venueId, audienceScope, startDate, endDate });

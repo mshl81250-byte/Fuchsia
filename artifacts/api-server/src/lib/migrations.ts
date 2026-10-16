@@ -55,7 +55,7 @@ export async function runMigrations(): Promise<void> {
     [PRODUCT_IMAGES_LIMIT_MIGRATION_ID],
   );
   if ((productImagesRows as Array<{ migration_id: string }>).length === 0) {
-    await pool.query("ALTER TABLE products MODIFY COLUMN images VARCHAR(8000) NOT NULL DEFAULT '[]'");
+    await pool.query("ALTER TABLE products MODIFY COLUMN images TEXT NOT NULL");
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PRODUCT_IMAGES_LIMIT_MIGRATION_ID]);
     logger.info({ migrationId: PRODUCT_IMAGES_LIMIT_MIGRATION_ID }, "Product image list capacity migration completed");
   }

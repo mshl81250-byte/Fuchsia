@@ -23,7 +23,7 @@ export const venuesTable = mysqlTable("venues", {
   dailyPrice: double("daily_price").notNull(),
   audienceScope: varchar("audience_scope", { length: 16 }).notNull().default("both"),
   primaryImageUrl: text("primary_image_url").notNull(),
-  images: varchar("images", { length: 8000 }).notNull().default("[]"),
+  images: text("images").notNull().default("[]"),
   amenities: varchar("amenities", { length: 4000 }).notNull().default("[]"),
   rules: text("rules"),
   isPublished: boolean("is_published").notNull().default(false),

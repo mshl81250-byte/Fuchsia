@@ -5,7 +5,9 @@ import { eq } from "drizzle-orm";
 
 export const ADMIN_SESSION_COOKIE = "fuchsia_admin_session";
 const ADMIN_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const ADMIN_EMAIL = "admin@fuchsia.ye";
+export function getAdminEmail(): string {
+  return process.env.ADMIN_EMAIL?.trim().toLowerCase() || "admin@fuchsia.ye";
+}
 
 function getSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -68,9 +70,10 @@ function readSession(value: unknown): { userId: number; expiresAt: number } | nu
 
 export async function authenticateAdmin(email: unknown, password: unknown) {
   if (typeof email !== "string" || typeof password !== "string") return null;
-  if (email.trim().toLowerCase() !== ADMIN_EMAIL) return null;
+  const adminEmail = getAdminEmail();
+  if (email.trim().toLowerCase() !== adminEmail) return null;
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, ADMIN_EMAIL));
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.email, adminEmail));
   if (!user || user.isGuest || !user.passwordHash) return null;
 
   const expectedHash = Buffer.from(user.passwordHash);
@@ -86,11 +89,13 @@ export async function authenticateAdmin(email: unknown, password: unknown) {
   };
 }
 
-export function setAdminSession(res: Response, userId: number): void {
+export function setAdminSession(req: Request, res: Response, userId: number): void {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const isHttps = req.secure || forwardedProto === "https" || process.env.NODE_ENV === "production";
   res.cookie(ADMIN_SESSION_COOKIE, createSession(userId), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isHttps,
+    sameSite: isHttps ? "none" : "lax",
     maxAge: ADMIN_SESSION_TTL_MS,
     path: "/",
   });

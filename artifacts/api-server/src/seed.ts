@@ -15,6 +15,7 @@ const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD ?? "";
 if (initialAdminPassword.length < 12) {
   throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding");
 }
+const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase() || "admin@fuchsia.ye";
 
 async function main() {
   console.log("🌸 Seeding Fuchsia database...");
@@ -31,7 +32,7 @@ async function main() {
   await db.insert(schema.usersTable).values([
     {
       fullName: "مدير النظام",
-      email: "admin@fuchsia.ye",
+      email: adminEmail,
       passwordHash: hashPassword(initialAdminPassword),
       isGuest: false,
       rewardPoints: 1000,

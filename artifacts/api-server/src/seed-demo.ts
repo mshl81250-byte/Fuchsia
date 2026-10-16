@@ -14,7 +14,8 @@ import {
 } from "@workspace/db";
 
 const demoEnvironment = (process.env.FUCHSIA_DATABASE_ENV || "").toLowerCase();
-const databaseUrl = process.env.DATABASE_URL || "";
+const databaseUrl =
+  process.env.FUCHSIA_AIVEN_DATABASE_URL || process.env.DATABASE_URL || "";
 const connectionDatabaseName = (() => {
   try { return decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, "").split("/")[0] || ""); }
   catch { return ""; }

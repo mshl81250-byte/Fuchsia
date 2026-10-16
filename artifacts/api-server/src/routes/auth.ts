@@ -71,11 +71,18 @@ router.post("/register/request-code", async (req, res): Promise<void> => {
       fullName, passwordHash: hashPassword(password), phone, codeHash: hashVerificationCode(code),
       expiresAt: new Date(Date.now() + 3 * 60 * 1000), attempts: 0, createdAt: new Date(),
     } });
-    await sendVerificationCodeEmail({ email, name: fullName, code });
+    const debugOtpRequested =
+      process.env.MOBILE_OTP_DEBUG === "true" || req.header("X-Fuchsia-OTP-Debug") === "true";
+    try {
+      await sendVerificationCodeEmail({ email, name: fullName, code });
+    } catch (emailError) {
+      if (!debugOtpRequested) throw emailError;
+      req.log.warn({ emailError }, "Verification email unavailable; returning debug OTP for development flow");
+    }
     res.status(202).json({
       message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني",
       expiresInSeconds: 180,
-      ...(process.env.MOBILE_OTP_DEBUG === "true" || req.header("X-Fuchsia-OTP-Debug") === "true" ? { debugCode: code } : {}),
+      ...(debugOtpRequested ? { debugCode: code } : {}),
     });
   } catch (err) {
     req.log.error({ err }, "Registration verification email failed");

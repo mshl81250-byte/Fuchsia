@@ -11,6 +11,11 @@ val releaseKeyAlias = providers.gradleProperty("FUCHSIA_RELEASE_KEY_ALIAS")
     .orElse(providers.environmentVariable("FUCHSIA_RELEASE_KEY_ALIAS")).orNull
 val releaseKeyPassword = providers.gradleProperty("FUCHSIA_RELEASE_KEY_PASSWORD")
     .orElse(providers.environmentVariable("FUCHSIA_RELEASE_KEY_PASSWORD")).orNull
+val fuchsiaApiBaseUrl = providers.gradleProperty("FUCHSIA_API_BASE_URL")
+    .orElse(providers.environmentVariable("FUCHSIA_API_BASE_URL"))
+    .getOrElse("https://fuchsia-wvbrvhtl.manus.space")
+    .trimEnd('/')
+fun String.asBuildConfigString() = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
     namespace = "com.fuchsia.platform.compose"
@@ -24,7 +29,7 @@ android {
         versionCode = 7
         versionName = "1.3.2"
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
-        buildConfigField("String", "API_BASE_URL", "\"https://fuchsia-x7dwxpzd.manus.space\"")
+        buildConfigField("String", "API_BASE_URL", fuchsiaApiBaseUrl.asBuildConfigString())
         // The user explicitly requested on-screen OTP visibility as the sole test exception.
         buildConfigField("boolean", "OTP_DEBUG", "true")
     }
@@ -50,7 +55,10 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (
+                releaseStoreFile != null && releaseStorePassword != null &&
+                releaseKeyAlias != null && releaseKeyPassword != null
+            ) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -5,7 +5,7 @@ plugins {
 
 val fuchsiaApiBaseUrl = providers.gradleProperty("FUCHSIA_API_BASE_URL")
     .orElse(providers.environmentVariable("FUCHSIA_API_BASE_URL"))
-    .getOrElse("https://fuchsia-x7dwxpzd.manus.space")
+    .getOrElse("https://fuchsia-wvbrvhtl.manus.space")
     .trimEnd('/')
 fun String.asBuildConfigString() = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 val firebaseProjectId = providers.gradleProperty("FIREBASE_PROJECT_ID").orElse(providers.environmentVariable("FIREBASE_PROJECT_ID")).getOrElse("")
@@ -40,6 +40,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
         }
         }
 
