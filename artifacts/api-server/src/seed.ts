@@ -12,9 +12,8 @@ function hashPassword(password: string): string {
 }
 
 const initialAdminPassword = process.env.ADMIN_INITIAL_PASSWORD ?? "";
-const adminEmail = (process.env.ADMIN_EMAIL || "admin@fuchsia.ye").trim().toLowerCase();
 if (initialAdminPassword.length < 12) {
-  throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding. Never commit it to Git.");
+  throw new Error("ADMIN_INITIAL_PASSWORD must be set to at least 12 characters before seeding");
 }
 
 async function main() {
@@ -32,7 +31,7 @@ async function main() {
   await db.insert(schema.usersTable).values([
     {
       fullName: "مدير النظام",
-      email: adminEmail,
+      email: "admin@fuchsia.ye",
       passwordHash: hashPassword(initialAdminPassword),
       isGuest: false,
       rewardPoints: 1000,
@@ -139,6 +138,7 @@ async function main() {
       nameEn: "Royal Wedding Arch with Natural Roses",
       description: "كوش زفاف فاخر مزين بأجمل الورود الطبيعية والإضاءة الذهبية، تصميم ملكي لا يُنسى",
       price: 180000, discountPrice: 150000,
+      fulfillmentType: "rental", rentalDailyPrice: 50000, rentalDeposit: 30000, rentalMinDays: 1, rentalMaxDays: 3,
       categoryId: catKosh.id, storeId: sKosh.id,
       imageUrl: "https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400&h=400&fit=crop",
       isFeatured: true, isNew: false, rating: 4.9, reviewCount: 87, deliveryDays: 3,
@@ -150,6 +150,7 @@ async function main() {
       nameEn: "Modern Balloon & Flower Arch",
       description: "كوش عصري أنيق بمزيج من البالونات الفاخرة وزهور المكس، مثالي للأعراس العصرية",
       price: 95000, discountPrice: 80000,
+      fulfillmentType: "rental", rentalDailyPrice: 35000, rentalDeposit: 20000, rentalMinDays: 1, rentalMaxDays: 3,
       categoryId: catKosh.id, storeId: sKosh.id,
       imageUrl: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=400&fit=crop",
       isFeatured: false, isNew: true, rating: 4.7, reviewCount: 54, deliveryDays: 2,
@@ -161,6 +162,7 @@ async function main() {
       nameEn: "Classic White & Gold Arch",
       description: "كوش كلاسيكي راقٍ بألوان الأبيض والذهبي مع الورود البيضاء الناصعة",
       price: 120000,
+      fulfillmentType: "rental", rentalDailyPrice: 40000, rentalDeposit: 25000, rentalMinDays: 1, rentalMaxDays: 3,
       categoryId: catKosh.id, storeId: sKosh.id,
       imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
       isFeatured: true, isNew: false, rating: 4.8, reviewCount: 112, deliveryDays: 3,
@@ -207,6 +209,7 @@ async function main() {
       nameEn: "Royal Wedding Table Setup",
       description: "تجهيز طاولة الشرف بديكورات الورود وإضاءة LED وأفخر الإكسسوارات الملكية",
       price: 65000, discountPrice: 55000,
+      fulfillmentType: "rental", rentalDailyPrice: 18000, rentalDeposit: 10000, rentalMinDays: 1, rentalMaxDays: 3,
       categoryId: catTables.id, storeId: sKosh.id,
       imageUrl: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400&h=400&fit=crop",
       isFeatured: true, isNew: false, rating: 4.8, reviewCount: 67, deliveryDays: 2,
@@ -218,6 +221,7 @@ async function main() {
       nameEn: "Luxury Hospitality Table",
       description: "تجهيز طاولة ضيافة راقية بأواني الكريستال والزهور الطازجة وأدوات المائدة الذهبية",
       price: 42000,
+      fulfillmentType: "rental", rentalDailyPrice: 14000, rentalDeposit: 8000, rentalMinDays: 1, rentalMaxDays: 3,
       categoryId: catTables.id, storeId: sKosh.id,
       imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop",
       isFeatured: false, isNew: true, rating: 4.6, reviewCount: 43, deliveryDays: 2,

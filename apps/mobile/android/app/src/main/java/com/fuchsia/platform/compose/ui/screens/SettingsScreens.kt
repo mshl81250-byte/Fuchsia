@@ -403,7 +403,7 @@ private fun shareFuchsiaApp(context: android.content.Context) {
     val shareIntent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, "فوشيا بوتيك")
-        putExtra(Intent.EXTRA_TEXT, "فوشيا بوتيك — هدايا تليق بلحظتك\n${BuildConfig.API_BASE_URL}")
+        putExtra(Intent.EXTRA_TEXT, "فوشيا بوتيك — هدايا تليق بلحظتك\nhttps://fuchsia-x7dwxpzd.manus.space")
     }
     context.startActivity(Intent.createChooser(shareIntent, "مشاركة فوشيا بوتيك"))
 }

@@ -48,7 +48,7 @@ git pull --ff-only
 | `artifacts/api-server/src/routes/` | مسارات Express، منها الحساب والعناوين والطلبات والحجوزات |
 | `artifacts/api-server/src/lib/migrations.ts` | ترحيلات MySQL التي تُنفذ مع بدء الخادم |
 | `lib/db/src/schema/` | مخطط Drizzle المشترك، بما فيه `user-addresses.ts` |
-| `artifacts/lamsa/src/components/admin/AdminCommerceSections.tsx` | واجهة إدارة السلال والحجوزات في لوحة الإدارة |
+| `artifacts/admin-dashboard/src/components/dashboard/` | واجهة لوحة الإدارة الجديدة وإدارة الحجوزات والمنتجات |
 | `apps/mobile/scripts/build-release-apk.sh` | سكربت بناء نسخة Android الموقعة |
 | `README.md` | إعداد وتشغيل بقية monorepo والواجهة والخادم |
 
@@ -131,7 +131,7 @@ https://your-domain.example.com
 
 ## 7. الإدارة
 
-واجهة الحجوزات والسلال موجودة في `AdminCommerceSections.tsx`. تُحمّل الحجوزات من `/api/admin/reservations` وتسمح بتصفية القائمة وتحديث حالة الحجز. إدارة API/الإدارة تتم من مصدر الخادم والواجهة؛ لا تغيّر حماية الإدارة أو تعتمد على صلاحيات مخزنة في المتصفح وحده.
+واجهة الحجوزات والسلال موجودة داخل `artifacts/admin-dashboard/src/components/dashboard/`. تُحمّل الحجوزات من API المشترك وتسمح بتصفية القائمة وتحديث حالة الحجز. إدارة API/الإدارة تتم من مصدر الخادم والواجهة؛ لا تغيّر حماية الإدارة أو تعتمد على صلاحيات مخزنة في المتصفح وحده.
 
 ## 8. إعداد بيئة التطوير
 

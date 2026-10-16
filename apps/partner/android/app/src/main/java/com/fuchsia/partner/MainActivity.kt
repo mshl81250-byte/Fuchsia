@@ -1,5 +1,7 @@
 package com.fuchsia.partner
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -117,9 +119,16 @@ private data class UnifiedCalendarEvent(val id: String, val startDate: String, v
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST_CODE)
+        }
         setContent {
             FuchsiaTheme { PartnerRoot() }
         }
+    }
+
+    private companion object {
+        const val NOTIFICATION_PERMISSION_REQUEST_CODE = 7001
     }
 }
 
@@ -144,9 +153,24 @@ private fun PartnerRoot() {
             profileError = ""
             runCatching { PartnerApi.profile(token.orEmpty()) }
                 .onSuccess { profile = it }
-                .onFailure { profile = null; profileError = it.message ?: "تعذر تحميل حساب الشريك" }
+                .onFailure { failure ->
+                    if ((failure as? PartnerApiException)?.isUnauthorized == true) {
+                        PartnerSession.clear(context)
+                        token = null
+                        profile = null
+                        profileError = ""
+                    } else {
+                        profile = null
+                        profileError = failure.message ?: "تعذر تحميل حساب الشريك"
+                    }
+                }
             loading = false
         }
+    }
+
+    LaunchedEffect(token) {
+        val authToken = token ?: return@LaunchedEffect
+        runCatching { PartnerPushRegistration.register(context, authToken) }
     }
 
     when {

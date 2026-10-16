@@ -1,9 +1,18 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { productsTable, insertProductSchema } from "@workspace/db";
-import { eq, and, like, desc, sql } from "drizzle-orm";
+import { eq, and, like, desc, sql, or, gt, isNotNull } from "drizzle-orm";
+import { requireAdmin } from "../lib/admin-auth";
 
 const router = Router();
+
+const customerVisibleProduct = and(
+  eq(productsTable.isPublished, true),
+  or(
+    eq(productsTable.fulfillmentType, "sale"),
+    and(eq(productsTable.fulfillmentType, "rental"), isNotNull(productsTable.rentalDailyPrice), gt(productsTable.rentalDailyPrice, 0)),
+  ),
+);
 
 function parseProduct(p: typeof productsTable.$inferSelect) {
   return {
@@ -17,7 +26,7 @@ function parseProduct(p: typeof productsTable.$inferSelect) {
 
 router.get("/featured", async (req, res): Promise<void> => {
   try {
-    const products = await db.select().from(productsTable).where(eq(productsTable.isFeatured, true)).limit(10);
+    const products = await db.select().from(productsTable).where(and(customerVisibleProduct, eq(productsTable.isFeatured, true))).limit(10);
     res.json(products.map(parseProduct));
   } catch (err) {
     req.log.error({ err }, "Failed to get featured products");
@@ -27,7 +36,7 @@ router.get("/featured", async (req, res): Promise<void> => {
 
 router.get("/new-arrivals", async (req, res): Promise<void> => {
   try {
-    const products = await db.select().from(productsTable).where(eq(productsTable.isNew, true)).orderBy(desc(productsTable.id)).limit(10);
+    const products = await db.select().from(productsTable).where(and(customerVisibleProduct, eq(productsTable.isNew, true))).orderBy(desc(productsTable.id)).limit(10);
     res.json(products.map(parseProduct));
   } catch (err) {
     req.log.error({ err }, "Failed to get new arrivals");
@@ -37,7 +46,7 @@ router.get("/new-arrivals", async (req, res): Promise<void> => {
 
 router.get("/top-sanaa", async (req, res): Promise<void> => {
   try {
-    const products = await db.select().from(productsTable).orderBy(desc(productsTable.reviewCount)).limit(10);
+    const products = await db.select().from(productsTable).where(customerVisibleProduct).orderBy(desc(productsTable.reviewCount)).limit(10);
     res.json(products.map(parseProduct));
   } catch (err) {
     req.log.error({ err }, "Failed to get top Sanaa products");
@@ -47,7 +56,7 @@ router.get("/top-sanaa", async (req, res): Promise<void> => {
 
 router.get("/best-sellers", async (req, res): Promise<void> => {
   try {
-    const products = await db.select().from(productsTable).orderBy(desc(productsTable.salesCount)).limit(10);
+    const products = await db.select().from(productsTable).where(customerVisibleProduct).orderBy(desc(productsTable.salesCount)).limit(10);
     res.json(products.map(parseProduct));
   } catch (err) {
     req.log.error({ err }, "Failed to get best sellers");
@@ -57,7 +66,7 @@ router.get("/best-sellers", async (req, res): Promise<void> => {
 
 router.get("/most-viewed", async (req, res): Promise<void> => {
   try {
-    const products = await db.select().from(productsTable).orderBy(desc(productsTable.views)).limit(10);
+    const products = await db.select().from(productsTable).where(customerVisibleProduct).orderBy(desc(productsTable.views)).limit(10);
     res.json(products.map(parseProduct));
   } catch (err) {
     req.log.error({ err }, "Failed to get most viewed products");
@@ -73,7 +82,7 @@ router.get("/by-occasion", async (req, res): Promise<void> => {
       return;
     }
     const products = await db.select().from(productsTable)
-      .where(like(productsTable.occasionTags, `%${occasion}%`))
+      .where(and(customerVisibleProduct, like(productsTable.occasionTags, `%${occasion}%`)))
       .limit(20);
     res.json(products.map(parseProduct));
   } catch (err) {
@@ -85,7 +94,7 @@ router.get("/by-occasion", async (req, res): Promise<void> => {
 router.get("/recommendations", async (req, res): Promise<void> => {
   try {
     const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
-    const products = await db.select().from(productsTable)
+    const products = await db.select().from(productsTable).where(customerVisibleProduct)
       .orderBy(desc(productsTable.rating))
       .limit(10);
     res.json(products.map(parseProduct));
@@ -98,16 +107,14 @@ router.get("/recommendations", async (req, res): Promise<void> => {
 router.get("/", async (req, res): Promise<void> => {
   try {
     const { categoryId, storeId, search, featured, limit } = req.query;
-    const conditions = [];
+    const conditions = [customerVisibleProduct];
 
     if (categoryId) conditions.push(eq(productsTable.categoryId, parseInt(categoryId as string)));
     if (storeId) conditions.push(eq(productsTable.storeId, parseInt(storeId as string)));
     if (featured === "true") conditions.push(eq(productsTable.isFeatured, true));
     if (search) conditions.push(like(productsTable.nameAr, `%${search}%`));
 
-    const products = conditions.length > 0
-      ? await db.select().from(productsTable).where(and(...conditions)).limit(limit ? parseInt(limit as string) : 50)
-      : await db.select().from(productsTable).limit(limit ? parseInt(limit as string) : 50);
+    const products = await db.select().from(productsTable).where(and(...conditions)).limit(limit ? parseInt(limit as string) : 50);
 
     res.json(products.map(parseProduct));
   } catch (err) {
@@ -119,7 +126,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.get("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id));
+    const [product] = await db.select().from(productsTable).where(and(eq(productsTable.id, id), customerVisibleProduct));
     if (!product) {
       res.status(404).json({ error: "Product not found" });
       return;
@@ -133,7 +140,7 @@ router.get("/:id", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/", async (req, res): Promise<void> => {
+router.post("/", requireAdmin, async (req, res): Promise<void> => {
   try {
     const data = insertProductSchema.parse(req.body);
     await db.insert(productsTable).values(data);
@@ -146,9 +153,9 @@ router.post("/", async (req, res): Promise<void> => {
   }
 });
 
-router.patch("/:id", async (req, res): Promise<void> => {
+router.patch("/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = Number.parseInt(String(req.params.id), 10);
     const updates = req.body;
     await db.update(productsTable).set(updates).where(eq(productsTable.id, id));
     const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id));
@@ -163,9 +170,9 @@ router.patch("/:id", async (req, res): Promise<void> => {
   }
 });
 
-router.delete("/:id", async (req, res): Promise<void> => {
+router.delete("/:id", requireAdmin, async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = Number.parseInt(String(req.params.id), 10);
     await db.delete(productsTable).where(eq(productsTable.id, id));
     res.json({ success: true });
   } catch (err) {

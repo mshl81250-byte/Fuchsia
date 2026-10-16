@@ -9,7 +9,7 @@ COPY app.config.ts ./app.config.ts
 RUN pnpm install --frozen-lockfile
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV BASE_PATH=/
+ENV BASE_PATH=/admin-dashboard/
 RUN pnpm run build
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

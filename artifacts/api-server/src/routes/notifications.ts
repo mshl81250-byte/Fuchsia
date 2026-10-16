@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { and, desc, eq } from "drizzle-orm";
-import { db, notificationsTable } from "@workspace/db";
+import { db, notificationsTable, partnerNotificationsTable, partnerPushTokensTable } from "@workspace/db";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -61,6 +62,74 @@ router.patch("/read-all", async (req, res): Promise<void> => {
   } catch (err) {
     req.log.error({ err }, "Failed to mark all notifications read");
     res.status(500).json({ error: "تعذر تحديث الإشعارات" });
+  }
+});
+
+router.get("/partner", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  if (!userId) { res.status(401).json({ error: "سجّل الدخول لعرض إشعارات الشريك" }); return; }
+  try {
+    const rows = await db.select().from(partnerNotificationsTable)
+      .where(eq(partnerNotificationsTable.recipientUserId, userId))
+      .orderBy(desc(partnerNotificationsTable.createdAt)).limit(50);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })));
+  } catch (error) {
+    req.log.error({ error, userId }, "Partner notifications load failed");
+    res.status(500).json({ error: "تعذر تحميل إشعارات الشريك" });
+  }
+});
+
+router.post("/partner/devices", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  const platform = typeof req.body?.platform === "string" ? req.body.platform.trim().toLowerCase() : "android";
+  if (!userId) { res.status(401).json({ error: "انتهت الجلسة؛ سجّل الدخول مجددًا" }); return; }
+  if (token.length < 20 || token.length > 512 || platform !== "android") {
+    res.status(400).json({ error: "رمز جهاز الإشعارات غير صحيح" });
+    return;
+  }
+  try {
+    await db.insert(partnerPushTokensTable).values({ userId, token, platform }).onDuplicateKeyUpdate({
+      set: { userId, platform, updatedAt: new Date() },
+    });
+    res.status(204).end();
+  } catch (error) {
+    req.log.error({ error, userId }, "Partner push token registration failed");
+    res.status(500).json({ error: "تعذر تسجيل جهاز الإشعارات" });
+  }
+});
+
+router.delete("/partner/devices", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  if (!userId) { res.status(401).json({ error: "انتهت الجلسة؛ سجّل الدخول مجددًا" }); return; }
+  if (!token) { res.status(400).json({ error: "رمز الجهاز مطلوب" }); return; }
+  try {
+    await db.delete(partnerPushTokensTable).where(and(eq(partnerPushTokensTable.userId, userId), eq(partnerPushTokensTable.token, token)));
+    res.status(204).end();
+  } catch (error) {
+    req.log.error({ error, userId }, "Partner push token removal failed");
+    res.status(500).json({ error: "تعذر إلغاء تسجيل جهاز الإشعارات" });
+  }
+});
+
+router.patch("/partner/:id/read", async (req, res): Promise<void> => {
+  const userId = await authenticatedUserId(req);
+  const id = Number.parseInt(req.params.id, 10);
+  if (!userId) { res.status(401).json({ error: "انتهت الجلسة؛ سجّل الدخول مجددًا" }); return; }
+  if (!Number.isInteger(id) || id < 1) { res.status(400).json({ error: "رقم الإشعار غير صحيح" }); return; }
+  try {
+    const result = await db.update(partnerNotificationsTable).set({ isRead: true })
+      .where(and(eq(partnerNotificationsTable.id, id), eq(partnerNotificationsTable.recipientUserId, userId)));
+    const [row] = await db.select({ id: partnerNotificationsTable.id }).from(partnerNotificationsTable)
+      .where(and(eq(partnerNotificationsTable.id, id), eq(partnerNotificationsTable.recipientUserId, userId)));
+    if (!row) { res.status(404).json({ error: "الإشعار غير موجود" }); return; }
+    void result;
+    res.json({ ok: true });
+  } catch (error) {
+    req.log.error({ error, userId, notificationId: id }, "Partner notification read update failed");
+    res.status(500).json({ error: "تعذر تحديث الإشعار" });
   }
 });
 

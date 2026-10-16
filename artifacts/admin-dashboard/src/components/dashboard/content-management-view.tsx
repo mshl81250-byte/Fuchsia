@@ -1,0 +1,228 @@
+import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { Box, Building2, ChevronDown, ChevronUp, Image, Layers3, Pencil, Plus, RefreshCw, Store, Trash2, Upload, X } from "lucide-react";
+import { toast } from "sonner";
+
+type Product = { id: number; nameAr: string; nameEn?: string | null; price: number; discountPrice?: number | null; fulfillmentType: string; categoryId: number; storeId: number; imageUrl: string; images?: string | null; inStock: boolean; stockQuantity?: number | null; isPublished: boolean; isFeatured: boolean; isNew: boolean; rentalDailyPrice?: number | null; rentalDeposit: number };
+type StoreRow = { id: number; nameAr: string; nameEn?: string | null; description?: string | null; logoUrl: string; coverUrl?: string | null; isOpen: boolean; isFeatured: boolean; phone?: string | null; location?: string | null };
+type Category = { id: number; nameAr: string; nameEn?: string | null; icon: string; color?: string | null; imageUrl?: string | null; productCount: number };
+type Banner = { id: number; title: string; subtitle?: string | null; imageUrl: string; linkType?: string | null; linkId?: number | null; isActive: boolean; sortOrder: number };
+
+type FormProps = { onSaved: () => void; onCancel: () => void; editing?: Product | StoreRow | Category | Banner };
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, { ...init, credentials: "include", headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || "تعذر تنفيذ العملية");
+  return body as T;
+}
+
+function SectionHeader({ title, description, onRefresh, onAdd }: { title: string; description: string; onRefresh: () => void; onAdd: () => void }) {
+  return <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><h2 className="text-3xl font-bold tracking-tight">{title}</h2><p className="mt-1 text-muted-foreground">{description}</p></div><div className="flex gap-2"><Button variant="outline" onClick={onRefresh} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button><Button onClick={onAdd} className="gap-2"><Plus className="h-4 w-4" /> إضافة</Button></div></div>;
+}
+
+type ImageGalleryProps = {
+  images: string[];
+  onChange: (images: string[]) => void;
+  max?: number;
+};
+
+function ImageGalleryField({ images, onChange, max = 20 }: ImageGalleryProps) {
+  const [uploading, setUploading] = useState(0);
+
+  const uploadFiles = async (files: File[]) => {
+    const selected = files.slice(0, Math.max(0, max - images.length));
+    if (!selected.length) {
+      toast.error(`يمكن إضافة ${max} صورة كحد أقصى`);
+      return;
+    }
+
+    setUploading(selected.length);
+    try {
+      const uploaded = await Promise.all(selected.map(async (file) => {
+        const body = new FormData();
+        body.append("image", file);
+        const response = await fetch("/api/uploads/admin-image", { method: "POST", body, credentials: "include" });
+        const result = await response.json().catch(() => ({})) as { url?: string; error?: string };
+        if (!response.ok || !result.url) throw new Error(result.error || "تعذر رفع الصورة");
+        return result.url;
+      }));
+      onChange([...images, ...uploaded]);
+      toast.success(`تم رفع ${uploaded.length} صورة بنجاح`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر رفع الصور");
+    } finally {
+      setUploading(0);
+    }
+  };
+
+  const remove = (index: number) => onChange(images.filter((_, imageIndex) => imageIndex !== index));
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= images.length) return;
+    const next = [...images];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-dashed border-fuchsia-200 bg-fuchsia-50/40 p-4 md:col-span-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Label>معرض صور العرض</Label>
+          <p className="mt-1 text-xs text-muted-foreground">ارفع حتى 20 صورة. الصورة الأولى هي الصورة الرئيسية ويمكن تغيير ترتيبها بالأسهم.</p>
+        </div>
+        <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-fuchsia-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-fuchsia-800">
+          <Upload className="h-4 w-4" />
+          {uploading ? `جارٍ رفع ${uploading} صورة...` : "اختيار صور من الجهاز"}
+          <input
+            type="file"
+            className="sr-only"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            disabled={uploading > 0 || images.length >= max}
+            onChange={(event) => {
+              const files = Array.from(event.currentTarget.files || []);
+              event.currentTarget.value = "";
+              void uploadFiles(files);
+            }}
+          />
+        </label>
+      </div>
+      {images.length === 0 ? (
+        <div className="rounded-xl bg-white/80 px-4 py-8 text-center text-sm text-muted-foreground">لم تُرفع صور بعد</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {images.map((url, index) => (
+            <div key={`${url}-${index}`} className="group relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+              <img src={url} alt={`صورة العرض ${index + 1}`} className="aspect-square w-full object-cover" />
+              {index === 0 && <span className="absolute right-2 top-2 rounded-full bg-fuchsia-700 px-2 py-1 text-[10px] font-bold text-white">رئيسية</span>}
+              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-slate-950/75 p-1.5 text-white opacity-0 transition group-hover:opacity-100">
+                <div className="flex gap-0.5">
+                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-white hover:bg-white/20" disabled={index === 0} onClick={() => move(index, -1)} aria-label="تحريك الصورة للأعلى"><ChevronUp className="h-4 w-4" /></Button>
+                  <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-white hover:bg-white/20" disabled={index === images.length - 1} onClick={() => move(index, 1)} aria-label="تحريك الصورة للأسفل"><ChevronDown className="h-4 w-4" /></Button>
+                </div>
+                <Button type="button" size="icon" variant="ghost" className="h-7 w-7 text-rose-200 hover:bg-rose-500/30 hover:text-white" onClick={() => remove(index)} aria-label="حذف الصورة"><X className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductForm({ onSaved, onCancel, editing }: FormProps) {
+  const product = editing as Product | undefined;
+  const parseImages = (value?: string | null) => {
+    try {
+      const parsed = value ? JSON.parse(value) : [];
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+  const initialImages = Array.from(new Set([product?.imageUrl, ...parseImages(product?.images)].filter((value): value is string => Boolean(value))));
+  const [form, setForm] = useState({
+    nameAr: product?.nameAr || "",
+    nameEn: product?.nameEn || "",
+    price: String(product?.price || ""),
+    discountPrice: product?.discountPrice == null ? "" : String(product.discountPrice),
+    fulfillmentType: product?.fulfillmentType || "sale",
+    categoryId: String(product?.categoryId || ""),
+    storeId: String(product?.storeId || ""),
+    images: initialImages,
+    stockQuantity: product?.stockQuantity == null ? "" : String(product.stockQuantity),
+    rentalDailyPrice: product?.rentalDailyPrice == null ? "" : String(product.rentalDailyPrice),
+    rentalDeposit: String(product?.rentalDeposit || 0),
+    inStock: product?.inStock ?? true,
+    isPublished: product?.isPublished ?? false,
+    isFeatured: product?.isFeatured ?? false,
+    isNew: product?.isNew ?? false,
+  });
+  const [busy, setBusy] = useState(false);
+  const set = (key: string, value: string | boolean) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const gallery = Array.from(new Set(form.images.filter(Boolean))).slice(0, 20);
+      if (!gallery.length) throw new Error("ارفع صورة واحدة على الأقل للعرض");
+      const data = {
+        nameAr: form.nameAr.trim(), nameEn: form.nameEn.trim() || null,
+        price: Number(form.price), discountPrice: form.discountPrice ? Number(form.discountPrice) : null,
+        fulfillmentType: form.fulfillmentType, categoryId: Number(form.categoryId), storeId: Number(form.storeId),
+        imageUrl: gallery[0], images: JSON.stringify(gallery.slice(1)),
+        inStock: form.inStock, stockQuantity: form.stockQuantity ? Number(form.stockQuantity) : null,
+        isPublished: form.isPublished, isFeatured: form.isFeatured, isNew: form.isNew,
+        rentalDailyPrice: form.rentalDailyPrice ? Number(form.rentalDailyPrice) : null,
+        rentalDeposit: Number(form.rentalDeposit || 0), rentalCategory: "other", eventAudience: "both",
+        availableColors: "[]", rentalMinDays: 1, rentalMaxDays: 3, rentalBufferDays: 0, tags: "[]", occasionTags: "[]",
+      };
+      await request(product ? `/api/admin/products/${product.id}` : "/api/admin/products", { method: product ? "PATCH" : "POST", body: JSON.stringify(data) });
+      toast.success(product ? "تم تحديث العرض والصور" : "تم إنشاء العرض والصور");
+      onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر حفظ العرض");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{product ? "تعديل العرض" : "إضافة عرض جديد"}</CardTitle>
+        <p className="text-sm text-muted-foreground">ارفع صور صندوق الخطبة أو الطاولة مباشرة من جهازك مع معاينتها وترتيبها قبل الحفظ.</p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2"><Label>اسم العرض بالعربي</Label><Input required value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} /></div>
+          <div className="space-y-2"><Label>الاسم بالإنجليزية</Label><Input value={form.nameEn} onChange={(e) => set("nameEn", e.target.value)} /></div>
+          <div className="space-y-2"><Label>السعر الأساسي للعرض</Label><Input required type="number" min="0" value={form.price} onChange={(e) => set("price", e.target.value)} /></div>
+          <div className="space-y-2"><Label>سعر العرض بعد الخصم</Label><Input type="number" min="0" value={form.discountPrice} onChange={(e) => set("discountPrice", e.target.value)} placeholder="اختياري" /></div>
+          <div className="space-y-2"><Label>نوع العرض</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={form.fulfillmentType} onChange={(e) => set("fulfillmentType", e.target.value)}><option value="sale">بيع</option><option value="rental">إيجار</option></select></div>
+          <ImageGalleryField images={form.images} onChange={(images) => setForm((current) => ({ ...current, images }))} />
+          <div className="space-y-2"><Label>رقم التصنيف</Label><Input required type="number" min="1" value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)} /></div>
+          <div className="space-y-2"><Label>رقم المتجر</Label><Input required type="number" min="1" value={form.storeId} onChange={(e) => set("storeId", e.target.value)} /></div>
+          <div className="space-y-2"><Label>الكمية</Label><Input type="number" min="0" value={form.stockQuantity} onChange={(e) => set("stockQuantity", e.target.value)} /></div>
+          <div className="space-y-2"><Label>سعر اليوم للإيجار</Label><Input type="number" min="0" value={form.rentalDailyPrice} onChange={(e) => set("rentalDailyPrice", e.target.value)} /></div>
+          <div className="space-y-2"><Label>تأمين الإيجار</Label><Input type="number" min="0" value={form.rentalDeposit} onChange={(e) => set("rentalDeposit", e.target.value)} /></div>
+          <div className="flex flex-wrap gap-5 md:col-span-2">{([['inStock', 'متوفر'], ['isPublished', 'منشور'], ['isFeatured', 'مميز'], ['isNew', 'جديد']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2"><Switch checked={form[key]} onCheckedChange={(value) => set(key, value)} /><span>{label}</span></label>)}</div>
+          <div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ حفظ العرض..." : "حفظ العرض"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+export function ProductsView() {
+  const [rows, setRows] = useState<Product[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<Product>(); const [adding, setAdding] = useState(false);
+  const load = async () => { setLoading(true); try { setRows(await request<Product[]>("/api/admin/products", { headers: {} })); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تحميل المنتجات"); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  const remove = async (id: number) => { if (!window.confirm("هل تريد حذف المنتج؟")) return; try { await request(`/api/admin/products/${id}`, { method: "DELETE" }); toast.success("تم حذف المنتج"); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر الحذف"); } };
+  if (adding || editing) return <ProductForm editing={editing} onCancel={() => { setAdding(false); setEditing(undefined); }} onSaved={() => { setAdding(false); setEditing(undefined); void load(); }} />;
+  return <div className="space-y-6"><SectionHeader title="المنتجات" description="إضافة وتعديل ونشر المنتجات ومنتجات الإيجار." onRefresh={() => void load()} onAdd={() => setAdding(true)} />{loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : rows.length === 0 ? <EmptyState icon={Box} title="لا توجد منتجات" description="ابدأ بإضافة أول منتج إلى الكتالوج." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((row) => <Card key={row.id}><CardContent className="space-y-3 p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold">{row.nameAr}</h3><p className="text-sm text-muted-foreground">#{row.id} · متجر {row.storeId} · تصنيف {row.categoryId} · {(() => { try { return JSON.parse(row.images || "[]").length + 1; } catch { return 1; } })()} صور</p></div><Badge variant={row.isPublished ? "default" : "secondary"}>{row.isPublished ? "منشور" : "مسودة"}</Badge></div><p className="text-xl font-bold text-primary">{Number(row.price).toLocaleString("ar-YE")} ر.ي</p><div className="flex flex-wrap gap-2 text-xs"><Badge variant="outline">{row.fulfillmentType === "rental" ? "إيجار" : "بيع"}</Badge>{row.isFeatured && <Badge variant="outline">مميز</Badge>}{row.inStock ? <Badge variant="outline">متوفر</Badge> : <Badge variant="destructive">غير متوفر</Badge>}</div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditing(row)} className="gap-1"><Pencil className="h-3 w-3" /> تعديل</Button><Button size="sm" variant="outline" onClick={() => void remove(row.id)} className="gap-1 text-red-700"><Trash2 className="h-3 w-3" /> حذف</Button></div></CardContent></Card>)}</div>}</div>;
+}
+
+function StoreForm({ onSaved, onCancel, editing }: FormProps) { const store = editing as StoreRow | undefined; const [form, setForm] = useState({ nameAr: store?.nameAr || "", nameEn: store?.nameEn || "", description: store?.description || "", logoUrl: store?.logoUrl || "", coverUrl: store?.coverUrl || "", phone: store?.phone || "", location: store?.location || "", isOpen: store?.isOpen ?? true, isFeatured: store?.isFeatured ?? false }); const [busy, setBusy] = useState(false); const set = (key: string, value: string | boolean) => setForm((current) => ({ ...current, [key]: value })); const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try { await request(store ? `/api/admin/stores/${store.id}` : "/api/admin/stores", { method: store ? "PATCH" : "POST", body: JSON.stringify({ ...form, nameAr: form.nameAr.trim(), logoUrl: form.logoUrl.trim() }) }); toast.success(store ? "تم تحديث المتجر" : "تم إنشاء المتجر"); onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حفظ المتجر"); } finally { setBusy(false); } }; return <Card><CardHeader><CardTitle>{store ? "تعديل المتجر" : "إضافة متجر"}</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>اسم المتجر</Label><Input required value={form.nameAr} onChange={(e) => set("nameAr", e.target.value)} /></div><div className="space-y-2"><Label>الاسم بالإنجليزية</Label><Input value={form.nameEn} onChange={(e) => set("nameEn", e.target.value)} /></div><div className="space-y-2 md:col-span-2"><Label>الوصف</Label><Textarea value={form.description} onChange={(e) => set("description", e.target.value)} /></div><div className="space-y-2"><Label>رابط الشعار</Label><Input required value={form.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} dir="ltr" /></div><div className="space-y-2"><Label>رابط الغلاف</Label><Input value={form.coverUrl} onChange={(e) => set("coverUrl", e.target.value)} dir="ltr" /></div><div className="space-y-2"><Label>الهاتف</Label><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div><div className="space-y-2"><Label>الموقع</Label><Input value={form.location} onChange={(e) => set("location", e.target.value)} /></div><div className="flex gap-5 md:col-span-2"><label className="flex items-center gap-2"><Switch checked={form.isOpen} onCheckedChange={(v) => set("isOpen", v)} /> مفتوح</label><label className="flex items-center gap-2"><Switch checked={form.isFeatured} onCheckedChange={(v) => set("isFeatured", v)} /> مميز</label></div><div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ الحفظ..." : "حفظ"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div></form></CardContent></Card>; }
+
+export function StoresView() { const [rows, setRows] = useState<StoreRow[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<StoreRow>(); const [adding, setAdding] = useState(false); const load = async () => { setLoading(true); try { setRows(await request<StoreRow[]>("/api/admin/stores", { headers: {} })); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تحميل المتاجر"); } finally { setLoading(false); } }; useEffect(() => { void load(); }, []); const remove = async (id: number) => { if (!window.confirm("هل تريد حذف المتجر؟")) return; try { await request(`/api/admin/stores/${id}`, { method: "DELETE" }); toast.success("تم حذف المتجر"); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر الحذف"); } }; if (adding || editing) return <StoreForm editing={editing} onCancel={() => { setAdding(false); setEditing(undefined); }} onSaved={() => { setAdding(false); setEditing(undefined); void load(); }} />; return <div className="space-y-6"><SectionHeader title="المتاجر" description="إدارة متاجر فوشيا وحالتها وبياناتها الأساسية." onRefresh={() => void load()} onAdd={() => setAdding(true)} />{loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : rows.length === 0 ? <EmptyState icon={Store} title="لا توجد متاجر" description="أضف متجرًا جديدًا للبدء." /> : <div className="grid gap-4 md:grid-cols-2">{rows.map((row) => <Card key={row.id}><CardContent className="flex items-start justify-between gap-4 p-5"><div><h3 className="font-bold text-lg">{row.nameAr}</h3><p className="text-sm text-muted-foreground">#{row.id} · {row.phone || "بدون هاتف"}</p><div className="mt-2 flex gap-2"><Badge variant={row.isOpen ? "default" : "secondary"}>{row.isOpen ? "مفتوح" : "مغلق"}</Badge>{row.isFeatured && <Badge variant="outline">مميز</Badge>}</div></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditing(row)}><Pencil className="h-4 w-4" /></Button><Button size="sm" variant="outline" onClick={() => void remove(row.id)} className="text-red-700"><Trash2 className="h-4 w-4" /></Button></div></CardContent></Card>)}</div>}</div>; }
+
+function CategoryForm({ onSaved, onCancel, editing }: FormProps) { const category = editing as Category | undefined; const [form, setForm] = useState({ nameAr: category?.nameAr || "", nameEn: category?.nameEn || "", icon: category?.icon || "sparkles", color: category?.color || "", imageUrl: category?.imageUrl || "" }); const [busy, setBusy] = useState(false); const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try { await request(category ? `/api/admin/categories/${category.id}` : "/api/admin/categories", { method: category ? "PATCH" : "POST", body: JSON.stringify(form) }); toast.success(category ? "تم تحديث التصنيف" : "تم إنشاء التصنيف"); onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حفظ التصنيف"); } finally { setBusy(false); } }; return <Card><CardHeader><CardTitle>{category ? "تعديل التصنيف" : "إضافة تصنيف"}</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>اسم التصنيف</Label><Input required value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} /></div><div className="space-y-2"><Label>الاسم بالإنجليزية</Label><Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} /></div><div className="space-y-2"><Label>الأيقونة</Label><Input value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} /></div><div className="space-y-2"><Label>اللون</Label><Input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} dir="ltr" placeholder="#fuchsia" /></div><div className="space-y-2 md:col-span-2"><Label>رابط الصورة</Label><Input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} dir="ltr" /></div><div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ الحفظ..." : "حفظ"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div></form></CardContent></Card>; }
+
+export function CategoriesView() { const [rows, setRows] = useState<Category[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<Category>(); const [adding, setAdding] = useState(false); const load = async () => { setLoading(true); try { setRows(await request<Category[]>("/api/admin/categories", { headers: {} })); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تحميل التصنيفات"); } finally { setLoading(false); } }; useEffect(() => { void load(); }, []); const remove = async (id: number) => { if (!window.confirm("هل تريد حذف التصنيف؟")) return; try { await request(`/api/admin/categories/${id}`, { method: "DELETE" }); toast.success("تم حذف التصنيف"); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر الحذف"); } }; if (adding || editing) return <CategoryForm editing={editing} onCancel={() => { setAdding(false); setEditing(undefined); }} onSaved={() => { setAdding(false); setEditing(undefined); void load(); }} />; return <div className="space-y-6"><SectionHeader title="التصنيفات" description="إدارة تصنيفات الكتالوج وأيقوناتها وصورها." onRefresh={() => void load()} onAdd={() => setAdding(true)} />{loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : rows.length === 0 ? <EmptyState icon={Layers3} title="لا توجد تصنيفات" description="أضف تصنيفًا جديدًا." /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((row) => <Card key={row.id}><CardContent className="flex items-start justify-between gap-3 p-5"><div><h3 className="font-bold">{row.nameAr}</h3><p className="text-sm text-muted-foreground">{row.productCount || 0} منتج · {row.icon}</p></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditing(row)}><Pencil className="h-4 w-4" /></Button><Button size="sm" variant="outline" onClick={() => void remove(row.id)} className="text-red-700"><Trash2 className="h-4 w-4" /></Button></div></CardContent></Card>)}</div>}</div>; }
+
+function BannerForm({ onSaved, onCancel, editing }: FormProps) { const banner = editing as Banner | undefined; const [form, setForm] = useState({ title: banner?.title || "", subtitle: banner?.subtitle || "", imageUrl: banner?.imageUrl || "", linkType: banner?.linkType || "", linkId: banner?.linkId ? String(banner.linkId) : "", sortOrder: String(banner?.sortOrder || 0), isActive: banner?.isActive ?? true }); const [busy, setBusy] = useState(false); const submit = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try { await request(banner ? `/api/admin/banners/${banner.id}` : "/api/admin/banners", { method: banner ? "PATCH" : "POST", body: JSON.stringify({ ...form, linkId: form.linkId ? Number(form.linkId) : null, sortOrder: Number(form.sortOrder) }) }); toast.success(banner ? "تم تحديث البنر" : "تم إنشاء البنر"); onSaved(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر حفظ البنر"); } finally { setBusy(false); } }; return <Card><CardHeader><CardTitle>{banner ? "تعديل البنر" : "إضافة بنر"}</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>العنوان</Label><Input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div><div className="space-y-2"><Label>العنوان الفرعي</Label><Input value={form.subtitle} onChange={(e) => setForm({ ...form, subtitle: e.target.value })} /></div><div className="space-y-2 md:col-span-2"><Label>رابط الصورة</Label><Input required value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} dir="ltr" /></div><div className="space-y-2"><Label>نوع الرابط</Label><Input value={form.linkType} onChange={(e) => setForm({ ...form, linkType: e.target.value })} placeholder="product أو category" /></div><div className="space-y-2"><Label>رقم الرابط</Label><Input type="number" value={form.linkId} onChange={(e) => setForm({ ...form, linkId: e.target.value })} /></div><div className="space-y-2"><Label>ترتيب العرض</Label><Input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} /></div><label className="flex items-center gap-2 self-end"><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} /> بنر نشط</label><div className="flex gap-2 md:col-span-2"><Button disabled={busy} type="submit">{busy ? "جارٍ الحفظ..." : "حفظ"}</Button><Button type="button" variant="outline" onClick={onCancel}>إلغاء</Button></div></form></CardContent></Card>; }
+
+export function BannersView() { const [rows, setRows] = useState<Banner[]>([]); const [loading, setLoading] = useState(true); const [editing, setEditing] = useState<Banner>(); const [adding, setAdding] = useState(false); const load = async () => { setLoading(true); try { setRows(await request<Banner[]>("/api/admin/banners", { headers: {} })); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تحميل البنرات"); } finally { setLoading(false); } }; useEffect(() => { void load(); }, []); const remove = async (id: number) => { if (!window.confirm("هل تريد حذف البنر؟")) return; try { await request(`/api/admin/banners/${id}`, { method: "DELETE" }); toast.success("تم حذف البنر"); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر الحذف"); } }; if (adding || editing) return <BannerForm editing={editing} onCancel={() => { setAdding(false); setEditing(undefined); }} onSaved={() => { setAdding(false); setEditing(undefined); void load(); }} />; return <div className="space-y-6"><SectionHeader title="البنرات" description="إدارة العروض المرئية وترتيبها وروابطها داخل التطبيق." onRefresh={() => void load()} onAdd={() => setAdding(true)} />{loading ? <p className="text-muted-foreground">جارٍ التحميل...</p> : rows.length === 0 ? <EmptyState icon={Image} title="لا توجد بنرات" description="أضف أول بنر للحملة الرئيسية." /> : <div className="grid gap-4 md:grid-cols-2">{rows.map((row) => <Card key={row.id}><CardContent className="flex items-start justify-between gap-4 p-5"><div><h3 className="font-bold">{row.title}</h3><p className="text-sm text-muted-foreground">ترتيب {row.sortOrder} · {row.linkType || "بدون رابط"}</p><Badge className="mt-2" variant={row.isActive ? "default" : "secondary"}>{row.isActive ? "نشط" : "متوقف"}</Badge></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditing(row)}><Pencil className="h-4 w-4" /></Button><Button size="sm" variant="outline" onClick={() => void remove(row.id)} className="text-red-700"><Trash2 className="h-4 w-4" /></Button></div></CardContent></Card>)}</div>}</div>; }
+
+function EmptyState({ icon: Icon, title, description }: { icon: typeof Box; title: string; description: string }) { return <Empty className="border"><EmptyHeader><EmptyMedia variant="icon"><Icon /></EmptyMedia><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader></Empty>; }
+
+export function ContentManagementView({ section }: { section: "products" | "stores" | "categories" | "banners" }) { if (section === "products") return <ProductsView />; if (section === "stores") return <StoresView />; if (section === "categories") return <CategoriesView />; return <BannersView />; }

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
-import { db, notificationChannelSettingsTable, notificationsTable } from "@workspace/db";
+import { db, notificationChannelSettingsTable, notificationsTable, partnerNotificationsTable } from "@workspace/db";
+import { dispatchPartnerPushNotification } from "./partner-push";
 
 export async function sendVerificationCodeEmail(input: { email: string; name: string; code: string }): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
@@ -79,4 +80,28 @@ export async function createCustomerNotification(input: NotificationInput) {
   if (!input.sessionId) return;
   await db.insert(notificationsTable).values({ sessionId: input.sessionId, orderId: input.orderId ?? null, type: input.type, title: input.title, message: input.message });
   await dispatchExternal(input);
+}
+
+export async function createPartnerNotification(input: {
+  recipientUserId: number;
+  bookingType?: "venue" | "rental" | "product";
+  bookingId?: number;
+  requestId?: number;
+  type: string;
+  title: string;
+  message: string;
+}) {
+  if (!Number.isInteger(input.recipientUserId) || input.recipientUserId < 1) return;
+  await db.insert(partnerNotificationsTable).values({
+    recipientUserId: input.recipientUserId,
+    bookingType: input.bookingType ?? null,
+    bookingId: input.bookingId ?? null,
+    requestId: input.requestId ?? null,
+    type: input.type,
+    title: input.title,
+    message: input.message,
+  });
+  void dispatchPartnerPushNotification(input).catch((error) => {
+    console.error("Partner push notification dispatch failed", { error, userId: input.recipientUserId });
+  });
 }

@@ -17,7 +17,7 @@
 المشروع عبارة عن monorepo يحتوي على:
 
 - تطبيق Android داخل `apps/mobile/`.
-- واجهة المتجر الحالية داخل `artifacts/lamsa/`.
+- لوحة الإدارة الجديدة داخل `artifacts/admin-dashboard/`.
 - خادم API داخل `artifacts/api-server/`.
 - قاعدة البيانات ومخطط Drizzle داخل `lib/db/`.
 - لوحة الإدارة داخل `artifacts/admin-dashboard/`.

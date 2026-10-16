@@ -85,7 +85,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+
+private const val MAX_PRODUCT_IMAGES = 8
 
 @Composable
 internal fun RentalPartnerHub(
@@ -107,6 +110,8 @@ internal fun RentalPartnerHub(
     var productsError by remember { mutableStateOf("") }
     var bookingsError by remember { mutableStateOf("") }
     var maintenanceError by remember { mutableStateOf("") }
+    var lastUpdatedAt by remember { mutableStateOf<Long?>(null) }
+    var connectionIssue by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var editorVisible by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<PartnerRentalProduct?>(null) }
@@ -136,16 +141,31 @@ internal fun RentalPartnerHub(
             productsError = ""
             bookingsError = ""
             maintenanceError = ""
+            lastUpdatedAt = null
+            connectionIssue = false
+            var loadedAny = false
+            var transientFailure = false
             runCatching { PartnerRentalApi.products(auth, storeId) }
-                .onSuccess { products = it }
-                .onFailure { productsError = it.message ?: "تعذر تحميل كتالوج الإيجار" }
+                .onSuccess { products = it; loadedAny = true }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    productsError = it.message ?: "تعذر تحميل كتالوج الإيجار"
+                }
             runCatching { PartnerRentalApi.bookings(auth, storeId) }
-                .onSuccess { bookings = it }
-                .onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار" }
+                .onSuccess { bookings = it; loadedAny = true }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار"
+                }
             runCatching { PartnerRentalApi.maintenance(auth, storeId, SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)) }
-                .onSuccess { maintenance = it }
-                .onFailure { maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة" }
-            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it }.onFailure { categories = emptyList() }
+                .onSuccess { maintenance = it; loadedAny = true }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة"
+                }
+            runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it; loadedAny = true }.onFailure { categories = emptyList() }
+            if (loadedAny) lastUpdatedAt = System.currentTimeMillis()
+            connectionIssue = transientFailure
             loading = false
         }
     }
@@ -172,6 +192,21 @@ internal fun RentalPartnerHub(
             RentalNotice("بيانات معاينة فقط؛ لا تُرفع صور ولا تُحفظ منتجات أو قرارات حجز حقيقية.")
         } else {
             Text("إدارة كتالوج التأجير والطلبات. قبول الطلب يعني تأكيد التوفر فقط، ولا يعتمد الدفعة المالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+            if (connectionIssue) {
+                RentalNotice(
+                    if (lastUpdatedAt != null) "الاتصال بالخادم غير مستقر؛ البيانات المعروضة قد لا تكون الأحدث. اضغط تحديث عند استقرار الاتصال."
+                    else "تعذر الوصول إلى الخادم. تحقق من الإنترنت ثم اضغط تحديث.",
+                    isError = true,
+                )
+            }
+            lastUpdatedAt?.let { timestamp ->
+                Text(
+                    "آخر تحديث ناجح: ${SimpleDateFormat("HH:mm", Locale.US).format(Date(timestamp))}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
         }
 
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -402,8 +437,7 @@ private fun RentalProductEditor(
     var maxDays by remember(existing?.id) { mutableStateOf(existing?.maxDays?.coerceAtLeast(1)?.toString() ?: "3") }
     var bufferDays by remember(existing?.id) { mutableStateOf(existing?.bufferDays?.coerceAtLeast(0)?.toString() ?: "0") }
     var colorsText by remember(existing?.id) { mutableStateOf(existing?.colors?.joinToString("، ").orEmpty()) }
-    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(12)) }
-    var published by remember(existing?.id) { mutableStateOf(existing?.isPublished ?: false) }
+    var imageUrls by remember(existing?.id) { mutableStateOf((existing?.images.orEmpty() + listOfNotNull(existing?.imageUrl?.takeIf(String::isNotBlank))).distinct().take(MAX_PRODUCT_IMAGES)) }
     var busy by remember { mutableStateOf(false) }
     var formError by remember { mutableStateOf("") }
     var uploadStatus by remember { mutableStateOf("") }
@@ -414,15 +448,15 @@ private fun RentalProductEditor(
             else scope.launch {
                 val auth = token ?: return@launch
                 busy = true
-                val remaining = (12 - imageUrls.size).coerceAtLeast(0)
+                val remaining = (MAX_PRODUCT_IMAGES - imageUrls.size).coerceAtLeast(0)
                 if (remaining == 0) {
-                    onMessage("الحد الأعلى 12 صورة للمنتج")
+                    onMessage("الحد الأعلى $MAX_PRODUCT_IMAGES صور للمنتج")
                 } else {
                     val selected = uris.take(remaining)
                     selected.forEachIndexed { index, uri ->
                         uploadStatus = "رفع الصورة ${index + 1} من ${selected.size}…"
                         runCatching { PartnerRentalApi.uploadImage(context, uri, auth, storeId) }
-                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(12) }
+                            .onSuccess { url -> imageUrls = (imageUrls + url).distinct().take(MAX_PRODUCT_IMAGES) }
                             .onFailure { onMessage(it.message ?: "تعذر رفع الصورة") }
                     }
                 }
@@ -483,7 +517,7 @@ private fun RentalProductEditor(
                         OutlinedTextField(maxDays, { maxDays = it }, Modifier.weight(1f), label = { Text("أقصى مدة (يوم)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                     }
                     OutlinedTextField(bufferDays, { bufferDays = it }, Modifier.fillMaxWidth(), label = { Text("مهلة التجهيز بعد الحجز (أيام، 0–14)") }, supportingText = { Text("تمنع حجز المنتج خلال فترة التنظيف/التجهيز التالية.") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Text("صور المنتج · ${imageUrls.size}/12", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("صور المنتج · ${imageUrls.size}/$MAX_PRODUCT_IMAGES", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         imageUrls.forEachIndexed { index, url ->
                             Box(Modifier.size(76.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
@@ -491,15 +525,11 @@ private fun RentalProductEditor(
                                 TextButton(onClick = { imageUrls = imageUrls.filterIndexed { i, _ -> i != index } }, modifier = Modifier.align(Alignment.BottomEnd).background(Color.Black.copy(alpha = .55f)), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) { Text("×", color = Color.White) }
                             }
                         }
-                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < 12, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
+                        OutlinedButton(onClick = { picker.launch("image/*") }, enabled = !busy && imageUrls.size < MAX_PRODUCT_IMAGES, modifier = Modifier.size(76.dp), contentPadding = PaddingValues(2.dp), shape = RoundedCornerShape(12.dp)) {
                             Icon(Icons.Rounded.CloudUpload, null); Text("صور", fontSize = 10.sp)
                         }
                     }
                     if (uploadStatus.isNotBlank()) Text(uploadStatus, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        FilterChip(selected = published, onClick = { published = !published }, label = { Text(if (published) "منشور للعملاء" else "مسودة غير منشورة") }, leadingIcon = { Icon(if (published) Icons.Rounded.Check else Icons.Rounded.Image, null, Modifier.size(16.dp)) })
-                    }
-                    if (published && imageUrls.isEmpty()) RentalNotice("أضف صورة رئيسية قبل نشر المنتج.", isError = true)
                     if (formError.isNotBlank()) RentalNotice(formError, isError = true)
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -529,7 +559,7 @@ private fun RentalProductEditor(
                             rentalCategory == "table" && tableWidth <= 0 && tableDiameter <= 0 -> "أدخل عرض الطاولة وطولها أو قطرها"
                             rentalCategory == "table" && tableDiameter <= 0 && tableLength <= 0 -> "أدخل طول الطاولة أو قطرها"
                             rentalCategory == "table" && colors.isEmpty() -> "أدخل لونًا واحدًا على الأقل للطاولات"
-                            published && imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل النشر"
+                            imageUrls.isEmpty() -> "أضف صورة واحدة على الأقل قبل الحفظ"
                             else -> ""
                         }
                         if (formError.isNotBlank()) return@Button
@@ -563,18 +593,17 @@ private fun RentalProductEditor(
                                 .put("availableColors", JSONArray(colors).toString())
                                 .put("stockQuantity", stock)
                                 .put("inStock", stock > 0)
-                                .put("isPublished", published)
+                                .put("isPublished", true)
                                 .put("tags", "[]")
                                 .put("occasionTags", "[]")
                             try {
                                 if (existing == null) {
-                                    val created = PartnerRentalApi.createProduct(auth, JSONObject(payload.toString()).put("isPublished", false))
-                                    if (published) PartnerRentalApi.updateProduct(auth, created.id, JSONObject().put("isPublished", true))
+                                    PartnerRentalApi.createProduct(auth, payload)
                                 } else {
                                     PartnerRentalApi.updateProduct(auth, existing.id, payload)
                                 }
                                 onSaved()
-                                onMessage(if (published) "تم حفظ المنتج ونشره" else "تم حفظ المنتج كمسودة")
+                                onMessage("تم حفظ المنتج ونشره للعملاء مباشرة")
                                 onDismiss()
                             } catch (failure: Exception) {
                                 formError = failure.message ?: "تعذر حفظ المنتج"

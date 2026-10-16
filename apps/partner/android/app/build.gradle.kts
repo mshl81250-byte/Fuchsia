@@ -5,8 +5,14 @@ plugins {
 
 val fuchsiaApiBaseUrl = providers.gradleProperty("FUCHSIA_API_BASE_URL")
     .orElse(providers.environmentVariable("FUCHSIA_API_BASE_URL"))
-    .getOrElse("http://10.0.2.2:3000")
+    .getOrElse("https://fuchsia-x7dwxpzd.manus.space")
     .trimEnd('/')
+fun String.asBuildConfigString() = "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+val firebaseProjectId = providers.gradleProperty("FIREBASE_PROJECT_ID").orElse(providers.environmentVariable("FIREBASE_PROJECT_ID")).getOrElse("")
+val firebaseApplicationId = providers.gradleProperty("FIREBASE_APPLICATION_ID").orElse(providers.environmentVariable("FIREBASE_APPLICATION_ID")).getOrElse("")
+val firebaseApiKey = providers.gradleProperty("FIREBASE_API_KEY").orElse(providers.environmentVariable("FIREBASE_API_KEY")).getOrElse("")
+val firebaseMessagingSenderId = providers.gradleProperty("FIREBASE_MESSAGING_SENDER_ID").orElse(providers.environmentVariable("FIREBASE_MESSAGING_SENDER_ID")).getOrElse("")
+val firebaseStorageBucket = providers.gradleProperty("FIREBASE_STORAGE_BUCKET").orElse(providers.environmentVariable("FIREBASE_STORAGE_BUCKET")).getOrElse("")
 
 android {
     namespace = "com.fuchsia.partner"
@@ -19,7 +25,12 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "0.2.0"
-        buildConfigField("String", "API_BASE_URL", "\"$fuchsiaApiBaseUrl\"")
+        buildConfigField("String", "API_BASE_URL", fuchsiaApiBaseUrl.asBuildConfigString())
+        buildConfigField("String", "FIREBASE_PROJECT_ID", firebaseProjectId.asBuildConfigString())
+        buildConfigField("String", "FIREBASE_APPLICATION_ID", firebaseApplicationId.asBuildConfigString())
+        buildConfigField("String", "FIREBASE_API_KEY", firebaseApiKey.asBuildConfigString())
+        buildConfigField("String", "FIREBASE_MESSAGING_SENDER_ID", firebaseMessagingSenderId.asBuildConfigString())
+        buildConfigField("String", "FIREBASE_STORAGE_BUCKET", firebaseStorageBucket.asBuildConfigString())
     }
 
     buildTypes {
@@ -63,6 +74,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.google.firebase:firebase-messaging:24.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

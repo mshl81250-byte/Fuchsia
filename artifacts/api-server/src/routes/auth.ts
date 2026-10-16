@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, emailVerificationCodesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, emailVerificationCodesTable, userSessionsTable } from "@workspace/db";
+import { eq, and, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendVerificationCodeEmail } from "../lib/notifications";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
@@ -11,8 +12,16 @@ function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
 }
 
-function generateToken(userId: number): string {
-  return crypto.createHash("sha256").update(`${userId}_${Date.now()}_fuchsia`).digest("hex");
+async function generateToken(userId: number): Promise<string> {
+  const token = crypto.randomBytes(32).toString("hex");
+  const now = new Date();
+  await db.delete(userSessionsTable).where(and(eq(userSessionsTable.userId, userId), lt(userSessionsTable.expiresAt, now)));
+  await db.insert(userSessionsTable).values({
+    userId,
+    tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
+    expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
+  });
+  return token;
 }
 
 function generateReferralCode(name: string): string {
@@ -63,7 +72,11 @@ router.post("/register/request-code", async (req, res): Promise<void> => {
       expiresAt: new Date(Date.now() + 3 * 60 * 1000), attempts: 0, createdAt: new Date(),
     } });
     await sendVerificationCodeEmail({ email, name: fullName, code });
-    res.status(202).json({ message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني", expiresInSeconds: 180 });
+    res.status(202).json({
+      message: "تم إرسال رمز التحقق إلى بريدك الإلكتروني",
+      expiresInSeconds: 180,
+      ...(process.env.MOBILE_OTP_DEBUG === "true" || req.header("X-Fuchsia-OTP-Debug") === "true" ? { debugCode: code } : {}),
+    });
   } catch (err) {
     req.log.error({ err }, "Registration verification email failed");
     res.status(503).json({ error: "تعذر إرسال رمز التحقق حالياً، حاول لاحقاً" });
@@ -96,7 +109,7 @@ router.post("/register/verify-code", async (req, res): Promise<void> => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, pending.email));
     if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
     await db.delete(emailVerificationCodesTable).where(eq(emailVerificationCodesTable.id, pending.id));
-    res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
+    res.status(201).json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Registration verification failed");
     res.status(500).json({ error: "تعذر إكمال إنشاء الحساب" });
@@ -129,7 +142,7 @@ router.post("/register", async (req, res): Promise<void> => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email));
     if (!user) { res.status(500).json({ error: "تعذر إنشاء الحساب" }); return; }
 
-    res.status(201).json({ user: safeUser(user), token: generateToken(user.id) });
+    res.status(201).json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Register failed");
     res.status(500).json({ error: "حدث خطأ" });
@@ -155,7 +168,7 @@ router.post("/login", async (req, res): Promise<void> => {
       return;
     }
 
-    res.json({ user: safeUser(user), token: generateToken(user.id) });
+    res.json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Login failed");
     res.status(500).json({ error: "حدث خطأ" });
@@ -178,7 +191,7 @@ router.post("/guest", async (req, res): Promise<void> => {
       return;
     }
 
-    res.json({ user: safeUser(user), token: generateToken(user.id) });
+    res.json({ user: safeUser(user), token: await generateToken(user.id) });
   } catch (err) {
     req.log.error({ err }, "Guest login failed");
     res.status(500).json({ error: "حدث خطأ" });
@@ -187,9 +200,9 @@ router.post("/guest", async (req, res): Promise<void> => {
 
 router.get("/profile", async (req, res): Promise<void> => {
   try {
-    const userId = parseInt(req.query.userId as string);
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض بيانات الحساب" });
       return;
     }
 
@@ -208,17 +221,38 @@ router.get("/profile", async (req, res): Promise<void> => {
 
 router.patch("/profile", async (req, res): Promise<void> => {
   try {
-    const { userId, fullName, phone, address, avatarUrl } = req.body;
+    const { fullName, phone, address, avatarUrl } = req.body ?? {};
+    const userId = await authenticatedUserId(req);
     if (!userId) {
-      res.status(400).json({ error: "userId مطلوب" });
+      res.status(401).json({ error: "يلزم تسجيل الدخول لتعديل بيانات الحساب" });
       return;
     }
 
     const updates: Record<string, unknown> = {};
-    if (fullName !== undefined) updates.fullName = fullName;
-    if (phone !== undefined) updates.phone = phone;
-    if (address !== undefined) updates.address = address;
-    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+    if (fullName !== undefined) {
+      if (typeof fullName !== "string" || fullName.trim().length < 2 || fullName.trim().length > 120) {
+        res.status(400).json({ error: "الاسم غير صحيح" });
+        return;
+      }
+      updates.fullName = fullName.trim();
+    }
+    if (phone !== undefined) {
+      if (typeof phone !== "string" || phone.trim().length > 40) {
+        res.status(400).json({ error: "رقم الهاتف غير صحيح" });
+        return;
+      }
+      updates.phone = phone.trim() || null;
+    }
+    if (address !== undefined) {
+      if (typeof address !== "string" || address.trim().length > 1000) {
+        res.status(400).json({ error: "عنوان التوصيل غير صحيح" });
+        return;
+      }
+      updates.address = address.trim() || null;
+    }
+    if (avatarUrl !== undefined && typeof avatarUrl === "string" && avatarUrl.length <= 2048) {
+      updates.avatarUrl = avatarUrl;
+    }
 
     await db.update(usersTable).set(updates).where(eq(usersTable.id, userId));
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));

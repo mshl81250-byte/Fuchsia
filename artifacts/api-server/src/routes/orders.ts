@@ -1,12 +1,21 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { ordersTable, orderItemsTable, cartItemsTable, usersTable, rewardTransactionsTable, paymentWalletsTable } from "@workspace/db";
-import { eq, desc, sql, and } from "drizzle-orm";
-import { createCustomerNotification } from "../lib/notifications";
+import { ordersTable, orderItemsTable, cartItemsTable, usersTable, productsTable, storesTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable, walletTransactionsTable } from "@workspace/db";
+import { eq, desc, asc, sql, and, or, inArray } from "drizzle-orm";
+import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
+import { appendOrderStatusEvent } from "../lib/order-tracking";
+import { authenticatedUserId } from "../lib/user-session";
 
 const router = Router();
 
 const DELIVERY_FEE = 500;
+
+function maskPaymentReference(reference: string | null): string | null {
+  if (!reference) return null;
+  const value = reference.trim();
+  if (!value) return null;
+  return value.length <= 4 ? value : `••••${value.slice(-4)}`;
+}
 
 async function buildOrder(order: typeof ordersTable.$inferSelect) {
   const items = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, order.id));
@@ -15,12 +24,14 @@ async function buildOrder(order: typeof ordersTable.$inferSelect) {
 
 router.get("/", async (req, res): Promise<void> => {
   try {
-    const sessionId = req.query.sessionId as string;
-    if (!sessionId) {
-      res.status(400).json({ error: "sessionId required" });
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
       return;
     }
-    const orders = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.createdAt));
+    const orders = await db.select().from(ordersTable)
+      .where(or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId))))
+      .orderBy(desc(ordersTable.createdAt));
     const result = await Promise.all(orders.map(buildOrder));
     res.json(result);
   } catch (err) {
@@ -29,10 +40,97 @@ router.get("/", async (req, res): Promise<void> => {
   }
 });
 
+router.get("/mine", async (req, res): Promise<void> => {
+  try {
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
+      return;
+    }
+    const orders = await db.select().from(ordersTable)
+      .where(or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId))))
+      .orderBy(desc(ordersTable.createdAt)).limit(100);
+    res.setHeader("Cache-Control", "no-store");
+    res.json(await Promise.all(orders.map(buildOrder)));
+  } catch (err) {
+    req.log.error({ err }, "Failed to list authenticated customer orders");
+    res.status(500).json({ error: "تعذر تحميل الطلبات" });
+  }
+});
+
+router.get("/:id/tracking", async (req, res): Promise<void> => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    const userId = await authenticatedUserId(req);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ error: "معرّف الطلب غير صحيح" });
+      return;
+    }
+    if (!userId) {
+      res.status(401).json({ error: "انتهت صلاحية الجلسة؛ سجّل الدخول مجددًا" });
+      return;
+    }
+
+    const [order] = await db.select().from(ordersTable).where(
+      and(eq(ordersTable.id, id), or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId)))),
+    );
+    if (!order) {
+      res.status(404).json({ error: "الطلب غير موجود لهذا الحساب" });
+      return;
+    }
+
+    const history = await db.select().from(orderStatusEventsTable)
+      .where(eq(orderStatusEventsTable.orderId, id))
+      .orderBy(asc(orderStatusEventsTable.createdAt), asc(orderStatusEventsTable.id));
+    const orderItems = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, id));
+    const rentalItems = orderItems.filter((item) => item.fulfillmentType === "rental" && item.rentalStartDate && item.rentalEndDate);
+    const rentalReturnDate = rentalItems.map((item) => item.rentalEndDate!).sort().at(-1) ?? null;
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      orderId: order.id,
+      status: order.status,
+      total: order.total,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: (history.at(-1)?.createdAt ?? order.createdAt).toISOString(),
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus,
+      paymentAmount: order.paymentAmount,
+      transactionReference: maskPaymentReference(order.transactionReference),
+      paymentReceiptUrl: order.paymentReceiptUrl,
+      driverName: order.driverName,
+      driverPhone: order.driverPhone,
+      rental: rentalReturnDate ? {
+        returnDate: rentalReturnDate,
+        startDate: rentalItems.map((item) => item.rentalStartDate!).sort()[0],
+        days: rentalItems.reduce((sum, item) => sum + (item.rentalDays ?? 1), 0),
+        deposit: order.rentalDeposit,
+        depositStatus: order.rentalDepositStatus,
+        refundedAmount: order.rentalDepositRefunded,
+        damageDeduction: order.rentalDamageDeduction,
+        lateFee: order.rentalLateFee,
+        depositReason: order.rentalDepositReason,
+        processedAt: order.rentalDepositProcessedAt?.toISOString() ?? null,
+        reminder: rentalReturnDate < new Date().toISOString().slice(0, 10) ? "overdue" : rentalReturnDate === new Date(Date.now() + 86400000).toISOString().slice(0, 10) ? "tomorrow" : null,
+      } : null,
+      history: history.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to load order tracking");
+    res.status(500).json({ error: "تعذر تحميل تتبع الطلب" });
+  }
+});
+
 router.get("/:id", async (req, res): Promise<void> => {
   try {
     const id = parseInt(req.params.id);
-    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    const userId = await authenticatedUserId(req);
+    if (!userId) {
+      res.status(401).json({ error: "يلزم تسجيل الدخول لعرض الطلب" });
+      return;
+    }
+    const [order] = await db.select().from(ordersTable).where(
+      and(eq(ordersTable.id, id), or(eq(ordersTable.userId, userId), eq(ordersTable.sessionId, String(userId)))),
+    );
     if (!order) {
       res.status(404).json({ error: "Order not found" });
       return;
@@ -53,12 +151,15 @@ router.post("/", async (req, res): Promise<void> => {
       isGift, giftRecipientName, giftMessage, giftCardStyle, hidePrice, scheduledDelivery,
     } = req.body;
 
-    if (!sessionId || !deliveryAddress || !customerName || !customerPhone) {
-      res.status(400).json({ error: "Missing required fields" });
+    const authenticatedId = await authenticatedUserId(req);
+    if (userId != null && (!authenticatedId || Number(userId) !== authenticatedId)) {
+      res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" });
       return;
     }
-    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
-      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
+    const effectiveUserId = authenticatedId;
+
+    if (!sessionId || !customerName || !customerPhone) {
+      res.status(400).json({ error: "Missing required fields" });
       return;
     }
 
@@ -78,9 +179,25 @@ router.post("/", async (req, res): Promise<void> => {
       res.status(400).json({ error: "Cart is empty" });
       return;
     }
+    if (cartItems.some((item) => item.fulfillmentType === "rental")) {
+      res.status(409).json({ error: "حجوزات القاعات وتأجير الكوش والطاولات لها مسار حجز مباشر ولا تمر عبر السلة" });
+      return;
+    }
+    const hasRentalItems = cartItems.some((item) => item.fulfillmentType === "rental");
+    const needsDelivery = !hasRentalItems || cartItems.some((item) => item.rentalFulfillment === "delivery");
+    if (needsDelivery && (!deliveryAddress || typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6)) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" });
+      return;
+    }
+    const initialStatus = hasRentalItems ? "rental_pending_confirmation" : "received";
 
-    const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const total = subtotal + DELIVERY_FEE;
+    const subtotal = cartItems.reduce((sum, item) => {
+      const days = item.fulfillmentType === "rental" ? Math.max(1, item.rentalDays ?? 1) : 1;
+      return sum + item.price * item.quantity * days;
+    }, 0);
+    const rentalDeposit = cartItems.reduce((sum, item) => sum + item.rentalDeposit * item.quantity, 0);
+    const deliveryFee = needsDelivery ? DELIVERY_FEE : 0;
+    const total = subtotal + rentalDeposit + deliveryFee;
     if (normalizedPaymentType !== "cash_on_delivery") {
       if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount <= 0 || requestedPaymentAmount > total) {
         res.status(400).json({ error: "مبلغ الدفع غير صحيح" });
@@ -102,11 +219,11 @@ router.post("/", async (req, res): Promise<void> => {
 
     await db.insert(ordersTable).values({
       sessionId,
-      userId: userId ?? null,
-      status: "received",
+      userId: effectiveUserId,
+      status: initialStatus,
       total,
       subtotal,
-      deliveryFee: DELIVERY_FEE,
+      deliveryFee,
       discount: 0,
       deliveryAddress,
       deliveryLatitude,
@@ -121,6 +238,7 @@ router.post("/", async (req, res): Promise<void> => {
       paymentWalletId: paymentWalletId ?? null,
       paymentAmount: actualPaymentAmount,
       remainingAmount: Math.max(0, total - actualPaymentAmount),
+      rentalDeposit,
       transactionReference: transactionReference ?? null,
       paymentReceiptUrl: paymentReceiptUrl ?? null,
       couponCode: couponCode ?? null,
@@ -134,13 +252,28 @@ router.post("/", async (req, res): Promise<void> => {
     });
     const [order] = await db.select().from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
     if (!order) { res.status(500).json({ error: "تعذر إنشاء الطلب" }); return; }
-    const [recipient] = userId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, Number(userId))) : [];
+    if (normalizedPaymentType !== "cash_on_delivery") {
+      await db.insert(walletTransactionsTable).values({
+        orderId: order.id,
+        walletId: Number(paymentWalletId),
+        kind: "payment",
+        status: "pending_review",
+        amount: actualPaymentAmount,
+        currency: "YER",
+        provider: "manual_local_wallet",
+        externalId: transactionReference ?? null,
+        idempotencyKey: `payment:${order.id}`,
+        reason: "دفعة مرتبطة بإيصال التحويل",
+      });
+    }
+    await appendOrderStatusEvent(order.id, initialStatus);
+    const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
     await createCustomerNotification({
       sessionId,
       orderId: order.id,
       type: "order_received",
-      title: "تم استلام طلبك",
-      message: `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
+      title: hasRentalItems ? "تم استلام طلب الإيجار" : "تم استلام طلبك",
+      message: hasRentalItems ? `تم استلام طلب الإيجار رقم ${order.id} وسنراجع التوفر والتفاصيل قريباً.` : `تم استلام الطلب رقم ${order.id} وسنبدأ بتجهيزه قريباً.`,
       customerName,
       phone: customerPhone,
       email: recipient?.email,
@@ -153,26 +286,50 @@ router.post("/", async (req, res): Promise<void> => {
         productName: item.productName,
         price: item.price,
         quantity: item.quantity,
+        fulfillmentType: item.fulfillmentType,
+        rentalStartDate: item.rentalStartDate,
+        rentalDays: item.rentalDays,
+        rentalEndDate: item.rentalEndDate,
+        rentalDeposit: item.rentalDeposit,
+        rentalFulfillment: item.rentalFulfillment,
+        rentalTimeSlot: item.rentalTimeSlot,
         imageUrl: item.imageUrl,
       });
     }
 
+    const productIds = [...new Set(cartItems.map((item) => item.productId).filter((id) => Number.isInteger(id) && id > 0))];
+    if (productIds.length > 0) {
+      const owners = await db.select({ ownerUserId: storesTable.ownerUserId })
+        .from(productsTable)
+        .innerJoin(storesTable, eq(productsTable.storeId, storesTable.id))
+        .where(inArray(productsTable.id, productIds));
+      const ownerIds = [...new Set(owners.map((owner) => owner.ownerUserId).filter((id): id is number => id !== null && Number.isInteger(id) && id > 0))];
+      await Promise.all(ownerIds.map((ownerUserId) => createPartnerNotification({
+        recipientUserId: ownerUserId,
+        bookingType: "product",
+        bookingId: order.id,
+        type: "product_order_created",
+        title: "طلب منتج جديد",
+        message: `وصل طلب جديد رقم ${order.id} ويحتوي على منتج من متجرك؛ راجع تفاصيل الطلب وابدأ التجهيز.`,
+      }).catch((error) => req.log.warn({ error, orderId: order.id, ownerUserId }, "Partner product notification failed"))));
+    }
+
     await db.delete(cartItemsTable).where(eq(cartItemsTable.sessionId, sessionId));
 
-    if (userId) {
+    if (effectiveUserId) {
       const points = Math.floor(total / 1000) * 10;
       if (points > 0) {
         const [currentUser] = await db.select({ rewardPoints: usersTable.rewardPoints })
-          .from(usersTable).where(eq(usersTable.id, userId));
+          .from(usersTable).where(eq(usersTable.id, effectiveUserId));
         if (currentUser) {
           await db.update(usersTable)
             .set({
               rewardPoints: currentUser.rewardPoints + points,
               totalSpent: sql`${usersTable.totalSpent} + ${total}`,
             })
-            .where(eq(usersTable.id, userId));
+            .where(eq(usersTable.id, effectiveUserId));
           await db.insert(rewardTransactionsTable).values({
-            userId,
+            userId: effectiveUserId,
             points,
             description: `نقاط طلب رقم ${order.id}`,
             orderId: order.id,
@@ -188,12 +345,69 @@ router.post("/", async (req, res): Promise<void> => {
   }
 });
 
+
+router.post("/offer", async (req, res): Promise<void> => {
+  try {
+    const {
+      sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
+      paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl,
+      userId, giftRecipientName, giftMessage,
+    } = req.body;
+    const authenticatedId = await authenticatedUserId(req);
+    if (userId != null && (!authenticatedId || Number(userId) !== authenticatedId)) {
+      res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" });
+      return;
+    }
+    const effectiveUserId = authenticatedId;
+    const OFFER_TOTAL = 45000;
+    if (!sessionId || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
+      res.status(400).json({ error: "يرجى إدخال بيانات العميل والعنوان ورسالة الهدية" }); return;
+    }
+    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
+      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" }); return;
+    }
+    const normalizedPaymentType = paymentType;
+    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
+    if (!["full", "partial"].includes(normalizedPaymentType)) { res.status(400).json({ error: "عرض الهدية يقبل الدفع الجزئي أو الكامل فقط" }); return; }
+    if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) { res.status(400).json({ error: "يرجى اختيار المحفظة وإدخال رقم العملية وإرفاق الإيصال" }); return; }
+    const expectedAmount = normalizedPaymentType === "full" ? OFFER_TOTAL : Math.ceil(OFFER_TOTAL / 2);
+    if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount !== expectedAmount) { res.status(400).json({ error: "مبلغ الدفع لا يطابق نوع الدفع المختار" }); return; }
+    const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable).where(and(eq(paymentWalletsTable.id, Number(paymentWalletId)), eq(paymentWalletsTable.isActive, true)));
+    if (!wallet) { res.status(400).json({ error: "المحفظة المختارة غير متاحة" }); return; }
+    if (typeof paymentReceiptUrl !== "string" || paymentReceiptUrl.length > 7 * 1024 * 1024) { res.status(400).json({ error: "حجم الإيصال أكبر من الحد المسموح" }); return; }
+    await db.insert(ordersTable).values({
+      sessionId, userId: effectiveUserId, status: "received", total: OFFER_TOTAL, subtotal: OFFER_TOTAL, deliveryFee: 0, discount: 0,
+      deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
+      paymentMethod: paymentMethod ?? `wallet_${paymentWalletId}`, paymentType: normalizedPaymentType, paymentStatus: "pending_review",
+      paymentWalletId: Number(paymentWalletId), paymentAmount: expectedAmount, remainingAmount: Math.max(0, OFFER_TOTAL - expectedAmount),
+      transactionReference, paymentReceiptUrl, notes: "طلب عرض صندوق خطوبة وسط مقاس 60×40",
+      isGift: true, giftRecipientName: giftRecipientName || null, giftMessage, hidePrice: false,
+    });
+    const [created] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
+    if (!created) { res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); return; }
+    const orderId = created.id;
+    await appendOrderStatusEvent(orderId, "received");
+    await db.insert(orderItemsTable).values({ orderId, productId: 0, productName: "عرض صندوق خطوبة وسط 60×40", price: OFFER_TOTAL, quantity: 1, imageUrl: "offer://facebook-khitbah-offer" });
+    const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
+    await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+    res.status(201).json(await buildOrder(order));
+  } catch (err) { req.log.error({ err }, "Failed to create offer order"); res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); }
+});
+
 router.patch("/:id", async (req, res): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
-    const { status, driverName, driverPhone } = req.body;
-    if (!status) {
-      res.status(400).json({ error: "status required" });
+    const id = Number.parseInt(req.params.id, 10);
+    const { status, driverName, driverPhone } = req.body ?? {};
+    const allowedStatuses = ["received", "preparing", "delivering", "delivered", "cancelled"];
+    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
+      res.status(400).json({ error: "حالة الطلب أو رقمه غير صحيح" });
+      return;
+    }
+
+    const [previous] = await db.select({ status: ordersTable.status }).from(ordersTable).where(eq(ordersTable.id, id));
+    if (!previous) {
+      res.status(404).json({ error: "الطلب غير موجود" });
       return;
     }
 
@@ -207,6 +421,7 @@ router.patch("/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "Order not found" });
       return;
     }
+    if (previous.status !== status) await appendOrderStatusEvent(id, status, "store");
     res.json(await buildOrder(order));
   } catch (err) {
     req.log.error({ err }, "Failed to update order status");

@@ -1,9 +1,26 @@
 import { Router } from "express";
-import { db, paymentWalletsTable, insertPaymentWalletSchema } from "@workspace/db";
+import { db, paymentWalletsTable, insertPaymentWalletSchema, walletTransactionsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { requireAdmin } from "../lib/admin-auth";
+import { verifyWalletWebhook } from "../lib/wallet-gateway";
 
 const router = Router();
+router.post("/webhook/:provider", async (req, res): Promise<void> => {
+  const signature = req.header("x-provider-signature") || req.header("x-webhook-signature");
+  if (!verifyWalletWebhook(JSON.stringify(req.body ?? {}), signature)) {
+    res.status(401).json({ error: "توقيع callback غير صالح" });
+    return;
+  }
+  try {
+    const externalId = req.body?.refundId || req.body?.externalId || req.body?.id;
+    const status = req.body?.status === "success" || req.body?.status === "completed" ? "completed" : req.body?.status === "failed" ? "failed" : "pending";
+    if (!externalId) { res.status(400).json({ error: "معرّف المعاملة غير موجود" }); return; }
+    await db.update(walletTransactionsTable).set({ status, processedAt: status === "completed" ? new Date() : null, rawResponse: JSON.stringify(req.body).slice(0, 5000) }).where(eq(walletTransactionsTable.externalId, String(externalId)));
+    res.json({ received: true });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر تحديث callback المحفظة" });
+  }
+});
 router.get("/", async (_req, res): Promise<void> => {
   try {
     const wallets = await db.select().from(paymentWalletsTable)

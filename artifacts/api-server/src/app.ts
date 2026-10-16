@@ -31,19 +31,22 @@ app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(path.resolve(process.cwd(), "artifacts/api-server/uploads")));
 
 app.use("/api", router);
 
-const frontendDist = path.resolve(process.cwd(), "artifacts/lamsa/dist/public");
-app.use(express.static(frontendDist, { index: "index.html" }));
-app.use((req, res, next) => {
-  if (req.method !== "GET" || req.path.startsWith("/api/")) {
+const adminDashboardDist = path.resolve(process.cwd(), "artifacts/admin-dashboard/dist/public");
+app.use("/admin-dashboard", express.static(adminDashboardDist, { index: "index.html" }));
+app.use("/admin-dashboard", (req, res, next) => {
+  if (req.method !== "GET") {
     next();
     return;
   }
-  res.sendFile(path.join(frontendDist, "index.html"), (error) => {
+  res.sendFile(path.join(adminDashboardDist, "index.html"), (error) => {
     if (error && !res.headersSent) next(error);
   });
 });
+
+app.get("/", (_req, res) => res.redirect(302, "/admin-dashboard/"));
 
 export default app;

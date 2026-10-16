@@ -11,10 +11,6 @@ val releaseKeyAlias = providers.gradleProperty("FUCHSIA_RELEASE_KEY_ALIAS")
     .orElse(providers.environmentVariable("FUCHSIA_RELEASE_KEY_ALIAS")).orNull
 val releaseKeyPassword = providers.gradleProperty("FUCHSIA_RELEASE_KEY_PASSWORD")
     .orElse(providers.environmentVariable("FUCHSIA_RELEASE_KEY_PASSWORD")).orNull
-val fuchsiaApiBaseUrl = providers.gradleProperty("FUCHSIA_API_BASE_URL")
-    .orElse(providers.environmentVariable("FUCHSIA_API_BASE_URL"))
-    .getOrElse("http://10.0.2.2:3000")
-    .trimEnd('/')
 
 android {
     namespace = "com.fuchsia.platform.compose"
@@ -28,7 +24,7 @@ android {
         versionCode = 7
         versionName = "1.3.2"
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
-        buildConfigField("String", "API_BASE_URL", "\"$fuchsiaApiBaseUrl\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://fuchsia-x7dwxpzd.manus.space\"")
         // The user explicitly requested on-screen OTP visibility as the sole test exception.
         buildConfigField("boolean", "OTP_DEBUG", "true")
     }

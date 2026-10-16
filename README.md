@@ -1,11 +1,10 @@
 # Fuchsia
 
-منصة Fuchsia العربية RTL للهدايا والمناسبات، وتحتوي على:
+مشروع Fuchsia العربي RTL للهدايا والمناسبات، ويحتوي على:
 
-- واجهة الويب للعميل في `artifacts/lamsa`.
-- لوحة الإدارة في `artifacts/admin-dashboard`.
+- لوحة الإدارة الجديدة في `artifacts/admin-dashboard`، وتُخدم تحت `/admin-dashboard/`.
 - خادم Express في `artifacts/api-server`.
-- تطبيق Android للعميل في `apps/mobile`.
+- تطبيق Android الأصلي للعميل في `apps/mobile/android`.
 - تطبيق Android للشريك في `apps/partner/android`.
 - مكتبة التصميم المشتركة في `apps/design-system/android`.
 
@@ -48,18 +47,7 @@ ADMIN_EMAIL=admin@fuchsia.ye ADMIN_INITIAL_PASSWORD='ضع-كلمة-مرور-قو
 
 ## تطبيق العميل
 
-التطبيق يدعم Expo وAndroid Native. عنوان الخادم لا يُثبت داخل الكود:
-
-```bash
-cd apps/mobile
-cp .env.example .env
-# عدّل EXPO_PUBLIC_API_BASE_URL إلى عنوان خادمك
-pnpm install
-pnpm typecheck
-pnpm start
-```
-
-لبناء APK Native مع عنوان مخصص:
+تطبيق العميل المعتمد هو Android Native المبني بـKotlin وJetpack Compose. عنوان الخادم لا يُثبت داخل الكود:
 
 ```bash
 cd apps/mobile/android
