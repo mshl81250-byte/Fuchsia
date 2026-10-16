@@ -4,7 +4,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Fuchsia Partner"
+        android:label="فوشيا للشركاء"
         android:supportsRtl="true"
         android:theme="@style/Theme.FuchsiaPartner"
         android:usesCleartextTraffic="false">
