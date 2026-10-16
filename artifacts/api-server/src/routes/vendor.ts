@@ -7,6 +7,8 @@ import { createCustomerNotification } from "../lib/notifications";
 import { addDateDays, getRentalOccupancy } from "../lib/rental-availability";
 
 const router = Router();
+const MAX_PRODUCT_IMAGES = 8;
+const MAX_IMAGE_URL_LENGTH = 2000;
 const OWNER_PRODUCT_FIELDS = [
   "nameAr", "nameEn", "description", "price", "discountPrice", "fulfillmentType", "rentalCategory", "eventAudience",
   "tableHeightCm", "tableWidthCm", "tableLengthCm", "tableDiameterCm", "tableSeats", "setupNotes", "availableColors", "rentalDailyPrice", "rentalDeposit", "rentalMinDays", "rentalMaxDays", "rentalBufferDays",
@@ -16,7 +18,34 @@ const OWNER_PRODUCT_FIELDS = [
 function ownerProductFields(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const body = value as Record<string, unknown>;
-  return Object.fromEntries(OWNER_PRODUCT_FIELDS.filter((key) => body[key] !== undefined).map((key) => [key, body[key]]));
+  return Object.fromEntries(OWNER_PRODUCT_FIELDS
+    .filter((key) => body[key] !== undefined)
+    .map((key) => [key, key === "images" ? normalizeImageList(body[key]) : body[key]]));
+}
+
+function normalizeImageList(value: unknown): string {
+  let parsed: unknown;
+  if (Array.isArray(value)) {
+    parsed = value;
+  } else if (typeof value === "string") {
+    try { parsed = JSON.parse(value); } catch { throw new Error("حقل images يجب أن يكون قائمة JSON صحيحة"); }
+  } else {
+    throw new Error("حقل images يجب أن يكون قائمة صور");
+  }
+  if (!Array.isArray(parsed)) throw new Error("حقل images يجب أن يكون قائمة صور");
+  if (parsed.length > MAX_PRODUCT_IMAGES) throw new Error(`يمكن إضافة ${MAX_PRODUCT_IMAGES} صور كحد أقصى للمنتج`);
+
+  const urls = parsed.map((item) => {
+    if (typeof item !== "string") throw new Error("روابط الصور يجب أن تكون نصوصًا");
+    const url = item.trim();
+    if (!url || url.length > MAX_IMAGE_URL_LENGTH) throw new Error("رابط الصورة غير صالح");
+    try {
+      const parsedUrl = new URL(url);
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error("unsupported protocol");
+    } catch { throw new Error("رابط الصورة يجب أن يكون HTTP أو HTTPS"); }
+    return url;
+  });
+  return JSON.stringify([...new Set(urls)]);
 }
 
 function parseArray(value: string | null | undefined): string[] {

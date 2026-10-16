@@ -27,7 +27,7 @@ export const productsTable = mysqlTable("products", {
   categoryId: int("category_id").notNull(),
   storeId: int("store_id").notNull(),
   imageUrl: text("image_url").notNull(),
-  images: varchar("images", { length: 4000 }).notNull().default("[]"),
+  images: varchar("images", { length: 8000 }).notNull().default("[]"),
   videoUrl: text("video_url"),
   brand: text("brand"),
   inStock: boolean("in_stock").notNull().default(true),

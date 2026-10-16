@@ -14,6 +14,7 @@ const DIRECT_RENTAL_BOOKING_MIGRATION_ID = "20261007_direct_rental_booking_v1";
 const PARTNER_OPERATIONS_PHASE3_MIGRATION_ID = "20261009_partner_operations_phase3_v1";
 const PARTNER_ACCOUNTS_MIGRATION_ID = "20261015_partner_accounts_permissions_v1";
 const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
+const PRODUCT_IMAGES_LIMIT_MIGRATION_ID = "20261016_product_images_limit_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -46,6 +47,16 @@ export async function runMigrations(): Promise<void> {
     await addColumnIfMissing("products", "setup_notes", "TEXT NULL");
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [RENTAL_DIMENSIONS_MIGRATION_ID]);
     logger.info({ migrationId: RENTAL_DIMENSIONS_MIGRATION_ID }, "Rental product dimensions migration completed");
+  }
+
+  const [productImagesRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PRODUCT_IMAGES_LIMIT_MIGRATION_ID],
+  );
+  if ((productImagesRows as Array<{ migration_id: string }>).length === 0) {
+    await pool.query("ALTER TABLE products MODIFY COLUMN images VARCHAR(8000) NOT NULL DEFAULT '[]'");
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PRODUCT_IMAGES_LIMIT_MIGRATION_ID]);
+    logger.info({ migrationId: PRODUCT_IMAGES_LIMIT_MIGRATION_ID }, "Product image list capacity migration completed");
   }
 
   const [commerceRows] = await pool.query(
