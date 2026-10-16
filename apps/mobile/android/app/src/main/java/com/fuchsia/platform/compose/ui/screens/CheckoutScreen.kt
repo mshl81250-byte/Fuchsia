@@ -30,6 +30,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CardGiftcard
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -123,6 +128,26 @@ fun CheckoutScreen(
     var editRecipient by remember { mutableStateOf(false) }
     var showPaymentOptions by remember { mutableStateOf(false) }
 
+    fun applyCoordinates(latitudeValue: Double, longitudeValue: Double) {
+        latitude = latitudeValue
+        longitude = longitudeValue
+        locating = false
+        locationError = if (isSanaaLocation(latitudeValue, longitudeValue)) "" else "الموقع خارج نطاق التوصيل الحالي في صنعاء."
+        if (directRental?.fulfillment == "delivery" && isSanaaLocation(latitudeValue, longitudeValue)) {
+            scope.launch {
+                deliveryQuoteLoading = true
+                runCatching { FuchsiaApi.deliveryQuote(latitudeValue, longitudeValue) }
+                    .onSuccess { quote ->
+                        deliveryDistanceKm = quote.optDouble("distanceKm").takeIf { it.isFinite() }
+                        val fee = quote.optDouble("fee", 0.0)
+                        cart = cart?.let { current -> current.copy(deliveryFee = fee, total = current.subtotal + current.rentalDeposit + fee) }
+                    }
+                    .onFailure { locationError = "تعذر حساب رسوم التوصيل؛ حاول تحديث الموقع." }
+                deliveryQuoteLoading = false
+            }
+        }
+    }
+
     LaunchedEffect(sessionId, userToken, directRental) {
         if (sessionId == null) {
             error = "انتهت الجلسة. يرجى تسجيل الدخول أو بدء التصفح دون حساب من جديد."
@@ -150,8 +175,7 @@ fun CheckoutScreen(
                     fullName = saved.recipientName
                     phone = saved.phone
                     address = saved.address
-                    latitude = saved.latitude
-                    longitude = saved.longitude
+                    saved.latitude?.let { savedLat -> saved.longitude?.let { savedLng -> applyCoordinates(savedLat, savedLng) } }
                 }
             }
             cart = if (directRental != null) {
@@ -196,26 +220,6 @@ fun CheckoutScreen(
             error = failure.message ?: "تعذر تحميل بيانات الطلب."
         } finally {
             loading = false
-        }
-    }
-
-    fun applyCoordinates(latitudeValue: Double, longitudeValue: Double) {
-        latitude = latitudeValue
-        longitude = longitudeValue
-        locating = false
-        locationError = if (isSanaaLocation(latitudeValue, longitudeValue)) "" else "الموقع خارج نطاق التوصيل الحالي في صنعاء."
-        if (directRental?.fulfillment == "delivery" && isSanaaLocation(latitudeValue, longitudeValue)) {
-            scope.launch {
-                deliveryQuoteLoading = true
-                runCatching { FuchsiaApi.deliveryQuote(latitudeValue, longitudeValue) }
-                    .onSuccess { quote ->
-                        deliveryDistanceKm = quote.optDouble("distanceKm").takeIf { it.isFinite() }
-                        val fee = quote.optDouble("fee", 0.0)
-                        cart = cart?.let { current -> current.copy(deliveryFee = fee, total = current.subtotal + current.rentalDeposit + fee) }
-                    }
-                    .onFailure { locationError = "تعذر حساب رسوم التوصيل؛ حاول تحديث الموقع." }
-                deliveryQuoteLoading = false
-            }
         }
     }
 
@@ -535,10 +539,12 @@ fun CheckoutScreen(
                             Icon(if (showPaymentOptions) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, tint = FuchsiaColors.Primary)
                         }
                     }
-                    if (showPaymentOptions) Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        if (!isRentalCheckout) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
-                        PaymentChoice("نصف المبلغ", paymentType == "partial", Modifier.weight(1f)) { paymentType = "partial" }
-                        PaymentChoice("كامل المبلغ", paymentType == "full", Modifier.weight(1f)) { paymentType = "full" }
+                    AnimatedVisibility(visible = showPaymentOptions, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            if (!isRentalCheckout) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
+                            PaymentChoice("نصف المبلغ", paymentType == "partial", Modifier.weight(1f)) { paymentType = "partial" }
+                            PaymentChoice("كامل المبلغ", paymentType == "full", Modifier.weight(1f)) { paymentType = "full" }
+                        }
                     }
                 }
                 if (paymentType != "cash_on_delivery" && showPaymentOptions) {
@@ -631,8 +637,7 @@ fun CheckoutScreen(
                 fullName = selected.recipientName
                 phone = selected.phone
                 address = selected.address
-                latitude = selected.latitude
-                longitude = selected.longitude
+                selected.latitude?.let { selectedLat -> selected.longitude?.let { selectedLng -> applyCoordinates(selectedLat, selectedLng) } }
                 locationError = ""
                 locating = false
                 showAddressPicker = false
