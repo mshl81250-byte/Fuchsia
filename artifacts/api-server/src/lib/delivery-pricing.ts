@@ -13,7 +13,7 @@ export type DeliverySettings = {
   supportEmail: string;
 };
 
-const DEFAULTS: DeliverySettings = { baseFee: 200, perKm: 80, freeKm: 0, originLatitude: 15.3694, originLongitude: 44.1910, originAddress: "صنعاء - اليمن", supportPhone: "", supportWhatsapp: "", supportEmail: "" };
+const DEFAULTS: DeliverySettings = { baseFee: 200, perKm: 80, freeKm: 0, originLatitude: 15.3694, originLongitude: 44.1910, originAddress: "صنعاء - شارع كلية الشرطة، أمام ملعب النادي الترفيهي", supportPhone: "778360009", supportWhatsapp: "778360009", supportEmail: "" };
 let tableReady: Promise<void> | null = null;
 
 async function ensureTable(): Promise<void> {
@@ -31,7 +31,8 @@ async function ensureTable(): Promise<void> {
       support_email VARCHAR(320) NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )`).then(async () => {
-      await pool.query("INSERT IGNORE INTO delivery_settings (id) VALUES (1)");
+      await pool.query("INSERT IGNORE INTO delivery_settings (id, origin_address, support_phone, support_whatsapp) VALUES (1, ?, ?, ?)", [DEFAULTS.originAddress, DEFAULTS.supportPhone, DEFAULTS.supportWhatsapp]);
+      await pool.query("UPDATE delivery_settings SET origin_address = COALESCE(NULLIF(origin_address, ''), ?), support_phone = COALESCE(NULLIF(support_phone, ''), ?), support_whatsapp = COALESCE(NULLIF(support_whatsapp, ''), ?) WHERE id = 1", [DEFAULTS.originAddress, DEFAULTS.supportPhone, DEFAULTS.supportWhatsapp]);
     }).then(() => undefined);
   }
   await tableReady;
