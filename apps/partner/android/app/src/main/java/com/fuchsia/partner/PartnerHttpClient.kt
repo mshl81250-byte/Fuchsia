@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -28,30 +29,39 @@ internal object PartnerHttpClient {
         connectTimeoutMs: Int = 15_000,
         readTimeoutMs: Int = 20_000,
     ): String = withContext(Dispatchers.IO) {
-        val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = connectTimeoutMs
-            readTimeout = readTimeoutMs
-            setRequestProperty("Accept", "application/json")
-            if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
-            if (body != null) {
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        val canRetry = method.equals("GET", ignoreCase = true)
+        var attempt = 0
+        while (true) {
+            val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
+                requestMethod = method
+                connectTimeout = connectTimeoutMs
+                readTimeout = readTimeoutMs
+                setRequestProperty("Accept", "application/json")
+                if (!token.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $token")
+                if (body != null) {
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                }
             }
-        }
-        try {
-            if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            return@withContext readResponse(connection)
-        } catch (error: PartnerApiException) {
-            throw error
-        } catch (error: Exception) {
-            throw PartnerApiException(
-                error.localizedMessage?.takeIf(String::isNotBlank)
-                    ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.",
-                0,
-            )
-        } finally {
-            connection.disconnect()
+            try {
+                if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                return@withContext readResponse(connection)
+            } catch (error: PartnerApiException) {
+                if (!canRetry || !error.isRetryable || attempt > 0) throw error
+                attempt++
+                delay(350L)
+            } catch (error: Exception) {
+                val wrapped = PartnerApiException(
+                    error.localizedMessage?.takeIf(String::isNotBlank)
+                        ?: "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا.",
+                    0,
+                )
+                if (!canRetry || !wrapped.isRetryable || attempt > 0) throw wrapped
+                attempt++
+                delay(350L)
+            } finally {
+                connection.disconnect()
+            }
         }
     }
 
