@@ -63,6 +63,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun VerifyScreen(
     email: String,
+    debugCode: String? = null,
     onBack: () -> Unit,
     onVerified: () -> Unit,
 ) {
@@ -124,6 +125,34 @@ fun VerifyScreen(
             color = FuchsiaColors.Muted,
             textAlign = TextAlign.Center,
         )
+
+        if (!debugCode.isNullOrBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = FuchsiaColors.Rose),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        "رمز التجربة — لاستخدام الاختبار فقط",
+                        color = FuchsiaColors.TextAccent,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        debugCode,
+                        modifier = Modifier.padding(top = 3.dp),
+                        color = FuchsiaColors.Primary,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 8.sp,
+                    )
+                }
+            }
+        }
 
         OutlinedTextField(
             value = code,

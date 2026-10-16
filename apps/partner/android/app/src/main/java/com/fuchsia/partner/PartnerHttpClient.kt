@@ -31,7 +31,8 @@ internal object PartnerHttpClient {
     ): String = withContext(Dispatchers.IO) {
         val canRetry = method.equals("GET", ignoreCase = true)
         var attempt = 0
-        while (true) {
+        var response: String? = null
+        while (response == null) {
             val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
                 connectTimeout = connectTimeoutMs
@@ -45,7 +46,7 @@ internal object PartnerHttpClient {
             }
             try {
                 if (body != null) connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                return@withContext readResponse(connection)
+                response = readResponse(connection)
             } catch (error: PartnerApiException) {
                 if (!canRetry || !error.isRetryable || attempt > 0) throw error
                 attempt++
@@ -63,6 +64,7 @@ internal object PartnerHttpClient {
                 connection.disconnect()
             }
         }
+        response!!
     }
 
     suspend fun uploadImage(

@@ -22,7 +22,7 @@ internal object PartnerPushRegistration {
     private suspend fun firebaseToken(context: Context): String? {
         val app = firebaseApp(context) ?: return null
         return suspendCancellableCoroutine { continuation ->
-            FirebaseMessaging.getInstance(app).token.addOnCompleteListener { task ->
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                 if (task.isSuccessful) continuation.resume(task.result)
                 else continuation.resumeWithException(task.exception ?: IllegalStateException("تعذر الحصول على رمز Push"))
             }

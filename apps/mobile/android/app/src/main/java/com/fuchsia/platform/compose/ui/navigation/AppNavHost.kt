@@ -234,7 +234,10 @@ fun FuchsiaAppNavHost(
                             launchSingleTop = true
                         }
                     },
-                    onCodeRequested = { email, _ -> navController.navigate(AppRoutes.verify(email)) },
+                    onCodeRequested = { email, debugCode ->
+                        navController.currentBackStackEntry?.savedStateHandle?.set("debugCode", debugCode)
+                        navController.navigate(AppRoutes.verify(email))
+                    },
                 )
             }
             composable(
@@ -245,6 +248,7 @@ fun FuchsiaAppNavHost(
             ) { entry ->
                 VerifyScreen(
                     email = entry.arguments?.getString("email").orEmpty(),
+                    debugCode = navController.previousBackStackEntry?.savedStateHandle?.get<String>("debugCode"),
                     onBack = { navController.popBackStack() },
                     onVerified = {
                         navController.navigate(AppRoutes.Home) {

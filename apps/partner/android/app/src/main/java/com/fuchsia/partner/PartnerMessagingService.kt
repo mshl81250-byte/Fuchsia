@@ -14,14 +14,11 @@ import kotlinx.coroutines.launch
 class PartnerMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         val authToken = PartnerSession.token(this) ?: return
-        val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 PartnerApi.registerPushToken(authToken, token)
             } catch (_: Exception) {
                 // The next app launch registers the token again if the network is unavailable.
-            } finally {
-                pendingResult.finish()
             }
         }
     }

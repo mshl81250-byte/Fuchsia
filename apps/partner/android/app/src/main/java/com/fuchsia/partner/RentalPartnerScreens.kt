@@ -869,8 +869,18 @@ private fun rentDate(value: String): String = runCatching {
 
 private fun demoRentalCategories() = listOf(PartnerCategory(1, "كوش الأعراس"), PartnerCategory(2, "طاولات المناسبات"))
 private fun demoRentalProducts() = listOf(
-    PartnerRentalProduct(-901, -901, "كوش ملكية بالورود الطبيعية", "تنسيق ملكي للزفاف", 1, "kosh", "women", 150000.0, 30000.0, 1, 3, null, listOf("أبيض", "ذهبي"), 1, true, true, "", emptyList()),
-    PartnerRentalProduct(-902, -901, "طاولات مناسبات دائرية", "طاولات مع مفارش وألوان متعددة", 2, "table", "both", 12000.0, 2000.0, 1, 5, 75.0, listOf("أبيض", "ذهبي", "وردي"), 24, true, true, "", emptyList()),
+    PartnerRentalProduct(
+        id = -901, storeId = -901, name = "كوش ملكية بالورود الطبيعية", description = "تنسيق ملكي للزفاف",
+        categoryId = 1, rentalCategory = "kosh", audience = "women", dailyPrice = 150000.0, deposit = 30000.0,
+        minDays = 1, maxDays = 3, tableHeightCm = null, colors = listOf("أبيض", "ذهبي"), stockQuantity = 1,
+        inStock = true, isPublished = true, imageUrl = "", images = emptyList(),
+    ),
+    PartnerRentalProduct(
+        id = -902, storeId = -901, name = "طاولات مناسبات دائرية", description = "طاولات مع مفارش وألوان متعددة",
+        categoryId = 2, rentalCategory = "table", audience = "both", dailyPrice = 12000.0, deposit = 2000.0,
+        minDays = 1, maxDays = 5, tableHeightCm = 75.0, colors = listOf("أبيض", "ذهبي", "وردي"), stockQuantity = 24,
+        inStock = true, isPublished = true, imageUrl = "", images = emptyList(),
+    ),
 )
 private fun demoRentalBookings() = listOf(
     PartnerRentalBooking(-9901, "rental_pending_confirmation", "سارة محمد", "77XXXXXXX", 186000.0, 50000.0, "pending_review", null, "DEMO-REF-081", "حفل زفاف نسائي", listOf(PartnerRentalItem("كوش ملكية بالورود الطبيعية", 1, 150000.0, demoDate(12), 1, demoDate(12), "delivery", "evening", ""))),
