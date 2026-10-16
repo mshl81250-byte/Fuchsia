@@ -111,6 +111,7 @@ internal fun RentalPartnerHub(
     var bookingsError by remember { mutableStateOf("") }
     var maintenanceError by remember { mutableStateOf("") }
     var lastUpdatedAt by remember { mutableStateOf<Long?>(null) }
+    var connectionIssue by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var editorVisible by remember { mutableStateOf(false) }
     var editingProduct by remember { mutableStateOf<PartnerRentalProduct?>(null) }
@@ -141,18 +142,30 @@ internal fun RentalPartnerHub(
             bookingsError = ""
             maintenanceError = ""
             lastUpdatedAt = null
+            connectionIssue = false
             var loadedAny = false
+            var transientFailure = false
             runCatching { PartnerRentalApi.products(auth, storeId) }
                 .onSuccess { products = it; loadedAny = true }
-                .onFailure { productsError = it.message ?: "تعذر تحميل كتالوج الإيجار" }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    productsError = it.message ?: "تعذر تحميل كتالوج الإيجار"
+                }
             runCatching { PartnerRentalApi.bookings(auth, storeId) }
                 .onSuccess { bookings = it; loadedAny = true }
-                .onFailure { bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار" }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    bookingsError = it.message ?: "تعذر تحميل حجوزات الإيجار"
+                }
             runCatching { PartnerRentalApi.maintenance(auth, storeId, SimpleDateFormat("yyyy-MM", Locale.US).format(Calendar.getInstance().time)) }
                 .onSuccess { maintenance = it; loadedAny = true }
-                .onFailure { maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة" }
+                .onFailure {
+                    if ((it as? PartnerApiException)?.isRetryable == true) transientFailure = true
+                    maintenanceError = it.message ?: "تعذر تحميل فترات الصيانة"
+                }
             runCatching { PartnerRentalApi.categories() }.onSuccess { categories = it; loadedAny = true }.onFailure { categories = emptyList() }
             if (loadedAny) lastUpdatedAt = System.currentTimeMillis()
+            connectionIssue = transientFailure
             loading = false
         }
     }
@@ -179,6 +192,13 @@ internal fun RentalPartnerHub(
             RentalNotice("بيانات معاينة فقط؛ لا تُرفع صور ولا تُحفظ منتجات أو قرارات حجز حقيقية.")
         } else {
             Text("إدارة كتالوج التأجير والطلبات. قبول الطلب يعني تأكيد التوفر فقط، ولا يعتمد الدفعة المالية.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(bottom = 8.dp))
+            if (connectionIssue) {
+                RentalNotice(
+                    if (lastUpdatedAt != null) "الاتصال بالخادم غير مستقر؛ البيانات المعروضة قد لا تكون الأحدث. اضغط تحديث عند استقرار الاتصال."
+                    else "تعذر الوصول إلى الخادم. تحقق من الإنترنت ثم اضغط تحديث.",
+                    isError = true,
+                )
+            }
             lastUpdatedAt?.let { timestamp ->
                 Text(
                     "آخر تحديث ناجح: ${SimpleDateFormat("HH:mm", Locale.US).format(Date(timestamp))}",
