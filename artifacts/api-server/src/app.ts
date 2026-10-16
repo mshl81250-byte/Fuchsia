@@ -36,8 +36,8 @@ app.use("/uploads", express.static(path.resolve(process.cwd(), "artifacts/api-se
 app.use("/api", router);
 
 const adminDashboardDist = path.resolve(process.cwd(), "artifacts/admin-dashboard/dist/public");
-app.use("/admin", express.static(adminDashboardDist, { index: "index.html" }));
-app.use("/admin", (req, res, next) => {
+app.use("/admin-dashboard", express.static(adminDashboardDist, { index: "index.html" }));
+app.use("/admin-dashboard", (req, res, next) => {
   if (req.method !== "GET") {
     next();
     return;
