@@ -55,8 +55,12 @@ jobs:
           packages: 'platforms;android-36 build-tools;36.0.0'
       - name: Use available compile SDK on hosted runner
         run: |
-          sed -i 's/compileSdk = 37/compileSdk = 36/g' apps/mobile/android/app/build.gradle.kts
-          sed -i 's/compileSdk = 37/compileSdk = 36/g' apps/partner/android/app/build.gradle.kts
+          find apps -path '*/android/*.gradle.kts' -exec sed -i \
+            -e 's/compileSdk = 37/compileSdk = 36/g' \
+            -e 's/2026.09.00/2025.08.01/g' \
+            -e 's/1.13.0/1.10.1/g' \
+            -e 's/2.10.2/2.9.3/g' \
+            -e 's/2.11.0/2.9.2/g' {} +
       - name: Build client debug APK
         working-directory: apps/mobile/android
         run: ./gradlew :app:assembleDebug --no-daemon
