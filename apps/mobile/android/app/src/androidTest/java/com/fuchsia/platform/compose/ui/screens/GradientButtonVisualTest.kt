@@ -1,16 +1,12 @@
 package com.fuchsia.platform.compose.ui.screens
 
-import android.graphics.Bitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
+import android.os.ParcelFileDescriptor
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fuchsia.designsystem.FuchsiaTheme
-import java.io.File
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,10 +66,9 @@ class GradientButtonVisualTest {
     }
 
     private fun saveSnapshot(fileName: String) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
-        File(context.filesDir, fileName).outputStream().use { output ->
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
-        }
+        val command = "mkdir -p /sdcard/Download && screencap -p > /sdcard/Download/$fileName && test -s /sdcard/Download/$fileName && echo snapshot-ready"
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        val result = ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText().trim() }
+        check(result == "snapshot-ready") { "Failed to capture emulator snapshot $fileName" }
     }
 }
