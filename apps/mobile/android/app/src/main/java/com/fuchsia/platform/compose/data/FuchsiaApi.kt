@@ -107,6 +107,15 @@ data class PaymentWallet(
     val iconUrl: String?,
 )
 
+data class DeliveryQuote(val fee: Double, val distanceKm: Double)
+
+data class EngagementBoxOffer(
+    val title: String,
+    val description: String,
+    val dimensions: String,
+    val price: Double,
+)
+
 data class StoreSummary(
     val id: Int,
     val name: String,
@@ -190,6 +199,23 @@ data class TableReservation(
     val status: String,
     val customerName: String,
     val customerPhone: String,
+)
+
+data class VenueBooking(
+    val id: Int,
+    val venueId: Int,
+    val audience: String,
+    val reservationAt: String,
+    val bookingDays: Int,
+    val partySize: Int,
+    val dailyPrice: Double,
+    val totalAmount: Double,
+    val paymentAmount: Double,
+    val paymentType: String,
+    val paymentStatus: String,
+    val status: String,
+    val expiresAt: String?,
+    val createdAt: String,
 )
 
 data class DeliveryAddress(
@@ -446,22 +472,20 @@ object FuchsiaApi {
         }
     }
 
+    suspend fun deliveryQuote(latitude: Double, longitude: Double): DeliveryQuote = withContext(Dispatchers.IO) {
+        val response = getJson("/api/delivery/quote?latitude=${urlEncode(latitude.toString())}&longitude=${urlEncode(longitude.toString())}")
+        val fee = response.optDouble("fee", Double.NaN)
+        if (!fee.isFinite() || fee < 0) throw ApiException("تعذر حساب رسوم التوصيل من الخادم")
+        DeliveryQuote(fee, response.optDouble("distanceKm", 0.0))
+    }
+
     suspend fun venues(search: String = "", audience: String? = null): List<VenueSummary> = withContext(Dispatchers.IO) {
         val params = listOfNotNull(
             search.trim().takeIf(String::isNotBlank)?.let { "search=${urlEncode(it)}" },
             audience?.takeIf(String::isNotBlank)?.let { "audience=${urlEncode(it)}" },
         )
         val suffix = if (params.isEmpty()) "" else "?${params.joinToString("&")}"
-        try {
-            parseVenues(JSONArray(getText("/api/venues$suffix")))
-        } catch (failure: ApiException) {
-            if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
-            val term = search.trim().lowercase(Locale.forLanguageTag("ar"))
-            demoVenueFixtures.filter { venue ->
-                (audience.isNullOrBlank() || venue.audience == "both" || venue.audience == audience) &&
-                    (term.isBlank() || listOf(venue.name, venue.description, venue.address).any { it.lowercase(Locale.forLanguageTag("ar")).contains(term) })
-            }
-        }
+        parseVenues(JSONArray(getText("/api/venues$suffix")))
     }
 
     suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
@@ -524,7 +548,6 @@ object FuchsiaApi {
     }
 
     suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
-        if (BuildConfig.DEBUG && venueId in -1005..-1001) return@withContext demoAvailability(venueId, month, audience)
         val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
         val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }
             ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
@@ -549,6 +572,21 @@ object FuchsiaApi {
 
     suspend fun createOrder(payload: JSONObject, bearerToken: String? = null): JSONObject =
         post("/api/orders", payload, bearerToken)
+
+    suspend fun engagementBoxOffer(): EngagementBoxOffer = withContext(Dispatchers.IO) {
+        val response = getJson("/api/orders/offer")
+        val price = response.optDouble("price", Double.NaN)
+        if (!price.isFinite() || price <= 0) throw ApiException("بيانات عرض صندوق الخطوبة غير مكتملة")
+        EngagementBoxOffer(
+            title = response.optString("titleAr").ifBlank { "صندوق خطوبة متوسط" },
+            description = response.optString("descriptionAr"),
+            dimensions = response.optString("dimensions").ifBlank { "60×40 سم" },
+            price = price,
+        )
+    }
+
+    suspend fun createEngagementBoxOrder(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/orders/offer", "POST", payload, bearerToken = bearerToken)
 
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
@@ -659,8 +697,15 @@ object FuchsiaApi {
     suspend fun createReservation(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/reservations", "POST", payload, bearerToken = bearerToken).toReservation()
 
-    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
-        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
+    suspend fun venueBookings(bearerToken: String): List<VenueBooking> = withContext(Dispatchers.IO) {
+        val array = JSONArray(getText("/api/venue-bookings", bearerToken))
+        buildList {
+            for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(it.toVenueBooking()) }
+        }
+    }
+
+    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): VenueBooking =
+        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toVenueBooking()
 
     suspend fun uploadReceipt(context: Context, uri: Uri, bearerToken: String): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
@@ -855,6 +900,23 @@ object FuchsiaApi {
         status = optString("status").ifBlank { "pending" },
         customerName = optString("customerName"),
         customerPhone = optString("customerPhone"),
+    )
+
+    private fun JSONObject.toVenueBooking() = VenueBooking(
+        id = optInt("id"),
+        venueId = optInt("venueId"),
+        audience = optString("audience"),
+        reservationAt = optString("reservationAt"),
+        bookingDays = optInt("bookingDays", 1),
+        partySize = optInt("partySize"),
+        dailyPrice = optDouble("dailyPriceSnapshot", 0.0),
+        totalAmount = optDouble("totalAmount", 0.0),
+        paymentAmount = optDouble("paymentAmount", 0.0),
+        paymentType = optString("paymentType"),
+        paymentStatus = optString("paymentStatus").ifBlank { "pending_review" },
+        status = optString("status").ifBlank { "pending" },
+        expiresAt = nullableString("expiresAt"),
+        createdAt = optString("createdAt"),
     )
 
     private fun JSONObject.toDeliveryAddress() = DeliveryAddress(

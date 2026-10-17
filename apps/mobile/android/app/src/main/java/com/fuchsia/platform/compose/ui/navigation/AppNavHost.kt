@@ -102,7 +102,7 @@ object AppRoutes {
     const val Category = "category/{id}"
     const val Product = "product/{id}"
     const val Cart = "cart"
-    const val Checkout = "checkout?gift={gift}"
+    const val Checkout = "checkout?gift={gift}&offer={offer}"
     const val GiftOrder = "gift-order"
     const val Reservation = "reservation"
     const val VenueBooking = "venue-booking"
@@ -126,7 +126,7 @@ object AppRoutes {
     fun verify(email: String): String = "verify/${Uri.encode(email)}"
     fun category(id: Int): String = "category/$id"
     fun product(id: Int): String = "product/$id"
-    fun checkout(gift: Boolean): String = "checkout?gift=$gift"
+    fun checkout(gift: Boolean, engagementOffer: Boolean = false): String = "checkout?gift=$gift&offer=$engagementOffer"
     fun orderSuccess(id: Int): String = "order-success/$id"
     fun orders(focusOrderId: Int = 0): String = "orders?focusOrderId=$focusOrderId"
 }
@@ -346,7 +346,10 @@ fun FuchsiaAppNavHost(
             }
             composable(
                 route = AppRoutes.Checkout,
-                arguments = listOf(navArgument("gift") { type = NavType.BoolType; defaultValue = false }),
+                arguments = listOf(
+                    navArgument("gift") { type = NavType.BoolType; defaultValue = false },
+                    navArgument("offer") { type = NavType.BoolType; defaultValue = false },
+                ),
             ) { entry ->
                 CheckoutScreen(
                     initialGift = entry.arguments?.getBoolean("gift") ?: false,
@@ -360,6 +363,8 @@ fun FuchsiaAppNavHost(
                         }
                     },
                     onManageAddresses = { navController.navigate(AppRoutes.AddressBook) },
+                    engagementOffer = entry.arguments?.getBoolean("offer") ?: false,
+                    onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
                 )
             }
             composable(AppRoutes.GiftOrder) {
@@ -367,13 +372,17 @@ fun FuchsiaAppNavHost(
                     onBack = { navController.popBackStack() },
                     onCart = { navController.navigate(AppRoutes.Cart) },
                     onGiftCheckout = { navController.navigate(AppRoutes.checkout(gift = true)) },
+                    onEngagementOffer = { navController.navigate(AppRoutes.checkout(gift = true, engagementOffer = true)) },
                 )
             }
             composable(AppRoutes.Reservation) {
                 ReservationScreen(onBack = { navController.popBackStack() })
             }
             composable(AppRoutes.VenueBooking) {
-                VenueBookingScreen(onBack = { navController.popBackStack() })
+                VenueBookingScreen(
+                    onBack = { navController.popBackStack() },
+                    onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
+                )
             }
             composable(
                 route = AppRoutes.Orders,

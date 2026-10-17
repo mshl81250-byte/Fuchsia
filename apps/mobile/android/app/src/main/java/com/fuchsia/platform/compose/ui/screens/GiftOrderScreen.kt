@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fuchsia.platform.compose.data.FuchsiaApi
+import com.fuchsia.platform.compose.data.EngagementBoxOffer
 import com.fuchsia.platform.compose.data.SessionVault
 import com.fuchsia.platform.compose.data.StoreProduct
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -48,12 +49,16 @@ fun GiftOrderScreen(
     onBack: () -> Unit,
     onCart: () -> Unit,
     onGiftCheckout: () -> Unit,
+    onEngagementOffer: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var products by remember { mutableStateOf<List<StoreProduct>>(emptyList()) }
+    var offer by remember { mutableStateOf<EngagementBoxOffer?>(null) }
+    var offerLoading by remember { mutableStateOf(true) }
+    var offerError by remember { mutableStateOf("") }
     var cartCount by remember { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var busyProductId by remember { mutableIntStateOf(0) }
@@ -63,6 +68,11 @@ fun GiftOrderScreen(
     LaunchedEffect(sessionId, reloadKey) {
         loading = true
         error = ""
+        offerLoading = true
+        runCatching { FuchsiaApi.engagementBoxOffer() }
+            .onSuccess { offer = it; offerError = "" }
+            .onFailure { offer = null; offerError = it.message ?: "تعذر تحميل العرض من الخادم." }
+        offerLoading = false
         try {
             products = FuchsiaApi.featuredProducts().filter { it.fulfillmentType != "rental" }
             if (sessionId != null) cartCount = FuchsiaApi.getCart(sessionId).items.sumOf { it.quantity }
@@ -111,6 +121,27 @@ fun GiftOrderScreen(
             }
             item {
                 CommerceNotice("تأكيد الطلب يتم من الخادم. يمكن إضافة اسم الشخص المستلم ورسالة الإهداء وإخفاء السعر عند الإتمام.")
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(21.dp),
+                    colors = CardDefaults.cardColors(containerColor = FuchsiaColors.RoseLight),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FuchsiaColors.Primary.copy(alpha = .35f)),
+                ) {
+                    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("عرض صندوق الخطوبة", color = FuchsiaColors.TextAccent, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                        Text(offer?.title ?: "صندوق خطوبة متوسط · 60×40 سم", color = FuchsiaColors.Ink, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text(offer?.description ?: offerError.ifBlank { "نحمّل السعر والمواصفات مباشرة من الخادم." }, color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                        if (offer != null) Text("${offer!!.dimensions} · ${formatYemeniRiyal(offer!!.price)}", color = FuchsiaColors.TextAccent, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold)
+                        else if (offerLoading) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
+                        CommercePrimaryButton(
+                            text = when { offerLoading -> "جارٍ تحميل العرض"; offer == null -> "إعادة تحميل العرض"; else -> "متابعة طلب الصندوق" },
+                            enabled = !offerLoading,
+                            onClick = if (offer == null) ({ reloadKey++ }) else onEngagementOffer,
+                        )
+                    }
+                }
             }
             if (loading && products.isEmpty()) {
                 item {
