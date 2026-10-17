@@ -186,6 +186,13 @@ jobs:
         run: |
           set -euo pipefail
           adb_path="$ANDROID_HOME/platform-tools/adb"
+          client_apk=$(find apps/mobile/android/app/build/outputs/apk/debug -maxdepth 1 -name '*x86_64*debug.apk' -print -quit)
+          if [ -z "$client_apk" ]; then
+            find apps/mobile/android/app/build/outputs/apk/debug -maxdepth 1 -type f -print || true
+            echo 'Client x86_64 debug APK was not generated.' >&2
+            exit 1
+          fi
+          "$adb_path" install -r "$client_apk"
           activity_ready=false
           for attempt in $(seq 1 60); do
             activity_service=$("$adb_path" shell service check activity 2>&1 | tr -d '\r' || true)
