@@ -125,12 +125,12 @@ jobs:
           fi
           "$ANDROID_HOME/emulator/emulator" -avd fuchsia-api-smoke \
             -no-window -no-audio -no-boot-anim -no-snapshot \
-            -gpu swiftshader_indirect -accel auto \
+            -gpu swiftshader_indirect -accel off \
             > "$RUNNER_TEMP/fuchsia-emulator.log" 2>&1 &
           emulator_pid=$!
           adb_path="$ANDROID_HOME/platform-tools/adb"
           booted=false
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 180); do
             if ! kill -0 "$emulator_pid" 2>/dev/null; then
               cat "$RUNNER_TEMP/fuchsia-emulator.log"
               echo 'Android emulator process exited before boot.' >&2
