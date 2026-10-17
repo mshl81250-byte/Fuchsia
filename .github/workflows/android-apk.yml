@@ -114,6 +114,9 @@ jobs:
           set -euo pipefail
           export ANDROID_AVD_HOME="$HOME/.android/avd"
           mkdir -p "$ANDROID_AVD_HOME"
+          if [ ! -e /dev/kvm ]; then echo 'KVM device is unavailable on this runner.' >&2; exit 1; fi
+          sudo chmod 666 /dev/kvm
+          ls -l /dev/kvm
           printf 'no\n' | timeout 120s "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
             create avd --force --name fuchsia-api-smoke --device pixel_2 \
             --package 'system-images;android-36;google_apis;x86_64' \
@@ -125,12 +128,12 @@ jobs:
           fi
           "$ANDROID_HOME/emulator/emulator" -avd fuchsia-api-smoke \
             -no-window -no-audio -no-boot-anim -no-snapshot \
-            -gpu swiftshader_indirect -accel off \
+            -gpu swiftshader_indirect -accel auto \
             > "$RUNNER_TEMP/fuchsia-emulator.log" 2>&1 &
           emulator_pid=$!
           adb_path="$ANDROID_HOME/platform-tools/adb"
           booted=false
-          for attempt in $(seq 1 180); do
+          for attempt in $(seq 1 90); do
             if ! kill -0 "$emulator_pid" 2>/dev/null; then
               cat "$RUNNER_TEMP/fuchsia-emulator.log"
               echo 'Android emulator process exited before boot.' >&2
@@ -163,6 +166,20 @@ jobs:
         run: |
           set -euo pipefail
           adb_path="$ANDROID_HOME/platform-tools/adb"
+          activity_ready=false
+          for attempt in $(seq 1 60); do
+            activity_service=$("$adb_path" shell service check activity 2>&1 | tr -d '\r' || true)
+            if [[ "$activity_service" == *found* ]]; then
+              activity_ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$activity_ready" != true ]; then
+            "$adb_path" logcat -d -s SystemServer:E AndroidRuntime:E
+            echo 'Android activity service did not remain available.' >&2
+            exit 1
+          fi
           "$adb_path" shell am start -W -n com.fuchsia.platform.debug/com.fuchsia.platform.compose.MainActivity
           sleep 5
           app_pid=$("$adb_path" shell pidof com.fuchsia.platform.debug | tr -d '\r' || true)
