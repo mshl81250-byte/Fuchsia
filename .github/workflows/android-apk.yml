@@ -10,10 +10,10 @@ permissions:
   contents: read
 
 jobs:
-  android:
-    name: Android API smoke test and debug APK
+  build-apk:
+    name: Build installable ARM debug APKs
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -27,9 +27,49 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools emulator system-images;android-36;google_apis;x86_64'
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools'
 
       - name: Use hosted SDK-compatible versions
+        run: |
+          find apps -path '*/android/*.gradle.kts' -exec sed -i \
+            -e 's/compileSdk = 37/compileSdk = 36/g' \
+            -e 's/2026.09.00/2025.08.01/g' \
+            -e 's/1.13.0/1.10.1/g' \
+            -e 's/2.10.2/2.9.3/g' \
+            -e 's/2.11.0/2.9.2/g' {} +
+
+      - name: Build client debug APKs
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload installable ARM APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuchsia-android-debug-apks
+          if-no-files-found: error
+          retention-days: 14
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+
+  android-smoke:
+    name: Test client API and UI on Android emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK and emulator image
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0 platform-tools emulator system-images;android-36;google_apis;x86_64'
+
+      - name: Use hosted SDK-compatible emulator build versions
         run: |
           find apps -path '*/android/*.gradle.kts' -exec sed -i \
             -e 's/compileSdk = 37/compileSdk = 36/g' \
@@ -40,46 +80,62 @@ jobs:
           sed -i 's/include("arm64-v8a", "armeabi-v7a")/include("x86_64")/' \
             apps/mobile/android/app/build.gradle.kts
 
-      - name: Create Android emulator
+      - name: Create and boot Android emulator with bounded waits
         run: |
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd \
-            --force \
-            --name fuchsia-api-smoke \
-            --device pixel_2 \
+          set -euo pipefail
+          printf 'no\n' | timeout 120s "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
+            create avd --force --name fuchsia-api-smoke --device pixel_2 \
             --package 'system-images;android-36;google_apis;x86_64'
           "$ANDROID_HOME/emulator/emulator" -avd fuchsia-api-smoke \
             -no-window -no-audio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -accel auto \
             > "$RUNNER_TEMP/fuchsia-emulator.log" 2>&1 &
-          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          emulator_pid=$!
+          adb_path="$ANDROID_HOME/platform-tools/adb"
+          booted=false
           for attempt in $(seq 1 60); do
-            if [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
-              "$ANDROID_HOME/platform-tools/adb" shell settings put global window_animation_scale 0
-              "$ANDROID_HOME/platform-tools/adb" shell settings put global transition_animation_scale 0
-              "$ANDROID_HOME/platform-tools/adb" shell settings put global animator_duration_scale 0
-              exit 0
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/fuchsia-emulator.log"
+              echo 'Android emulator process exited before boot.' >&2
+              exit 1
+            fi
+            device_state=$(timeout 10s "$adb_path" get-state 2>/dev/null || true)
+            if [ "$device_state" = 'device' ]; then
+              boot_state=$(timeout 10s "$adb_path" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)
+              if [ "$boot_state" = '1' ]; then
+                booted=true
+                break
+              fi
             fi
             sleep 5
           done
-          cat "$RUNNER_TEMP/fuchsia-emulator.log"
-          echo 'Android emulator did not finish booting.' >&2
-          exit 1
+          if [ "$booted" != true ]; then
+            cat "$RUNNER_TEMP/fuchsia-emulator.log"
+            echo 'Android emulator did not finish booting within five minutes.' >&2
+            exit 1
+          fi
+          "$adb_path" shell settings put global window_animation_scale 0
+          "$adb_path" shell settings put global transition_animation_scale 0
+          "$adb_path" shell settings put global animator_duration_scale 0
 
-      - name: Test client API connection on Android emulator
+      - name: Test configured API from Android emulator
         working-directory: apps/mobile/android
         run: ./gradlew :app:connectedDebugAndroidTest --no-daemon
 
-      - name: Build ARM debug APKs
-        working-directory: apps/mobile/android
+      - name: Launch app and capture initial screen
         run: |
-          sed -i 's/include("x86_64")/include("arm64-v8a", "armeabi-v7a")/' app/build.gradle.kts
-          rm -rf app/build/outputs/apk/debug
-          ./gradlew :app:assembleDebug --no-daemon
+          set -euo pipefail
+          adb shell am start -W -n com.fuchsia.platform.debug/com.fuchsia.platform.compose.MainActivity
+          sleep 5
+          adb shell pidof com.fuchsia.platform.debug
+          mkdir -p "$RUNNER_TEMP/fuchsia-ui"
+          adb exec-out screencap -p > "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
 
-      - name: Upload installable debug APKs
+      - name: Upload Android emulator screenshot
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fuchsia-android-debug-apks
-          if-no-files-found: error
+          name: fuchsia-android-ui-smoke
+          if-no-files-found: ignore
           retention-days: 14
-          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          path: ${{ runner.temp }}/fuchsia-ui/android-initial-screen.png
