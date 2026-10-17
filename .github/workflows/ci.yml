@@ -29,6 +29,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Rental availability regression test
         run: pnpm --filter @workspace/api-server exec tsx src/lib/rental-availability.test.ts
+      - name: Build workspace libraries
+        run: pnpm run typecheck:libs
       - name: Typecheck API
         run: pnpm --filter @workspace/api-server run typecheck
       - name: Build API
@@ -43,14 +45,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages
-        run: sdkmanager 'platforms;android-37' 'build-tools;36.0.0'
+        with:
+          packages: 'platforms;android-37 build-tools;36.0.0'
       - name: Build client debug APK
         working-directory: apps/mobile/android
         run: ./gradlew :app:assembleDebug --no-daemon
