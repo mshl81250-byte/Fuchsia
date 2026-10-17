@@ -178,6 +178,16 @@ jobs:
         working-directory: apps/mobile/android
         run: ./gradlew :app:connectedDebugAndroidTest --no-daemon
 
+      - name: Collect target-screen visual snapshots from Android emulator
+        run: |
+          set -euo pipefail
+          adb_path="$ANDROID_HOME/platform-tools/adb"
+          mkdir -p "$RUNNER_TEMP/fuchsia-ui"
+          for screen in fuchsia-auth-register.png fuchsia-auth-login.png fuchsia-commerce-empty.png; do
+            "$adb_path" shell run-as com.fuchsia.platform.debug cat "files/$screen" > "$RUNNER_TEMP/fuchsia-ui/$screen"
+            test -s "$RUNNER_TEMP/fuchsia-ui/$screen"
+          done
+
       - name: Build business app for Android emulator
         working-directory: apps/partner/android
         run: ./gradlew :app:assembleDebug --no-daemon
