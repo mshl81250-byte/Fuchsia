@@ -138,7 +138,7 @@ fun GiftOrderScreen(
                         CommercePrimaryButton(
                             text = when { offerLoading -> "جارٍ تحميل العرض"; offer == null -> "إعادة تحميل العرض"; else -> "متابعة طلب الصندوق" },
                             enabled = !offerLoading,
-                            onClick = if (offer == null) ({ reloadKey++ }) else onEngagementOffer,
+                            onClick = if (offer == null) ({ reloadKey++; Unit }) else onEngagementOffer,
                         )
                     }
                 }
