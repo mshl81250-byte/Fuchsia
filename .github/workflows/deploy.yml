@@ -1,0 +1,48 @@
+name: Fuchsia Server Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      healthcheck_url:
+        description: 'Public health URL, for example https://api.example.com/api/healthz'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy server through hosting webhook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Require configured deployment webhook
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        run: |
+          test -n "$DEPLOY_WEBHOOK_URL" || {
+            echo 'Missing DEPLOY_WEBHOOK_URL repository secret. Configure it with the hosting provider deploy-hook URL.'
+            exit 1
+          }
+      - name: Trigger hosting deployment
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        run: curl --fail-with-body --silent --show-error --request POST "$DEPLOY_WEBHOOK_URL"
+      - name: Wait for service and verify health
+        env:
+          HEALTHCHECK_URL: ${{ inputs.healthcheck_url }}
+        run: |
+          for attempt in $(seq 1 30); do
+            status=$(curl --silent --output /tmp/health.json --write-out '%{http_code}' "$HEALTHCHECK_URL" || true)
+            if [ "$status" = '200' ] && grep -q '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "Waiting for deployment (attempt $attempt, HTTP $status)..."
+            sleep 10
+          done
+          echo 'Deployment did not become healthy within 5 minutes.'
+          cat /tmp/health.json 2>/dev/null || true
+          exit 1
