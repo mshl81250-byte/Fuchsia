@@ -1,4 +1,4 @@
-name: Android client APK
+name: Android client and business APKs
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
         run: pnpm --filter @workspace/api-server run test:auth-security
 
   build-apk:
-    name: Build installable ARM debug APKs
+    name: Build low-size ARM release APKs (client and business)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -67,20 +67,34 @@ jobs:
             -e 's/2.10.2/2.9.3/g' \
             -e 's/2.11.0/2.9.2/g' {} +
 
-      - name: Build client debug APKs
+      - name: Build client low-size release APKs
         working-directory: apps/mobile/android
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon
 
-      - name: Upload installable ARM APKs
+      - name: Build business low-size release APKs
+        working-directory: apps/partner/android
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Collect release APKs and report file sizes
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fuchsia-apks/client" "$RUNNER_TEMP/fuchsia-apks/business"
+          cp apps/mobile/android/app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/fuchsia-apks/client/"
+          cp apps/partner/android/app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/fuchsia-apks/business/"
+          find "$RUNNER_TEMP/fuchsia-apks" -type f -name '*.apk' -print -exec du -h {} \; -exec sha256sum {} \;
+
+      - name: Upload low-size client and business ARM APKs
         uses: actions/upload-artifact@v4
         with:
-          name: fuchsia-android-debug-apks
+          name: fuchsia-client-business-release-apks
           if-no-files-found: error
           retention-days: 14
-          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          path: |
+            ${{ runner.temp }}/fuchsia-apks/client/*.apk
+            ${{ runner.temp }}/fuchsia-apks/business/*.apk
 
   android-smoke:
-    name: Test client API and UI on Android emulator
+    name: Test client API, client UI and business app on Android emulator
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -108,6 +122,8 @@ jobs:
             -e 's/2.11.0/2.9.2/g' {} +
           sed -i 's/include("arm64-v8a", "armeabi-v7a")/include("x86_64")/' \
             apps/mobile/android/app/build.gradle.kts
+          sed -i 's/include("arm64-v8a", "armeabi-v7a")/include("x86_64")/' \
+            apps/partner/android/app/build.gradle.kts
 
       - name: Create and boot Android emulator with bounded waits
         run: |
@@ -162,6 +178,10 @@ jobs:
         working-directory: apps/mobile/android
         run: ./gradlew :app:connectedDebugAndroidTest --no-daemon
 
+      - name: Build business app for Android emulator
+        working-directory: apps/partner/android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
       - name: Launch app and capture initial screen
         run: |
           set -euo pipefail
@@ -192,6 +212,22 @@ jobs:
           "$adb_path" exec-out screencap -p > "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
           test -s "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
 
+      - name: Install, launch and capture business app
+        run: |
+          set -euo pipefail
+          adb_path="$ANDROID_HOME/platform-tools/adb"
+          "$adb_path" install -r apps/partner/android/app/build/outputs/apk/debug/app-x86_64-debug.apk
+          "$adb_path" shell am start -W -n com.fuchsia.partner/com.fuchsia.partner.MainActivity
+          sleep 5
+          app_pid=$("$adb_path" shell pidof com.fuchsia.partner | tr -d '\r' || true)
+          if [ -z "$app_pid" ]; then
+            "$adb_path" logcat -d -s AndroidRuntime:E
+            echo 'Fuchsia business app did not remain running after launch.' >&2
+            exit 1
+          fi
+          "$adb_path" exec-out screencap -p > "$RUNNER_TEMP/fuchsia-ui/android-business-initial-screen.png"
+          test -s "$RUNNER_TEMP/fuchsia-ui/android-business-initial-screen.png"
+
       - name: Upload Android emulator screenshot
         if: always()
         uses: actions/upload-artifact@v4
@@ -199,4 +235,4 @@ jobs:
           name: fuchsia-android-ui-smoke
           if-no-files-found: ignore
           retention-days: 14
-          path: ${{ runner.temp }}/fuchsia-ui/android-initial-screen.png
+          path: ${{ runner.temp }}/fuchsia-ui/*.png
