@@ -1,9 +1,15 @@
 package com.fuchsia.platform.compose.ui.screens
 
-import android.os.ParcelFileDescriptor
+import android.content.ContentValues
+import android.graphics.Bitmap
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fuchsia.designsystem.FuchsiaTheme
@@ -66,9 +72,17 @@ class GradientButtonVisualTest {
     }
 
     private fun saveSnapshot(fileName: String) {
-        val command = "mkdir -p /sdcard/Download && screencap -p > /sdcard/Download/$fileName && test -s /sdcard/Download/$fileName && echo snapshot-ready"
-        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
-        val result = ParcelFileDescriptor.AutoCloseInputStream(output).bufferedReader().use { it.readText().trim() }
-        check(result == "snapshot-ready") { "Failed to capture emulator snapshot $fileName" }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val bitmap = composeRule.onRoot().captureToImage().asAndroidBitmap()
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/FuchsiaTest/")
+        }
+        val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            ?: error("Unable to create emulator screenshot $fileName")
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output))
+        } ?: error("Unable to write emulator screenshot $fileName")
     }
 }

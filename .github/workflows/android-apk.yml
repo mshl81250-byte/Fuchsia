@@ -184,7 +184,7 @@ jobs:
           adb_path="$ANDROID_HOME/platform-tools/adb"
           mkdir -p "$RUNNER_TEMP/fuchsia-ui"
           for screen in fuchsia-auth-register.png fuchsia-auth-login.png fuchsia-commerce-empty.png; do
-            "$adb_path" pull "/sdcard/Download/$screen" "$RUNNER_TEMP/fuchsia-ui/$screen"
+            "$adb_path" pull "/sdcard/Pictures/FuchsiaTest/$screen" "$RUNNER_TEMP/fuchsia-ui/$screen"
             test -s "$RUNNER_TEMP/fuchsia-ui/$screen"
           done
 
