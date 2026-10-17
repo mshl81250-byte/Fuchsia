@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -78,7 +79,7 @@ fun GiftOrderScreen(
         bottomBar = {
             if (cartCount > 0) {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
                     colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
@@ -124,7 +125,10 @@ fun GiftOrderScreen(
                             ProductCard(
                                 product = product,
                                 modifier = Modifier.weight(1f),
+                                isAdding = busyProductId == product.id,
+                                addEnabled = busyProductId == 0,
                                 onAdd = {
+                                    if (busyProductId != 0) return@ProductCard
                                     val id = sessionId
                                     if (id == null) {
                                         scope.launch { snackbar.showSnackbar("يرجى تسجيل الدخول أو بدء التصفح دون حساب قبل إضافة الهدية.") }

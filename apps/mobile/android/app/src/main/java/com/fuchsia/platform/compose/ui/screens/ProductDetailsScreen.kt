@@ -198,9 +198,9 @@ fun ProductDetailsScreen(productId: Int, onBack: () -> Unit, onCart: () -> Unit,
                         }
                         QuantityStepper(
                             quantity = quantity,
-                            maxQuantity = if (current.fulfillmentType == "rental") (current.stockQuantity ?: 1).coerceAtLeast(1) else Int.MAX_VALUE,
+                            maxQuantity = if (current.fulfillmentType == "rental") (current.stockQuantity ?: 1).coerceAtLeast(1) else (current.stockQuantity ?: 99).coerceIn(1, 99),
                             onDecrease = { if (quantity > 1) quantity-- },
-                            onIncrease = { quantity++ },
+                            onIncrease = { if (quantity < (current.stockQuantity ?: 99).coerceIn(1, 99)) quantity++ },
                         )
                     }
                 }

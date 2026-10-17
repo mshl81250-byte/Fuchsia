@@ -68,7 +68,7 @@ fun VerifyScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var code by rememberSaveable { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
     var secondsLeft by rememberSaveable { mutableIntStateOf(180) }
     var busy by remember { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf("") }
@@ -78,6 +78,7 @@ fun VerifyScreen(
             delay(1_000)
             secondsLeft -= 1
         }
+        code = ""
     }
 
     Column(
@@ -165,6 +166,7 @@ fun VerifyScreen(
                     try {
                         val session = FuchsiaApi.verifyRegistrationCode(email, code)
                         SessionVault.save(context, session.user, session.token)
+                        code = ""
                         onVerified()
                     } catch (failure: Throwable) {
                         error = failure.message ?: "تعذر التحقق من الرمز."

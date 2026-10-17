@@ -304,6 +304,7 @@ fun FuchsiaAppNavHost(
             }
             composable(AppRoutes.Wishlist) {
                 WishlistScreen(
+                    onBack = { selectTab(AppRoutes.Home) },
                     onSignIn = { navController.navigate(AppRoutes.auth(register = false)) },
                     onProduct = { navController.navigate(AppRoutes.product(it)) },
                     onCart = { navController.navigate(AppRoutes.Cart) },
@@ -420,7 +421,7 @@ fun FuchsiaAppNavHost(
                     onAbout = { navController.navigate(AppRoutes.About) },
                     onAdvanced = { navController.navigate(AppRoutes.Advanced) },
                     onFeedback = { navController.navigate(AppRoutes.Feedback) },
-                    bottomBar = { FuchsiaBottomBar(AppRoutes.Settings, ::selectTab) },
+                    bottomBar = { FuchsiaBottomBar(AppRoutes.Account, ::selectTab) },
                 )
             }
             composable(AppRoutes.AccountInfo) {

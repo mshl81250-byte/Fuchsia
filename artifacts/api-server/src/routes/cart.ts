@@ -5,6 +5,7 @@ import { eq, and, isNull } from "drizzle-orm";
 
 const router = Router();
 const DELIVERY_FEE = 500;
+const MAX_CART_QUANTITY = 99;
 
 function lineTotal(item: typeof cartItemsTable.$inferSelect): number {
   return item.price * item.quantity;
@@ -51,7 +52,7 @@ router.get("/", async (req, res): Promise<void> => {
 router.post("/", async (req, res): Promise<void> => {
   try {
     const { sessionId, productId, quantity, giftWrapping, giftMessage } = req.body;
-    if (!sessionId || !productId || !Number.isInteger(quantity) || quantity < 1) {
+    if (!sessionId || !productId || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
       res.status(400).json({ error: "بيانات المنتج أو الكمية غير صحيحة" });
       return;
     }
@@ -79,9 +80,18 @@ router.post("/", async (req, res): Promise<void> => {
         isNull(cartItemsTable.rentalDays),
       ),
     );
+    const updatedQuantity = (existing[0]?.quantity ?? 0) + quantity;
+    if (
+      !Number.isSafeInteger(updatedQuantity) ||
+      updatedQuantity > MAX_CART_QUANTITY ||
+      (product.stockQuantity != null && product.stockQuantity < updatedQuantity)
+    ) {
+      res.status(400).json({ error: "الكمية المطلوبة تتجاوز المتاح أو الحد المسموح" });
+      return;
+    }
 
     if (existing[0]) {
-      await db.update(cartItemsTable).set({ quantity: existing[0].quantity + quantity }).where(eq(cartItemsTable.id, existing[0].id));
+      await db.update(cartItemsTable).set({ quantity: updatedQuantity }).where(eq(cartItemsTable.id, existing[0].id));
     } else {
       await db.insert(cartItemsTable).values({
         sessionId,
@@ -111,20 +121,33 @@ router.post("/", async (req, res): Promise<void> => {
 
 router.patch("/:itemId", async (req, res): Promise<void> => {
   try {
-    const itemId = parseInt(req.params.itemId);
+    const itemId = Number.parseInt(req.params.itemId, 10);
+    const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
     const { quantity } = req.body;
-    const [current] = await db.select().from(cartItemsTable).where(eq(cartItemsTable.id, itemId));
+    if (!Number.isSafeInteger(itemId) || itemId < 1 || !sessionId || sessionId.length > 200) {
+      res.status(400).json({ error: "بيانات السلة غير صحيحة" });
+      return;
+    }
+    const [current] = await db.select().from(cartItemsTable).where(
+      and(eq(cartItemsTable.id, itemId), eq(cartItemsTable.sessionId, sessionId)),
+    );
     if (!current) {
       res.status(404).json({ error: "Item not found" });
       return;
     }
-    if (!Number.isInteger(quantity)) {
-      res.status(400).json({ error: "الكمية غير صحيحة" });
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
+      res.status(400).json({ error: `يجب أن تكون الكمية بين 1 و${MAX_CART_QUANTITY}` });
       return;
     }
-    if (quantity <= 0) await db.delete(cartItemsTable).where(eq(cartItemsTable.id, itemId));
-    else await db.update(cartItemsTable).set({ quantity }).where(eq(cartItemsTable.id, itemId));
-    res.json(await buildCart(current.sessionId));
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, current.productId));
+    if (!product || !product.inStock || (product.stockQuantity != null && product.stockQuantity < quantity)) {
+      res.status(400).json({ error: "الكمية المطلوبة غير متوفرة حاليًا" });
+      return;
+    }
+    await db.update(cartItemsTable).set({ quantity }).where(
+      and(eq(cartItemsTable.id, itemId), eq(cartItemsTable.sessionId, sessionId)),
+    );
+    res.json(await buildCart(sessionId));
   } catch (err) {
     req.log.error({ err }, "Failed to update cart item");
     res.status(500).json({ error: "Internal server error" });
@@ -133,14 +156,23 @@ router.patch("/:itemId", async (req, res): Promise<void> => {
 
 router.delete("/:itemId", async (req, res): Promise<void> => {
   try {
-    const itemId = parseInt(req.params.itemId);
-    const [item] = await db.select().from(cartItemsTable).where(eq(cartItemsTable.id, itemId));
+    const itemId = Number.parseInt(req.params.itemId, 10);
+    const sessionId = typeof req.body?.sessionId === "string" ? req.body.sessionId.trim() : "";
+    if (!Number.isSafeInteger(itemId) || itemId < 1 || !sessionId || sessionId.length > 200) {
+      res.status(400).json({ error: "بيانات السلة غير صحيحة" });
+      return;
+    }
+    const [item] = await db.select().from(cartItemsTable).where(
+      and(eq(cartItemsTable.id, itemId), eq(cartItemsTable.sessionId, sessionId)),
+    );
     if (!item) {
       res.status(404).json({ error: "Item not found" });
       return;
     }
-    await db.delete(cartItemsTable).where(eq(cartItemsTable.id, itemId));
-    res.json(await buildCart(item.sessionId));
+    await db.delete(cartItemsTable).where(
+      and(eq(cartItemsTable.id, itemId), eq(cartItemsTable.sessionId, sessionId)),
+    );
+    res.json(await buildCart(sessionId));
   } catch (err) {
     req.log.error({ err }, "Failed to remove cart item");
     res.status(500).json({ error: "Internal server error" });

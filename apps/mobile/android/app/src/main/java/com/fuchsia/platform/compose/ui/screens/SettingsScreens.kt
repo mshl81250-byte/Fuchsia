@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Security
@@ -288,7 +289,7 @@ private fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, t
                 Text(title, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                 Text(detail, color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodySmall)
             }
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, tint = FuchsiaColors.Muted, modifier = Modifier.size(18.dp))
+            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = FuchsiaColors.Muted, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -356,20 +357,23 @@ fun HelpScreen(onBack: () -> Unit) {
 fun ContactScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var shopPhone by remember { mutableStateOf("778360009") }
+    val normalizedShopPhone = remember(shopPhone) { normalizeYemeniPhone(shopPhone) }
     var address by remember { mutableStateOf("يتم تحميل عنوان المتجر…") }
     LaunchedEffect(Unit) { runCatching { FuchsiaApi.stores().firstOrNull() }.getOrNull()?.let { store -> shopPhone = store.phone.ifBlank { shopPhone }; address = store.location.ifBlank { "عنوان المتجر غير محدد حاليًا" } } }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
         Column(
-            Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp),
+            Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             UtilityHeader("تواصل معنا", onBack)
             Text("نسعد بخدمتك والإجابة عن استفسارات الطلبات والحجوزات.", color = FuchsiaColors.Muted, style = MaterialTheme.typography.bodyMedium)
             PolicyCard("عنوان المتجر", address)
             PolicyCard("رقم الهاتف", shopPhone)
+            if (normalizedShopPhone == null) Text("رقم المتجر غير صالح لإجراء مكالمة أو فتح واتساب.", color = FuchsiaColors.Error)
             Button(
-                onClick = { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$shopPhone"))) },
+                onClick = { normalizedShopPhone?.let { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", "+$it", null))) } },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = normalizedShopPhone != null,
                 colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
                 shape = RoundedCornerShape(15.dp),
             ) {
@@ -378,8 +382,9 @@ fun ContactScreen(onBack: () -> Unit) {
                 Text("اتصال بالمتجر", color = FuchsiaColors.OnPrimary, fontWeight = FontWeight.Bold)
             }
             OutlinedButton(
-                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/967$shopPhone"))) },
+                onClick = { normalizedShopPhone?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$it"))) } },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
+                enabled = normalizedShopPhone != null,
                 shape = RoundedCornerShape(15.dp),
             ) {
                 Icon(Icons.Rounded.Storefront, contentDescription = null, tint = FuchsiaColors.Primary)
@@ -400,7 +405,7 @@ fun AboutScreen(onBack: () -> Unit) {
         }.getOrNull().orEmpty().ifBlank { BuildConfig.VERSION_NAME }
     }
     Scaffold(containerColor = FuchsiaColors.Cream) { insets ->
-        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).padding(horizontal = 20.dp, vertical = 14.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(13.dp)) {
             UtilityHeader("عن فوشيا بوكينج", onBack)
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -448,8 +453,8 @@ fun FeedbackScreen(onBack: () -> Unit) {
                     FilterChip(selected = kind == value, onClick = { kind = value }, label = { Text(label, fontWeight = FontWeight.Bold) }, modifier = Modifier.weight(1f))
                 }
             }
-            OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text("عنوان الرسالة (اختياري)") }, singleLine = true, shape = RoundedCornerShape(15.dp))
-            OutlinedTextField(message, { message = it }, Modifier.fillMaxWidth().heightIn(min = 150.dp), label = { Text("اكتب رسالتك") }, minLines = 5, shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(subject, { subject = it.take(160) }, Modifier.fillMaxWidth(), label = { Text("عنوان الرسالة (اختياري)") }, singleLine = true, shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(message, { message = it.take(4000) }, Modifier.fillMaxWidth().heightIn(min = 150.dp), label = { Text("اكتب رسالتك") }, minLines = 5, shape = RoundedCornerShape(15.dp))
             if (status.isNotBlank()) Text(status, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
             Button(onClick = {
                 if (token.isNullOrBlank()) { status = "سجّل الدخول أولًا لإرسال الرسالة."; return@Button }
@@ -476,9 +481,9 @@ fun AdvancedSettingsScreen(onBack: () -> Unit, onDeleted: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(top = insets.calculateTopPadding()).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
             UtilityHeader("إعدادات متقدمة", onBack)
             PolicyCard("حذف الحساب", "سيتم إخفاء بيانات الحساب الشخصية وإزالة الجلسة والعناوين والمفضلة. لا يمكن تنفيذ الطلب إلا بعد كتابة سبب واضح.")
-            OutlinedTextField(reason, { reason = it }, Modifier.fillMaxWidth().heightIn(min = 140.dp), label = { Text("سبب حذف الحساب (مطلوب)") }, minLines = 4, shape = RoundedCornerShape(15.dp))
+            OutlinedTextField(reason, { reason = it.take(1000) }, Modifier.fillMaxWidth().heightIn(min = 140.dp), label = { Text("سبب حذف الحساب (مطلوب)") }, minLines = 4, shape = RoundedCornerShape(15.dp))
             if (status.isNotBlank()) Text(status, color = FuchsiaColors.Error, fontWeight = FontWeight.Bold)
-            Button(onClick = { if (reason.trim().length < 5) status = "اكتب سببًا لا يقل عن 5 أحرف." else { status = ""; confirm = true } }, Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Error), shape = RoundedCornerShape(15.dp)) { Text("متابعة حذف الحساب", color = Color.White, fontWeight = FontWeight.Bold) }
+            Button(onClick = { if (reason.trim().length < 10) status = "اكتب سببًا لا يقل عن 10 أحرف." else { status = ""; confirm = true } }, Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Error), shape = RoundedCornerShape(15.dp)) { Text("متابعة حذف الحساب", color = Color.White, fontWeight = FontWeight.Bold) }
         }
     }
     if (confirm) AlertDialog(onDismissRequest = { if (!busy) confirm = false }, title = { Text("تأكيد نهائي") }, text = { Text("هل أنت متأكد؟ لا يمكن التراجع عن حذف بيانات الحساب.") }, confirmButton = { TextButton(enabled = !busy, onClick = { val session = token; if (session.isNullOrBlank()) { status = "انتهت الجلسة."; confirm = false } else { busy = true; scope.launch { runCatching { FuchsiaApi.deleteAccount(reason.trim(), session) }.onSuccess { confirm = false; onDeleted() }.onFailure { status = it.message ?: "تعذر حذف الحساب."; confirm = false }; busy = false } } }) { Text("نعم، احذف الحساب", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold) } }, dismissButton = { TextButton(enabled = !busy, onClick = { confirm = false }) { Text("إلغاء") } })
@@ -491,6 +496,19 @@ private fun shareFuchsiaApp(context: android.content.Context) {
         putExtra(Intent.EXTRA_TEXT, "فوشيا بوكينج — هدايا تليق بلحظتك\nhttps://fuchsia-x7dwxpzd.manus.space")
     }
     context.startActivity(Intent.createChooser(shareIntent, "مشاركة فوشيا بوكينج"))
+}
+
+private fun normalizeYemeniPhone(raw: String): String? {
+    val value = raw.trim()
+    if (value.isEmpty() || value.any { !it.isDigit() && it !in "+- ()" } || value.count { it == '+' } > 1 || (value.contains('+') && !value.startsWith('+'))) return null
+    var digits = value.filter { it in '0'..'9' }
+    if (digits.startsWith("00")) digits = digits.drop(2)
+    val normalized = when {
+        digits.startsWith("967") -> digits
+        digits.startsWith('0') -> "967${digits.drop(1)}"
+        else -> "967$digits"
+    }
+    return normalized.takeIf { Regex("^967[0-9]{7,9}$").matches(it) }
 }
 
 @Composable

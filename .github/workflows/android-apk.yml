@@ -10,6 +10,35 @@ permissions:
   contents: read
 
 jobs:
+  server-security:
+    name: Test API authentication safeguards
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install API workspace dependencies
+        run: pnpm install --filter @workspace/api-server... --frozen-lockfile
+
+      - name: Build API server
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Test authentication safeguards
+        run: pnpm --filter @workspace/api-server run test:auth-security
+
   build-apk:
     name: Build installable ARM debug APKs
     runs-on: ubuntu-latest
@@ -83,9 +112,17 @@ jobs:
       - name: Create and boot Android emulator with bounded waits
         run: |
           set -euo pipefail
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           printf 'no\n' | timeout 120s "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" \
             create avd --force --name fuchsia-api-smoke --device pixel_2 \
-            --package 'system-images;android-36;google_apis;x86_64'
+            --package 'system-images;android-36;google_apis;x86_64' \
+            --path "$ANDROID_AVD_HOME/fuchsia-api-smoke.avd"
+          if [ ! -f "$ANDROID_AVD_HOME/fuchsia-api-smoke.ini" ]; then
+            find "$HOME/.android" -maxdepth 4 -name '*.ini' -print || true
+            echo 'AVD manager did not create the expected AVD metadata file.' >&2
+            exit 1
+          fi
           "$ANDROID_HOME/emulator/emulator" -avd fuchsia-api-smoke \
             -no-window -no-audio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -accel auto \
@@ -125,11 +162,18 @@ jobs:
       - name: Launch app and capture initial screen
         run: |
           set -euo pipefail
-          adb shell am start -W -n com.fuchsia.platform.debug/com.fuchsia.platform.compose.MainActivity
+          adb_path="$ANDROID_HOME/platform-tools/adb"
+          "$adb_path" shell am start -W -n com.fuchsia.platform.debug/com.fuchsia.platform.compose.MainActivity
           sleep 5
-          adb shell pidof com.fuchsia.platform.debug
+          app_pid=$("$adb_path" shell pidof com.fuchsia.platform.debug | tr -d '\r' || true)
+          if [ -z "$app_pid" ]; then
+            "$adb_path" logcat -d -s AndroidRuntime:E
+            echo 'Fuchsia Android app did not remain running after launch.' >&2
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/fuchsia-ui"
-          adb exec-out screencap -p > "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
+          "$adb_path" exec-out screencap -p > "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
+          test -s "$RUNNER_TEMP/fuchsia-ui/android-initial-screen.png"
 
       - name: Upload Android emulator screenshot
         if: always()

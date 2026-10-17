@@ -93,7 +93,7 @@ fun AuthScreen(
     var fullName by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf("") }
@@ -258,10 +258,12 @@ fun AuthScreen(
                                         FuchsiaApi.requestRegistrationCode(
                                             fullName.trim(), normalizedEmail, password, phone.trim(),
                                         )
+                                        password = ""
                                         onCodeRequested(normalizedEmail, null)
                                     } else {
                                         val session = FuchsiaApi.login(normalizedEmail, password)
                                         SessionVault.save(context, session.user, session.token)
+                                        password = ""
                                         onAuthComplete()
                                     }
                                 } catch (failure: Throwable) {

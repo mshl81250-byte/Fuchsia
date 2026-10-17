@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -340,7 +341,7 @@ fun CheckoutScreen(
                     .put("rentalTimeSlot", directRental.timeSlot)
                     .put("idempotencyKey", directRental.idempotencyKey)
                 FuchsiaApi.createRentalBooking(payload, userToken)
-            } else FuchsiaApi.createOrder(payload)
+            } else FuchsiaApi.createOrder(payload, userToken)
                 val orderId = order.optInt("id")
                 if (orderId <= 0) throw IllegalStateException("لم يرجع الخادم رقم الطلب")
                 onOrderPlaced(orderId)
@@ -366,13 +367,13 @@ fun CheckoutScreen(
         bottomBar = {
             val total = cart?.total
             if (total != null && !cart?.items.isNullOrEmpty()) {
-                androidx.compose.material3.Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
+                androidx.compose.material3.Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = FuchsiaColors.White, shadowElevation = 12.dp) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         CommerceMoneyRow("المطلوب", total, bold = true, accent = true)
                         CommercePrimaryButton(
                                 text = "${if (isPreviewOnlyRental) "معاينة فقط · لا يُرسل الحجز" else if (isRentalCheckout) "إرسال طلب الحجز" else "تأكيد الطلب"} · ${formatYemeniRiyal(total)}",
                             busy = submitting,
-                            enabled = !loading && !uploading && !outsideSanaa,
+                            enabled = !loading && !uploading && (!needsDelivery || !outsideSanaa),
                             onClick = ::submitOrder,
                         )
                     }
@@ -450,6 +451,11 @@ fun CheckoutScreen(
                                     )
                                 }
                             }
+                            Text(
+                                "تُحمّل الخريطة من OpenFreeMap وقد يكشف مزودها المنطقة التقريبية المعروضة. تُرسل نقطة التوصيل إلى خادم فوشيا لإتمام الطلب.",
+                                color = FuchsiaColors.Muted,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            )
                             MapLocationPicker(
                                 selectedLatitude = latitude,
                                 selectedLongitude = longitude,
@@ -460,12 +466,12 @@ fun CheckoutScreen(
                                 modifier = Modifier.fillMaxWidth().height(46.dp),
                                 shape = RoundedCornerShape(13.dp),
                                 enabled = !locating,
-                                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary, contentColor = FuchsiaColors.White),
                             ) {
-                                if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
-                                else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+                                if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
+                                else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
                             if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")

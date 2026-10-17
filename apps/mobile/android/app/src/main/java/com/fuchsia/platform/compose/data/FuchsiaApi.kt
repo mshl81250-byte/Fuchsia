@@ -255,6 +255,7 @@ class ApiException(message: String, val statusCode: Int = 0) : Exception(message
 object FuchsiaApi {
     private const val CONNECT_TIMEOUT_MS = 18_000
     private const val READ_TIMEOUT_MS = 22_000
+    private const val MAX_RECEIPT_BYTES = 7L * 1024 * 1024
 
     suspend fun login(email: String, password: String): AuthSession =
         parseSession(post("/api/auth/login", JSONObject().put("email", email).put("password", password)))
@@ -271,7 +272,6 @@ object FuchsiaApi {
             .put("email", email)
             .put("password", password)
             .put("phone", phone),
-        includeDebugOtp = BuildConfig.OTP_DEBUG,
     )
 
     suspend fun verifyRegistrationCode(email: String, code: String): AuthSession = parseSession(
@@ -407,8 +407,8 @@ object FuchsiaApi {
         ),
     )
 
-    suspend fun removeCartItem(itemId: Int): ShoppingCart =
-        parseCart(sendJson("/api/cart/$itemId", "DELETE"))
+    suspend fun removeCartItem(itemId: Int, sessionId: String): ShoppingCart =
+        parseCart(sendJson("/api/cart/$itemId", "DELETE", JSONObject().put("sessionId", sessionId)))
 
     suspend fun paymentWallets(): List<PaymentWallet> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/payment-wallets"))
@@ -547,7 +547,8 @@ object FuchsiaApi {
         VenueAvailability(current.optInt("venueId", venueId), current.optString("month", month), booked, closed)
     }
 
-    suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
+    suspend fun createOrder(payload: JSONObject, bearerToken: String? = null): JSONObject =
+        post("/api/orders", payload, bearerToken)
 
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
@@ -673,12 +674,26 @@ object FuchsiaApi {
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             connection.doOutput = true
             connection.outputStream.use { output ->
-                val filename = "receipt.${mimeType.substringAfter('/') .replace("jpeg", "jpg")}"
+                val filename = "receipt.${mimeType.substringAfter('/').replace("jpeg", "jpg")}"
                 output.write("--$boundary\r\n".toByteArray(Charsets.UTF_8))
                 output.write("Content-Disposition: form-data; name=\"receipt\"; filename=\"$filename\"\r\n".toByteArray(Charsets.UTF_8))
                 output.write("Content-Type: $mimeType\r\n\r\n".toByteArray(Charsets.UTF_8))
-                context.contentResolver.openInputStream(uri)?.use { input -> input.copyTo(output) }
+                val input = context.contentResolver.openInputStream(uri)
                     ?: throw ApiException("تعذر فتح صورة الإيصال")
+                var uploadedBytes = 0L
+                input.use { stream ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        uploadedBytes += count
+                        if (uploadedBytes > MAX_RECEIPT_BYTES) {
+                            throw ApiException("يجب ألا يتجاوز حجم إيصال الدفع 7 ميغابايت")
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                }
+                if (uploadedBytes == 0L) throw ApiException("ملف الإيصال فارغ")
                 output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8))
             }
             readJson(connection)
@@ -867,23 +882,17 @@ object FuchsiaApi {
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
-    private suspend fun post(
-        path: String,
-        body: JSONObject,
-        includeDebugOtp: Boolean = false,
-        bearerToken: String? = null,
-    ): JSONObject = sendJson(path, "POST", body, includeDebugOtp, bearerToken)
+    private suspend fun post(path: String, body: JSONObject, bearerToken: String? = null): JSONObject =
+        sendJson(path, "POST", body, bearerToken = bearerToken)
 
     private suspend fun sendJson(
         path: String,
         method: String,
         body: JSONObject? = null,
-        includeDebugOtp: Boolean = false,
         bearerToken: String? = null,
     ): JSONObject = withContext(Dispatchers.IO) {
         val connection = open(path, method, bearerToken)
         try {
-            if (includeDebugOtp) connection.setRequestProperty("X-Fuchsia-OTP-Debug", "true")
             if (body != null) {
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 connection.doOutput = true

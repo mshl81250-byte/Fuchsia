@@ -31,8 +31,6 @@ android {
         versionName = "1.3.2"
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
         buildConfigField("String", "API_BASE_URL", fuchsiaApiBaseUrl.asBuildConfigString())
-        // The user explicitly requested on-screen OTP visibility as the sole test exception.
-        buildConfigField("boolean", "OTP_DEBUG", "true")
     }
 
     signingConfigs {

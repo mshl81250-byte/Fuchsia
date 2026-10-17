@@ -183,9 +183,10 @@ fun CartScreen(
                         busy = busyItem == line.id,
                         onDecrease = {
                             if (line.quantity > 1) changeQuantity(line, line.quantity - 1) else {
+                                val currentSessionId = sessionId ?: return@CartItemCard
                                 scope.launch {
                                     busyItem = line.id
-                                    runCatching { FuchsiaApi.removeCartItem(line.id) }
+                                    runCatching { FuchsiaApi.removeCartItem(line.id, currentSessionId) }
                                         .onSuccess { cart = it }
                                         .onFailure { snackbar.showSnackbar(it.message ?: "تعذر حذف المنتج.") }
                                     busyItem = 0
@@ -194,11 +195,11 @@ fun CartScreen(
                         },
                         onIncrease = { changeQuantity(line, line.quantity + 1) },
                         onRemove = {
-                            if (sessionId == null) return@CartItemCard
+                            val currentSessionId = sessionId ?: return@CartItemCard
                             scope.launch {
                                 busyItem = line.id
                                 try {
-                                    cart = FuchsiaApi.removeCartItem(line.id)
+                                    cart = FuchsiaApi.removeCartItem(line.id, currentSessionId)
                                 } catch (failure: Throwable) {
                                     snackbar.showSnackbar(failure.message ?: "تعذر حذف المنتج.")
                                 } finally {
@@ -278,7 +279,7 @@ private fun CartItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     QuantityButton(Icons.Rounded.Remove, "تقليل الكمية", enabled = !busy, onClick = onDecrease)
                     Text(item.quantity.toString(), modifier = Modifier.width(27.dp), color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    QuantityButton(Icons.Rounded.Add, "زيادة الكمية", enabled = !busy, onClick = onIncrease)
+                    QuantityButton(Icons.Rounded.Add, "زيادة الكمية", enabled = !busy && item.quantity < 99, onClick = onIncrease)
                     Spacer(Modifier.width(4.dp))
                     IconButton(onClick = onRemove, enabled = !busy, modifier = Modifier.size(37.dp)) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = "حذف المنتج", tint = FuchsiaColors.Muted, modifier = Modifier.size(20.dp))
