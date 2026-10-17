@@ -19,6 +19,7 @@ const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
 const DELIVERY_SETTINGS_MIGRATION_ID = "20261016_delivery_settings_v1";
 const SECOND_PHONE_MIGRATION_ID = "20261016_customer_second_phone_v1";
 const PLATFORM_CONTACT_MIGRATION_ID = "20261016_platform_contact_settings_v1";
+const DEMO_TABLE_PRODUCTS_MIGRATION_ID = "20261017_demo_table_products_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -535,6 +536,90 @@ export async function runMigrations(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_OPERATIONS_PHASE3_MIGRATION_ID]);
     logger.info({ migrationId: PARTNER_OPERATIONS_PHASE3_MIGRATION_ID }, "Partner operations phase 3 migration completed");
+  }
+
+  const [demoTableProductsRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [DEMO_TABLE_PRODUCTS_MIGRATION_ID],
+  );
+  if ((demoTableProductsRows as Array<{ migration_id: string }>).length === 0) {
+    const [catalogRows] = await pool.query(
+      `SELECT c.id AS category_id, s.id AS store_id
+       FROM categories c CROSS JOIN stores s
+       WHERE c.name_ar = 'الطاولات' AND s.name_ar = 'أتيلييه فوشيا للكوش'
+       LIMIT 1`,
+    );
+    const catalog = (catalogRows as Array<{ category_id: number; store_id: number }>)[0];
+    if (catalog) {
+      const demoProducts = [
+        {
+          nameAr: "[تجريبية] طاولات دائرية للمناسبات",
+          nameEn: "[Demo] Round Event Tables",
+          description: "منتج تجريبي أولي لاختبار حجز الطاولات وتتبع التوفر والدفع.",
+          price: 4500,
+          discountPrice: null,
+          dailyPrice: 4500,
+          deposit: 1500,
+          audience: "both",
+          height: 75,
+          width: null,
+          length: null,
+          diameter: 150,
+          seats: 10,
+          stock: 18,
+          image: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=1200&h=900&fit=crop",
+          colors: JSON.stringify(["أبيض", "ذهبي", "وردي"]),
+          tags: JSON.stringify(["تجريبية", "طاولات", "مناسبات"]),
+        },
+        {
+          nameAr: "[تجريبية] طاولات ضيافة مستطيلة",
+          nameEn: "[Demo] Rectangular Hospitality Tables",
+          description: "منتج تجريبي أولي لاختبار حجز طاولات الضيافة من تطبيق العميل.",
+          price: 6000,
+          discountPrice: null,
+          dailyPrice: 6000,
+          deposit: 2000,
+          audience: "women",
+          height: 90,
+          width: 90,
+          length: 180,
+          diameter: null,
+          seats: 12,
+          stock: 10,
+          image: "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200&h=900&fit=crop",
+          colors: JSON.stringify(["أبيض", "ذهبي"]),
+          tags: JSON.stringify(["تجريبية", "طاولات", "ضيافة"]),
+        },
+      ];
+      for (const product of demoProducts) {
+        const [existingRows] = await pool.query(
+          "SELECT id FROM products WHERE name_ar = ? AND store_id = ? LIMIT 1",
+          [product.nameAr, catalog.store_id],
+        );
+        if ((existingRows as Array<{ id: number }>).length > 0) continue;
+        await pool.query(
+          `INSERT INTO products
+           (name_ar, name_en, description, price, discount_price, fulfillment_type, rental_category, event_audience,
+            table_height_cm, table_width_cm, table_length_cm, table_diameter_cm, table_seats, setup_notes, available_colors,
+            rental_daily_price, rental_deposit, rental_min_days, rental_max_days, rental_buffer_days, category_id, store_id,
+            image_url, images, in_stock, stock_quantity, is_published, tags, occasion_tags)
+           VALUES (?, ?, ?, ?, ?, 'rental', 'table', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 3, 1, ?, ?, ?, '[]', TRUE, ?, TRUE, ?, ?)` ,
+          [product.nameAr, product.nameEn, product.description, product.price, product.discountPrice, product.audience,
+            product.height, product.width, product.length, product.diameter, product.seats,
+            "منتج تجريبي — راجع بيانات السعر والمخزون قبل استخدامه تجاريًا.", product.colors,
+            product.dailyPrice, product.deposit, catalog.category_id, catalog.store_id, product.image, product.stock,
+            product.tags, JSON.stringify(["زفاف", "مناسبات"])],
+        );
+      }
+      await pool.query(
+        "UPDATE categories SET product_count = (SELECT COUNT(*) FROM products WHERE products.category_id = categories.id AND products.is_published = TRUE) WHERE id = ?",
+        [catalog.category_id],
+      );
+      await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DEMO_TABLE_PRODUCTS_MIGRATION_ID]);
+      logger.info({ migrationId: DEMO_TABLE_PRODUCTS_MIGRATION_ID }, "Demo table products migration completed");
+    } else {
+      logger.warn({ migrationId: DEMO_TABLE_PRODUCTS_MIGRATION_ID }, "Skipped demo table products: catalog category or store is missing");
+    }
   }
 
   const [partnerAccountsRows] = await pool.query(

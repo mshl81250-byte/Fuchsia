@@ -1,0 +1,77 @@
+name: Fuchsia CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, 'fix/**', 'feature/**']
+
+permissions:
+  contents: read
+
+jobs:
+  api-check:
+    name: API typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Rental availability regression test
+        run: pnpm --filter @workspace/api-server exec tsx src/lib/rental-availability.test.ts
+      - name: Build workspace libraries
+        run: pnpm run typecheck:libs
+      - name: Typecheck API
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Build API
+        run: pnpm --filter @workspace/api-server run build
+      - name: Build Docker image
+        run: docker build -t fuchsia-api-ci:${{ github.sha }} -f Dockerfile .
+
+  android-check:
+    name: Android debug builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+      - name: Use available compile SDK on hosted runner
+        run: |
+          find apps -path '*/android/*.gradle.kts' -exec sed -i \
+            -e 's/compileSdk = 37/compileSdk = 36/g' \
+            -e 's/2026.09.00/2025.08.01/g' \
+            -e 's/1.13.0/1.10.1/g' \
+            -e 's/2.10.2/2.9.3/g' \
+            -e 's/2.11.0/2.9.2/g' {} +
+      - name: Build client debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Build partner debug APK
+        working-directory: apps/partner/android
+        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Upload debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuchsia-debug-apks-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/*.apk
+            apps/partner/android/app/build/outputs/apk/debug/*.apk

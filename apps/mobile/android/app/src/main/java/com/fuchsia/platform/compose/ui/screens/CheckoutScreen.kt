@@ -239,7 +239,8 @@ fun CheckoutScreen(
             scope.launch {
                 uploading = true
                 try {
-                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri).optString("url")
+                    val token = userToken ?: throw ApiException("يرجى تسجيل الدخول لرفع إيصال الدفع")
+                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri, token).optString("url")
                     snackbar.showSnackbar("تم رفع الإيصال إلى الخادم")
                 } catch (failure: Throwable) {
                     receiptUrl = ""

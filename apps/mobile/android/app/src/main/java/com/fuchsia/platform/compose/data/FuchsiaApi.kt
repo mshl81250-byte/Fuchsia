@@ -294,12 +294,12 @@ object FuchsiaApi {
         bearerToken = bearerToken,
     )
 
-    suspend fun submitSupport(kind: String, subject: String, message: String, bearerToken: String) {
-        sendJson("/api/support", "POST", JSONObject().put("kind", kind).put("subject", subject).put("message", message), bearerToken = bearerToken)
+    suspend fun submitSupport(category: String, subject: String, message: String, bearerToken: String) {
+        sendJson("/api/support/messages", "POST", JSONObject().put("category", category).put("subject", subject).put("message", message), bearerToken = bearerToken)
     }
 
     suspend fun deleteAccount(reason: String, bearerToken: String) {
-        sendJson("/api/auth/delete-account", "POST", JSONObject().put("reason", reason), bearerToken = bearerToken)
+        sendJson("/api/auth/account", "DELETE", JSONObject().put("reason", reason), bearerToken = bearerToken)
     }
 
 
@@ -661,14 +661,14 @@ object FuchsiaApi {
     suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
 
-    suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
+    suspend fun uploadReceipt(context: Context, uri: Uri, bearerToken: String): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
             ?: throw ApiException("تعذر معرفة نوع ملف الإيصال")
         if (mimeType !in setOf("image/jpeg", "image/png", "image/webp")) {
             throw ApiException("يرجى اختيار صورة JPG أو PNG أو WebP")
         }
         val boundary = "Fuchsia-${UUID.randomUUID()}"
-        val connection = open("/api/uploads/receipt", "POST")
+        val connection = open("/api/uploads/receipt", "POST", bearerToken)
         try {
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             connection.doOutput = true

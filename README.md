@@ -67,6 +67,12 @@ FUCHSIA_API_BASE_URL=https://your-domain.example.com ./gradlew :app:assembleDebu
 
 يمكن نشر الخادم كحاوية Docker أو على Render/Railway/Fly.io/Cloud Run/أي خادم Node يدعم Docker. استخدم `Dockerfile` الموجود، واضبط `PORT` و`DATABASE_URL` والمتغيرات السرية من لوحة الاستضافة. تطبيقات Android تُبنى بشكل مستقل وتحتاج فقط إلى عنوان API المنشور.
 
+### GitHub Actions
+
+يحتوي المستودع على Workflow للفحص والبناء في `.github/workflows/ci.yml`، ويشغّل فحص TypeScript واختبار توفر الإيجار وبناء Docker ونسختَي Debug لتطبيق العميل وتطبيق الأعمال. كما يحتوي على `.github/workflows/deploy.yml` للنشر اليدوي عبر Deploy Hook. لتفعيله، أضف سر المستودع `DEPLOY_WEBHOOK_URL` من مزود الاستضافة، ثم شغّل Workflow `Fuchsia Server Deploy` يدويًا وأدخل رابط الصحة العام مثل `/api/healthz`. لا تُضع `DATABASE_URL` أو مفاتيح التوقيع أو أي سر داخل GitHub Actions YAML أو المستودع.
+
+بعد نجاح النشر، تحقّق من سجل الخادم عن الرسالة `Demo table products migration completed`، ثم اختبر `GET /api/products?categoryId=3` للتأكد من ظهور منتجات الطاولات التجريبية.
+
 ## ملاحظة قاعدة البيانات
 
 نسخة GitHub الحالية تستخدم MySQL عبر Drizzle. يمكن تشغيلها على أي مزود MySQL بإسناد `DATABASE_URL`. إذا أردت العودة إلى Supabase PostgreSQL، فهذا مشروع ترحيل منفصل ويتطلب تحويل مخططات Drizzle والاستعلامات والترحيلات؛ لا تضع رابط PostgreSQL في هذه النسخة الحالية.
