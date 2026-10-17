@@ -12,6 +12,17 @@ export function addDateDays(dateOnly: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function toDateOnly(value: unknown): string | null {
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.toISOString().slice(0, 10) : null;
+  }
+  if (typeof value !== "string") return null;
+  const match = value.match(/\d{4}-\d{2}-\d{2}/);
+  if (!match) return null;
+  const date = new Date(`${match[0]}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) ? match[0] : null;
+}
+
 function dateKeys(startDate: string, endDate: string): string[] {
   const keys: string[] = [];
   const day = new Date(`${startDate}T00:00:00.000Z`);
@@ -73,16 +84,21 @@ export async function getRentalOccupancy(
   const bookingByDay = new Map(days.map((day) => [day, 0]));
   const maintenanceByDay = new Map(days.map((day) => [day, 0]));
   for (const row of bookingRows) {
-    const rentalStart = String(row.rental_start_date).slice(0, 10);
-    const rentalEnd = addDateDays(String(row.rental_end_date).slice(0, 10), boundedBuffer);
+    const rentalStart = toDateOnly(row.rental_start_date);
+    const rentalEndDate = toDateOnly(row.rental_end_date);
+    // Legacy rows may contain a missing or driver-specific date representation.
+    // Ignore incomplete rows instead of crashing availability for every customer.
+    if (!rentalStart || !rentalEndDate) continue;
+    const rentalEnd = addDateDays(rentalEndDate, boundedBuffer);
     const quantity = Math.max(0, Number(row.quantity || 0));
     for (const day of days) {
       if (day >= rentalStart && day <= rentalEnd) bookingByDay.set(day, (bookingByDay.get(day) || 0) + quantity);
     }
   }
   for (const row of maintenanceRows) {
-    const blockStart = String(row.start_date).slice(0, 10);
-    const blockEnd = String(row.end_date).slice(0, 10);
+    const blockStart = toDateOnly(row.start_date);
+    const blockEnd = toDateOnly(row.end_date);
+    if (!blockStart || !blockEnd) continue;
     const quantity = Math.max(0, Number(row.quantity || 0));
     for (const day of days) {
       if (day >= blockStart && day <= blockEnd) maintenanceByDay.set(day, (maintenanceByDay.get(day) || 0) + quantity);
