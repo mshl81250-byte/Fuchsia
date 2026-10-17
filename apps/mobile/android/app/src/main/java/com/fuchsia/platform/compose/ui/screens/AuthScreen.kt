@@ -283,9 +283,9 @@ fun AuthScreen(
                             Brush.horizontalGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark)),
                             RoundedCornerShape(17.dp),
                         ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp, focusedElevation = 0.dp, hoveredElevation = 0.dp, disabledElevation = 0.dp),
                 ) {
                     if (busy) {
                         CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp)
