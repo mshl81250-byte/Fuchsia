@@ -453,7 +453,7 @@ fun FeedbackScreen(onBack: () -> Unit) {
             if (status.isNotBlank()) Text(status, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
             Button(onClick = {
                 if (token.isNullOrBlank()) { status = "سجّل الدخول أولًا لإرسال الرسالة."; return@Button }
-                if (message.trim().length < 5) { status = "اكتب تفاصيل كافية لرسالتك."; return@Button }
+                if (message.trim().length < 8) { status = "اكتب تفاصيل لا تقل عن 8 أحرف."; return@Button }
                 sending = true; status = ""
                 scope.launch { runCatching { FuchsiaApi.submitSupport(kind, subject.trim(), message.trim(), token) }.onSuccess { message = ""; subject = ""; status = "تم إرسال رسالتك بنجاح." }.onFailure { status = it.message ?: "تعذر إرسال الرسالة." }; sending = false }
             }, Modifier.fillMaxWidth().height(52.dp), enabled = !sending, colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary), shape = RoundedCornerShape(15.dp)) {

@@ -26,6 +26,7 @@ android {
         applicationId = "com.fuchsia.platform"
         minSdk = 24
         targetSdk = 36
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 7
         versionName = "1.3.2"
         buildConfigField("long", "BUILD_TIMESTAMP_MS", "${System.currentTimeMillis()}L")
