@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { apiRequest } from "../../lib/api";
+import { apiRequest, logoutFromServer } from "../../lib/api";
 import { clearSession, getToken, getUser, saveSession } from "../../lib/auth-storage";
 import { colors, styles } from "../../lib/theme";
 import { IconButton } from "../../components/ui";
@@ -47,6 +47,7 @@ export default function Profile() {
   }
 
   async function logout() {
+    await logoutFromServer().catch(() => undefined);
     await clearSession();
     router.replace("/");
   }
