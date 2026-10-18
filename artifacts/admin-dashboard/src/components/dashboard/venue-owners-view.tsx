@@ -31,7 +31,7 @@ const statusLabel: Record<OwnerRequest["status"], string> = {
 };
 const bookingLabel: Record<string, string> = { pending: "قيد المراجعة", confirmed: "مؤكد", completed: "مكتمل", rejected: "مرفوض", cancelled: "ملغى" };
 const money = (value: number) => `${Number(value || 0).toLocaleString("ar-YE")} ر.ي`;
-const emptyCreateForm = { fullName: "", email: "", password: "", phone: "", businessName: "", venueName: "", city: "", address: "", capacity: "", dailyPrice: "", primaryImageUrl: "", description: "" };
+const emptyCreateForm = { fullName: "", email: "", phone: "", businessName: "", venueName: "", city: "", address: "", capacity: "", dailyPrice: "", primaryImageUrl: "", description: "" };
 export function VenueOwnersView() {
   const [owners, setOwners] = useState<OwnerRequest[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
@@ -39,7 +39,7 @@ export function VenueOwnersView() {
   const [selected, setSelected] = useState<OwnerDetails | null>(null);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createBusy, setCreateBusy] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ userId: number; username: string; temporaryPassword: string; venueId: number; email: string; phone: string } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ userId: number; username: string; activationUrl: string; activationExpiresAt: string; venueId: number; email: string; phone: string } | null>(null);
   const [sendBusy, setSendBusy] = useState<"email" | "whatsapp" | null>(null);
 
   const load = useCallback(async () => {
@@ -89,9 +89,9 @@ export function VenueOwnersView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...createForm, capacity: Number(createForm.capacity), dailyPrice: Number(createForm.dailyPrice) }),
       });
-      const payload = await response.json() as { error?: string; userId?: number; username?: string; temporaryPassword?: string; venueId?: number };
-      if (!response.ok || !payload.userId || !payload.username || !payload.temporaryPassword || !payload.venueId) throw new Error(payload.error || "تعذر إنشاء الحساب");
-      setCreatedCredentials({ userId: payload.userId, username: payload.username, temporaryPassword: payload.temporaryPassword, venueId: payload.venueId, email: createForm.email, phone: createForm.phone });
+      const payload = await response.json() as { error?: string; userId?: number; username?: string; activationUrl?: string; activationExpiresAt?: string; venueId?: number };
+      if (!response.ok || !payload.userId || !payload.username || !payload.activationUrl || !payload.activationExpiresAt || !payload.venueId) throw new Error(payload.error || "تعذر إنشاء الحساب");
+      setCreatedCredentials({ userId: payload.userId, username: payload.username, activationUrl: payload.activationUrl, activationExpiresAt: payload.activationExpiresAt, venueId: payload.venueId, email: createForm.email, phone: createForm.phone });
       setCreateForm(emptyCreateForm);
       await load();
       toast.success("تم إنشاء حساب مالك القاعة وتفعيل دخوله لتطبيق الأعمال");
@@ -105,11 +105,11 @@ export function VenueOwnersView() {
     if (!createdCredentials) return;
     setSendBusy(channel);
     try {
-      const response = await fetch(`/api/admin/venue-owner-accounts/${createdCredentials.userId}/credentials`, {
+      const response = await fetch(`/api/admin/venue-owner-accounts/${createdCredentials.userId}/activation`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel, password: createdCredentials.temporaryPassword }),
+        body: JSON.stringify({ channel, activationUrl: createdCredentials.activationUrl }),
       });
       const payload = await response.json() as { error?: string };
       if (!response.ok) throw new Error(payload.error || "تعذر الإرسال");
@@ -130,11 +130,11 @@ export function VenueOwnersView() {
       <CardHeader><CardTitle>إضافة مالك قاعة وحساب تطبيق الأعمال</CardTitle><p className="text-sm text-muted-foreground">ينشئ الحساب كمالك قاعة معتمد، ويربط به القاعة مباشرة. احفظ بيانات الدخول للمالك بعد الإنشاء.</p></CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {([ ["fullName", "اسم المالك"], ["businessName", "اسم النشاط"], ["phone", "رقم الهاتف"], ["email", "البريد أو اسم المستخدم"], ["password", "كلمة المرور (8 أحرف على الأقل)"], ["venueName", "اسم القاعة"], ["city", "المدينة"], ["address", "العنوان"], ["capacity", "السعة"], ["dailyPrice", "السعر اليومي"], ["primaryImageUrl", "رابط صورة القاعة"] ] as Array<[keyof typeof emptyCreateForm, string]>).map(([key, label]) => <div className="space-y-2" key={key}><Label>{label}</Label><Input type={key === "password" ? "password" : key === "capacity" || key === "dailyPrice" ? "number" : key === "email" ? "text" : "text"} value={createForm[key]} onChange={(event) => updateCreateForm(key, event.target.value)} /></div>)}
+          {([ ["fullName", "اسم المالك"], ["businessName", "اسم النشاط"], ["phone", "رقم الهاتف"], ["email", "البريد أو اسم المستخدم"], ["venueName", "اسم القاعة"], ["city", "المدينة"], ["address", "العنوان"], ["capacity", "السعة"], ["dailyPrice", "السعر اليومي"], ["primaryImageUrl", "رابط صورة القاعة"] ] as Array<[keyof typeof emptyCreateForm, string]>).map(([key, label]) => <div className="space-y-2" key={key}><Label>{label}</Label><Input type={key === "capacity" || key === "dailyPrice" ? "number" : "text"} value={createForm[key]} onChange={(event) => updateCreateForm(key, event.target.value)} /></div>)}
         </div>
         <div className="space-y-2"><Label>وصف القاعة (اختياري)</Label><Input value={createForm.description} onChange={(event) => updateCreateForm("description", event.target.value)} /></div>
-        <div className="flex justify-end"><Button onClick={() => void createVenueOwner()} disabled={createBusy || !createForm.fullName || !createForm.email || createForm.password.length < 8 || !createForm.businessName || !createForm.venueName || !createForm.city || !createForm.address || !createForm.capacity || !createForm.dailyPrice || !createForm.primaryImageUrl}>{createBusy ? "جارٍ الإنشاء…" : "إنشاء الحساب والقاعة"}</Button></div>
-        {createdCredentials && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">تم الإنشاء — أرسل بيانات الدخول للمالك مرة واحدة:</p><p className="mt-2">اسم المستخدم: <b dir="ltr">{createdCredentials.username}</b></p><p>كلمة المرور المؤقتة: <b dir="ltr">{createdCredentials.temporaryPassword}</b></p><p>معرف القاعة: <b>{createdCredentials.venueId}</b></p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={sendBusy !== null || !/^\S+@\S+\.\S+$/.test(createdCredentials.email)} onClick={() => void sendCredentials("email")}><Mail className="ml-2 h-4 w-4" />{sendBusy === "email" ? "جارٍ الإرسال…" : "إرسال بالبريد"}</Button><Button variant="outline" disabled={sendBusy !== null || createdCredentials.phone.length < 3} onClick={() => void sendCredentials("whatsapp")}><MessageCircle className="ml-2 h-4 w-4" />{sendBusy === "whatsapp" ? "جارٍ الإرسال…" : "إرسال واتساب"}</Button></div><p className="mt-2 text-xs">لا يتم حفظ كلمة المرور أو تسجيلها، ولا تظهر مرة أخرى بعد مغادرة الصفحة.</p></div>}
+        <div className="flex justify-end"><Button onClick={() => void createVenueOwner()} disabled={createBusy || !createForm.fullName || !createForm.email || !createForm.businessName || !createForm.venueName || !createForm.city || !createForm.address || !createForm.capacity || !createForm.dailyPrice || !createForm.primaryImageUrl}>{createBusy ? "جارٍ الإنشاء…" : "إنشاء الحساب وإصدار رابط التفعيل"}</Button></div>
+        {createdCredentials && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">تم إنشاء الحساب والقاعة — رابط التفعيل صالح 24 ساعة ولمرة واحدة:</p><p className="mt-2 break-all" dir="ltr"><b>{createdCredentials.activationUrl}</b></p><p className="mt-2">اسم المستخدم: <b dir="ltr">{createdCredentials.username}</b> · القاعة #{createdCredentials.venueId}</p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={sendBusy !== null || !/^\S+@\S+\.\S+$/.test(createdCredentials.email)} onClick={() => void sendCredentials("email")}><Mail className="ml-2 h-4 w-4" />{sendBusy === "email" ? "جارٍ الإرسال…" : "إرسال رابط بالبريد"}</Button><Button variant="outline" disabled={sendBusy !== null || createdCredentials.phone.length < 3} onClick={() => void sendCredentials("whatsapp")}><MessageCircle className="ml-2 h-4 w-4" />{sendBusy === "whatsapp" ? "جارٍ الإرسال…" : "إرسال رابط واتساب"}</Button></div><p className="mt-2 text-xs">لا يتم حفظ كلمة المرور أو إرسالها. ينشئ المالك كلمة مروره بنفسه من الرابط.</p></div>}
       </CardContent>
     </Card>
     <div className="grid gap-4">

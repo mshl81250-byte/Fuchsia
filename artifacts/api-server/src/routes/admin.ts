@@ -12,9 +12,10 @@ import {
 } from "@workspace/db";
 import { and, eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, getAdminEmail, setAdminSession, clearAdminSession } from "../lib/admin-auth";
-import { createCustomerNotification, sendVenueOwnerCredentials } from "../lib/notifications";
+import { createCustomerNotification, sendVenueOwnerActivationLink } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { hashPassword } from "../lib/auth-security";
+import { createPartnerActivationToken } from "../lib/partner-activation";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
 import { getDeliverySettings, updateDeliverySettings } from "../lib/delivery-pricing";
 
@@ -105,7 +106,6 @@ router.post("/venue-owner-accounts", async (req, res): Promise<void> => {
   try {
     const fullName = typeof req.body?.fullName === "string" ? req.body.fullName.trim().slice(0, 120) : "";
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
     const phone = typeof req.body?.phone === "string" ? req.body.phone.trim().slice(0, 40) : "";
     const businessName = typeof req.body?.businessName === "string" ? req.body.businessName.trim().slice(0, 180) : "";
     const venueName = typeof req.body?.venueName === "string" ? req.body.venueName.trim().slice(0, 180) : "";
@@ -119,12 +119,12 @@ router.post("/venue-owner-accounts", async (req, res): Promise<void> => {
     const validUsername = /^[a-z0-9][a-z0-9._-]{2,63}$/i.test(email);
     let parsedImageUrl = false;
     try { parsedImageUrl = Boolean(new URL(primaryImageUrl)); } catch { /* invalid URL */ }
-    if (fullName.length < 2 || (!validEmail && !validUsername) || password.length < 8 || password.length > 128 || phone.length < 3 || businessName.length < 2 || venueName.length < 2 || !city || !address || !Number.isInteger(capacity) || capacity < 1 || capacity > 100000 || !Number.isFinite(dailyPrice) || dailyPrice <= 0 || !parsedImageUrl) {
-      res.status(400).json({ error: "أدخل بيانات المالك والقاعة كاملة، وكلمة مرور من 8 أحرف، ورابط صورة صحيح" }); return;
+    if (fullName.length < 2 || (!validEmail && !validUsername) || phone.length < 3 || businessName.length < 2 || venueName.length < 2 || !city || !address || !Number.isInteger(capacity) || capacity < 1 || capacity > 100000 || !Number.isFinite(dailyPrice) || dailyPrice <= 0 || !parsedImageUrl) {
+      res.status(400).json({ error: "أدخل بيانات المالك والقاعة كاملة ورابط صورة صحيح" }); return;
     }
     const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
     if (existingUser) { res.status(409).json({ error: "البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل" }); return; }
-    const passwordHash = hashPassword(password);
+    const passwordHash = hashPassword(crypto.randomBytes(32).toString("base64url"));
     const partnerPermissions = JSON.stringify({ products: false, rentals: false, venueBookings: true });
     const result = await db.transaction(async (tx) => {
       const [userInsert] = await tx.insert(usersTable).values({ fullName, email, phone, passwordHash, isGuest: false, accountType: "partner", partnerPermissions, rewardPoints: 0 });
@@ -134,24 +134,25 @@ router.post("/venue-owner-accounts", async (req, res): Promise<void> => {
       const [venueInsert] = await tx.insert(venuesTable).values({ ownerId, nameAr: venueName, description, city, address, capacity, dailyPrice, audienceScope: "both", primaryImageUrl, images: "[]", amenities: "[]", isPublished: false });
       return { userId, ownerId, venueId: Number(venueInsert.insertId) };
     });
-    res.status(201).json({ ...result, username: email, temporaryPassword: password, venueAccess: true });
+    const activation = await createPartnerActivationToken(result.userId);
+    res.status(201).json({ ...result, username: email, activationUrl: activation.url, activationExpiresAt: activation.expiresAt.toISOString(), venueAccess: true });
   } catch (error) {
     req.log.error({ error }, "Admin create venue owner account failed");
     res.status(500).json({ error: "تعذر إنشاء حساب مالك القاعة" });
   }
 });
 
-router.post("/venue-owner-accounts/:userId/credentials", async (req, res): Promise<void> => {
+router.post("/venue-owner-accounts/:userId/activation", async (req, res): Promise<void> => {
   try {
     const userId = Number(req.params.userId);
     const channel = req.body?.channel === "whatsapp" ? "whatsapp" : req.body?.channel === "email" ? "email" : "";
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
-    if (!Number.isInteger(userId) || userId < 1 || !channel || password.length < 8 || password.length > 128) {
+    const activationUrl = typeof req.body?.activationUrl === "string" ? req.body.activationUrl.trim() : "";
+    if (!Number.isInteger(userId) || userId < 1 || !channel || !activationUrl || !activationUrl.startsWith("https://")) {
       res.status(400).json({ error: "بيانات إرسال الاعتماد غير صحيحة" }); return;
     }
     const [user] = await db.select({ fullName: usersTable.fullName, email: usersTable.email, phone: usersTable.phone, accountType: usersTable.accountType }).from(usersTable).where(eq(usersTable.id, userId));
     if (!user || user.accountType !== "partner") { res.status(404).json({ error: "حساب مالك القاعة غير موجود" }); return; }
-    await sendVenueOwnerCredentials({ channel, fullName: user.fullName, username: user.email, password, email: user.email, phone: user.phone });
+    await sendVenueOwnerActivationLink({ channel, fullName: user.fullName, activationUrl, email: user.email, phone: user.phone });
     res.json({ sent: true, channel });
   } catch (error) {
     req.log.error({ error: error instanceof Error ? error.message : "unknown" }, "Venue owner credential delivery failed");

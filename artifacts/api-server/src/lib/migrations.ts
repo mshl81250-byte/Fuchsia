@@ -20,6 +20,7 @@ const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
 const DELIVERY_SETTINGS_MIGRATION_ID = "20261016_delivery_settings_v1";
 const SECOND_PHONE_MIGRATION_ID = "20261016_customer_second_phone_v1";
 const PLATFORM_CONTACT_MIGRATION_ID = "20261016_platform_contact_settings_v1";
+const PARTNER_ACTIVATION_TOKENS_MIGRATION_ID = "20261018_partner_activation_tokens_v1";
 
 async function addColumnIfMissing(tableName: string, columnName: string, definition: string): Promise<void> {
   const [rows] = await pool.query(
@@ -39,6 +40,27 @@ export async function runMigrations(): Promise<void> {
       applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  const [partnerActivationRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [PARTNER_ACTIVATION_TOKENS_MIGRATION_ID],
+  );
+  if ((partnerActivationRows as Array<{ migration_id: string }>).length === 0) {
+    await pool.query(`CREATE TABLE IF NOT EXISTS partner_activation_tokens (
+      id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      token_hash VARCHAR(64) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP NULL,
+      created_by_user_id INT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY partner_activation_tokens_hash_uq (token_hash),
+      INDEX partner_activation_tokens_user_idx (user_id),
+      INDEX partner_activation_tokens_expiry_idx (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [PARTNER_ACTIVATION_TOKENS_MIGRATION_ID]);
+    logger.info({ migrationId: PARTNER_ACTIVATION_TOKENS_MIGRATION_ID }, "Partner activation tokens migration completed");
+  }
 
   const [deliverySettingsRows] = await pool.query(
     "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
