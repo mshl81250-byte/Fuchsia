@@ -12,8 +12,11 @@ import {
 } from "@workspace/db";
 import { and, eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, getAdminEmail, setAdminSession, clearAdminSession } from "../lib/admin-auth";
-import { createCustomerNotification } from "../lib/notifications";
+import { createCustomerNotification, sendVenueOwnerActivationLink } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
+import { hashPassword } from "../lib/auth-security";
+import { createPartnerActivationToken } from "../lib/partner-activation";
+import { paymentStatusForVenueBooking, validateVenueBookingTransition, VENUE_BOOKING_STATUSES } from "../lib/venue-booking-lifecycle";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
 import { getDeliverySettings, updateDeliverySettings } from "../lib/delivery-pricing";
 
@@ -97,6 +100,64 @@ router.post("/partner-accounts", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Admin create partner account failed");
     res.status(500).json({ error: "تعذر إنشاء حساب الشريك" });
+  }
+});
+
+router.post("/venue-owner-accounts", async (req, res): Promise<void> => {
+  try {
+    const fullName = typeof req.body?.fullName === "string" ? req.body.fullName.trim().slice(0, 120) : "";
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const phone = typeof req.body?.phone === "string" ? req.body.phone.trim().slice(0, 40) : "";
+    const businessName = typeof req.body?.businessName === "string" ? req.body.businessName.trim().slice(0, 180) : "";
+    const venueName = typeof req.body?.venueName === "string" ? req.body.venueName.trim().slice(0, 180) : "";
+    const city = typeof req.body?.city === "string" ? req.body.city.trim().slice(0, 120) : "";
+    const address = typeof req.body?.address === "string" ? req.body.address.trim().slice(0, 500) : "";
+    const description = typeof req.body?.description === "string" ? req.body.description.trim().slice(0, 2000) : null;
+    const primaryImageUrl = typeof req.body?.primaryImageUrl === "string" ? req.body.primaryImageUrl.trim().slice(0, 2000) : "";
+    const capacity = Number(req.body?.capacity);
+    const dailyPrice = Number(req.body?.dailyPrice);
+    const validEmail = /^\S+@\S+\.\S+$/.test(email);
+    const validUsername = /^[a-z0-9][a-z0-9._-]{2,63}$/i.test(email);
+    let parsedImageUrl = false;
+    try { parsedImageUrl = Boolean(new URL(primaryImageUrl)); } catch { /* invalid URL */ }
+    if (fullName.length < 2 || (!validEmail && !validUsername) || phone.length < 3 || businessName.length < 2 || venueName.length < 2 || !city || !address || !Number.isInteger(capacity) || capacity < 1 || capacity > 100000 || !Number.isFinite(dailyPrice) || dailyPrice <= 0 || !parsedImageUrl) {
+      res.status(400).json({ error: "أدخل بيانات المالك والقاعة كاملة ورابط صورة صحيح" }); return;
+    }
+    const [existingUser] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email));
+    if (existingUser) { res.status(409).json({ error: "البريد الإلكتروني أو اسم المستخدم مستخدم بالفعل" }); return; }
+    const passwordHash = hashPassword(crypto.randomBytes(32).toString("base64url"));
+    const partnerPermissions = JSON.stringify({ products: false, rentals: false, venueBookings: true });
+    const result = await db.transaction(async (tx) => {
+      const [userInsert] = await tx.insert(usersTable).values({ fullName, email, phone, passwordHash, isGuest: false, accountType: "partner", partnerPermissions, rewardPoints: 0 });
+      const userId = Number(userInsert.insertId);
+      const [ownerInsert] = await tx.insert(venueOwnersTable).values({ userId, businessName, contactPhone: phone, status: "active" });
+      const ownerId = Number(ownerInsert.insertId);
+      const [venueInsert] = await tx.insert(venuesTable).values({ ownerId, nameAr: venueName, description, city, address, capacity, dailyPrice, audienceScope: "both", primaryImageUrl, images: "[]", amenities: "[]", isPublished: false });
+      return { userId, ownerId, venueId: Number(venueInsert.insertId) };
+    });
+    const activation = await createPartnerActivationToken(result.userId);
+    res.status(201).json({ ...result, username: email, activationUrl: activation.url, activationExpiresAt: activation.expiresAt.toISOString(), venueAccess: true });
+  } catch (error) {
+    req.log.error({ error }, "Admin create venue owner account failed");
+    res.status(500).json({ error: "تعذر إنشاء حساب مالك القاعة" });
+  }
+});
+
+router.post("/venue-owner-accounts/:userId/activation", async (req, res): Promise<void> => {
+  try {
+    const userId = Number(req.params.userId);
+    const channel = req.body?.channel === "whatsapp" ? "whatsapp" : req.body?.channel === "email" ? "email" : "";
+    const activationUrl = typeof req.body?.activationUrl === "string" ? req.body.activationUrl.trim() : "";
+    if (!Number.isInteger(userId) || userId < 1 || !channel || !activationUrl || !activationUrl.startsWith("https://")) {
+      res.status(400).json({ error: "بيانات إرسال الاعتماد غير صحيحة" }); return;
+    }
+    const [user] = await db.select({ fullName: usersTable.fullName, email: usersTable.email, phone: usersTable.phone, accountType: usersTable.accountType }).from(usersTable).where(eq(usersTable.id, userId));
+    if (!user || user.accountType !== "partner") { res.status(404).json({ error: "حساب مالك القاعة غير موجود" }); return; }
+    await sendVenueOwnerActivationLink({ channel, fullName: user.fullName, activationUrl, email: user.email, phone: user.phone });
+    res.json({ sent: true, channel });
+  } catch (error) {
+    req.log.error({ error: error instanceof Error ? error.message : "unknown" }, "Venue owner credential delivery failed");
+    res.status(503).json({ error: error instanceof Error ? error.message : "تعذر إرسال بيانات الاعتماد" });
   }
 });
 
@@ -346,9 +407,9 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     const status = req.body?.status;
-    const allowedStatuses = ["pending", "confirmed", "rejected", "completed"];
-    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
-      res.status(400).json({ error: status === "cancelled" ? "إلغاء حجز القاعة متوقف حتى اعتماد سياسة وشروط الإلغاء في لوحة التحكم." : "حالة الحجز أو رقمه غير صحيح" });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+    if (!Number.isInteger(id) || id < 1 || !VENUE_BOOKING_STATUSES.includes(status)) {
+      res.status(400).json({ code: "INVALID_STATUS", error: "حالة الحجز أو رقمه غير صحيح" });
       return;
     }
     const [existing] = await db.select().from(venueBookingsTable).where(eq(venueBookingsTable.id, id));
@@ -356,23 +417,32 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "الحجز غير موجود" });
       return;
     }
-    if (status === "confirmed" && (existing.status !== "pending" || !existing.expiresAt || existing.expiresAt.getTime() <= Date.now())) {
-      res.status(409).json({ error: "انتهت مهلة الحجز المؤقت؛ اطلب من العميل إنشاء طلب جديد بعد فحص التوفر" });
+    const transition = validateVenueBookingTransition(existing.status, status, { reason, expiresAt: existing.expiresAt });
+    if (!transition.ok) {
+      res.status(transition.code === "HOLD_EXPIRED" || transition.code === "INVALID_TRANSITION" ? 409 : 400).json({ code: transition.code, error: transition.message });
       return;
     }
-    await db.update(venueBookingsTable).set({
-      status,
-      expiresAt: null,
-      paymentStatus: status === "confirmed" ? "approved" : status === "rejected" ? "rejected" : existing.paymentStatus,
-    }).where(eq(venueBookingsTable.id, id));
-    await db.insert(venueBookingEventsTable).values({
-      bookingId: id,
-      actorType: "admin",
-      eventType: "status_changed",
-      fromStatus: existing.status,
-      toStatus: status,
-      notes: "تم التحديث من لوحة الإدارة",
+    const changed = await db.transaction(async (tx) => {
+      const updated = await tx.update(venueBookingsTable).set({
+        status,
+        expiresAt: null,
+        paymentStatus: paymentStatusForVenueBooking(status, existing.paymentStatus),
+      }).where(and(eq(venueBookingsTable.id, id), eq(venueBookingsTable.status, existing.status)));
+      if (Number(updated[0].affectedRows) !== 1) return false;
+      await tx.insert(venueBookingEventsTable).values({
+        bookingId: id,
+        actorType: "admin",
+        eventType: "status_changed",
+        fromStatus: existing.status,
+        toStatus: status,
+        notes: reason || "تم التحديث من لوحة الإدارة",
+      });
+      return true;
     });
+    if (!changed) {
+      res.status(409).json({ code: "BOOKING_CHANGED", error: "تغيرت حالة الحجز؛ حدّث القائمة وحاول مجددًا" });
+      return;
+    }
     const [row] = await db.select({
       id: venueBookingsTable.id,
       sessionId: venueBookingsTable.customerUserId,
@@ -400,12 +470,12 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
       .where(eq(venueBookingsTable.id, id));
     if (!row) { res.status(404).json({ error: "الحجز غير موجود" }); return; }
-    if (status === "confirmed" || status === "rejected" || status === "cancelled") {
+    if (status === "confirmed" || status === "rejected" || status === "completed") {
       await createCustomerNotification({
         sessionId: String(row.sessionId),
         type: "venue_reservation_status",
-        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "تم إلغاء حجز القاعة",
-        message: status === "confirmed" ? `تم قبول حجز ${row.venueName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.venueName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `تم إلغاء حجز ${row.venueName || "القاعة"}.`,
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "اكتمل حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.venueName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.venueName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `اكتمل حجز ${row.venueName || "القاعة"}.`,
         customerName: row.customerName,
         phone: row.customerPhone,
       });
