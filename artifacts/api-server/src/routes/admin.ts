@@ -12,7 +12,7 @@ import {
 } from "@workspace/db";
 import { and, eq, count, sum, desc, like, or, inArray } from "drizzle-orm";
 import { requireAdmin, authenticateAdmin, getAdminEmail, setAdminSession, clearAdminSession } from "../lib/admin-auth";
-import { createCustomerNotification } from "../lib/notifications";
+import { createCustomerNotification, sendVenueOwnerCredentials } from "../lib/notifications";
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { hashPassword } from "../lib/auth-security";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
@@ -138,6 +138,24 @@ router.post("/venue-owner-accounts", async (req, res): Promise<void> => {
   } catch (error) {
     req.log.error({ error }, "Admin create venue owner account failed");
     res.status(500).json({ error: "تعذر إنشاء حساب مالك القاعة" });
+  }
+});
+
+router.post("/venue-owner-accounts/:userId/credentials", async (req, res): Promise<void> => {
+  try {
+    const userId = Number(req.params.userId);
+    const channel = req.body?.channel === "whatsapp" ? "whatsapp" : req.body?.channel === "email" ? "email" : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!Number.isInteger(userId) || userId < 1 || !channel || password.length < 8 || password.length > 128) {
+      res.status(400).json({ error: "بيانات إرسال الاعتماد غير صحيحة" }); return;
+    }
+    const [user] = await db.select({ fullName: usersTable.fullName, email: usersTable.email, phone: usersTable.phone, accountType: usersTable.accountType }).from(usersTable).where(eq(usersTable.id, userId));
+    if (!user || user.accountType !== "partner") { res.status(404).json({ error: "حساب مالك القاعة غير موجود" }); return; }
+    await sendVenueOwnerCredentials({ channel, fullName: user.fullName, username: user.email, password, email: user.email, phone: user.phone });
+    res.json({ sent: true, channel });
+  } catch (error) {
+    req.log.error({ error: error instanceof Error ? error.message : "unknown" }, "Venue owner credential delivery failed");
+    res.status(503).json({ error: error instanceof Error ? error.message : "تعذر إرسال بيانات الاعتماد" });
   }
 });
 
