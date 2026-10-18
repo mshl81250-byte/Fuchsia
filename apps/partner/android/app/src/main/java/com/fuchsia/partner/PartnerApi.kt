@@ -199,7 +199,21 @@ object PartnerApi {
         expiresAt = if (row.isNull("expiresAt")) null else row.optString("expiresAt").takeIf(String::isNotBlank),
     )
 
-    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String = withContext(Dispatchers.IO) {
+    private suspend fun request(path: String, method: String, body: JSONObject? = null, token: String? = null): String {
+        val attempts = if (method.equals("GET", ignoreCase = true)) 3 else 1
+        var lastError: PartnerApiException? = null
+        repeat(attempts) { attempt ->
+            try { return requestOnce(path, method, body, token) }
+            catch (error: PartnerApiException) {
+                lastError = error
+                if (attempt < attempts - 1 && (error.statusCode == 0 || error.statusCode == 408 || error.statusCode == 429 || error.statusCode >= 500)) kotlinx.coroutines.delay(350L * (attempt + 1))
+                else throw error
+            }
+        }
+        throw lastError ?: PartnerApiException("تعذر الاتصال بالخادم", 0)
+    }
+
+    private suspend fun requestOnce(path: String, method: String, body: JSONObject? = null, token: String? = null): String = withContext(Dispatchers.IO) {
         val connection = (URL(baseUrl + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15_000
