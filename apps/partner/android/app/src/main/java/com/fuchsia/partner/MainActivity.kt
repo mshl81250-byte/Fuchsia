@@ -190,7 +190,14 @@ private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) 
             profileError = ""
             runCatching { PartnerApi.profile(token.orEmpty()) }
                 .onSuccess { profile = it }
-                .onFailure { profile = null; profileError = it.message ?: "تعذر تحميل حساب الشريك" }
+                .onFailure {
+                    profile = null
+                    if (it is PartnerApiException && it.statusCode == 401) {
+                        PartnerSession.clear(context)
+                        token = null
+                        profileError = "انتهت جلسة الدخول. سجّل الدخول مجددًا."
+                    } else profileError = partnerErrorMessage(it, "تعذر تحميل حساب الشريك")
+                }
             loading = false
         }
     }
@@ -216,7 +223,7 @@ private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) 
                             profile = null
                             token = session.token
                         }
-                        .onFailure { loginError = it.message ?: "تعذر تسجيل الدخول" }
+                        .onFailure { loginError = partnerErrorMessage(it, "تعذر تسجيل الدخول") }
                     loginBusy = false
                 }
             },
@@ -280,9 +287,13 @@ private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) 
             confirmButton = {
                 Button(onClick = {
                     showLogoutConfirmation = false
-                    PartnerSession.clear(context)
-                    token = null
-                    profile = null
+                    val activeToken = token
+                    scope.launch {
+                        runCatching { if (!activeToken.isNullOrBlank()) PartnerApi.logout(activeToken) }
+                        PartnerSession.clear(context)
+                        token = null
+                        profile = null
+                    }
                 }, colors = ButtonDefaults.buttonColors(containerColor = Fuchsia)) { Text("تسجيل الخروج") }
             },
             dismissButton = { TextButton(onClick = { showLogoutConfirmation = false }) { Text("إلغاء") } },
@@ -420,6 +431,19 @@ private fun ServiceErrorScreen(message: String, onRetry: () -> Unit, onPreview: 
         Text("تحقق من نشر واجهات /api/venue-partner على الخادم ثم أعد المحاولة.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, textAlign = TextAlign.Center)
         if (BuildConfig.DEBUG) TextButton(onClick = onPreview) { Text("عرض معاينة الواجهة") }
         TextButton(onClick = onLogout) { Text("تسجيل الخروج") }
+    }
+}
+
+private fun partnerErrorMessage(error: Throwable, fallback: String): String {
+    val apiError = error as? PartnerApiException
+    return when (apiError?.code) {
+        "AUTH_REQUIRED" -> "انتهت جلسة الدخول. سجّل الدخول مجددًا."
+        "VENUE_OWNER_PENDING" -> "طلب الشراكة بانتظار اعتماد الإدارة."
+        "VENUE_OWNER_INACTIVE" -> "حساب مالك القاعة غير مفعّل حاليًا."
+        "VENUE_ACCESS_DENIED" -> "حسابك لا يملك صلاحية إدارة حجوزات القاعات."
+        "NETWORK_TIMEOUT" -> "انتهت مهلة الاتصال. تحقق من الإنترنت وحاول مجددًا."
+        "NETWORK_ERROR" -> "تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مجددًا."
+        else -> error.message?.takeIf(String::isNotBlank) ?: fallback
     }
 }
 
