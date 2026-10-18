@@ -16,6 +16,7 @@ import { createCustomerNotification, sendVenueOwnerActivationLink } from "../lib
 import { appendOrderStatusEvent } from "../lib/order-tracking";
 import { hashPassword } from "../lib/auth-security";
 import { createPartnerActivationToken } from "../lib/partner-activation";
+import { paymentStatusForVenueBooking, validateVenueBookingTransition, VENUE_BOOKING_STATUSES } from "../lib/venue-booking-lifecycle";
 import { isWalletProviderConfigured, requestWalletRefund } from "../lib/wallet-gateway";
 import { getDeliverySettings, updateDeliverySettings } from "../lib/delivery-pricing";
 
@@ -406,9 +407,9 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     const status = req.body?.status;
-    const allowedStatuses = ["pending", "confirmed", "rejected", "completed"];
-    if (!Number.isInteger(id) || id < 1 || !allowedStatuses.includes(status)) {
-      res.status(400).json({ error: status === "cancelled" ? "إلغاء حجز القاعة متوقف حتى اعتماد سياسة وشروط الإلغاء في لوحة التحكم." : "حالة الحجز أو رقمه غير صحيح" });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+    if (!Number.isInteger(id) || id < 1 || !VENUE_BOOKING_STATUSES.includes(status)) {
+      res.status(400).json({ code: "INVALID_STATUS", error: "حالة الحجز أو رقمه غير صحيح" });
       return;
     }
     const [existing] = await db.select().from(venueBookingsTable).where(eq(venueBookingsTable.id, id));
@@ -416,23 +417,32 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       res.status(404).json({ error: "الحجز غير موجود" });
       return;
     }
-    if (status === "confirmed" && (existing.status !== "pending" || !existing.expiresAt || existing.expiresAt.getTime() <= Date.now())) {
-      res.status(409).json({ error: "انتهت مهلة الحجز المؤقت؛ اطلب من العميل إنشاء طلب جديد بعد فحص التوفر" });
+    const transition = validateVenueBookingTransition(existing.status, status, { reason, expiresAt: existing.expiresAt });
+    if (!transition.ok) {
+      res.status(transition.code === "HOLD_EXPIRED" || transition.code === "INVALID_TRANSITION" ? 409 : 400).json({ code: transition.code, error: transition.message });
       return;
     }
-    await db.update(venueBookingsTable).set({
-      status,
-      expiresAt: null,
-      paymentStatus: status === "confirmed" ? "approved" : status === "rejected" ? "rejected" : existing.paymentStatus,
-    }).where(eq(venueBookingsTable.id, id));
-    await db.insert(venueBookingEventsTable).values({
-      bookingId: id,
-      actorType: "admin",
-      eventType: "status_changed",
-      fromStatus: existing.status,
-      toStatus: status,
-      notes: "تم التحديث من لوحة الإدارة",
+    const changed = await db.transaction(async (tx) => {
+      const updated = await tx.update(venueBookingsTable).set({
+        status,
+        expiresAt: null,
+        paymentStatus: paymentStatusForVenueBooking(status, existing.paymentStatus),
+      }).where(and(eq(venueBookingsTable.id, id), eq(venueBookingsTable.status, existing.status)));
+      if (Number(updated[0].affectedRows) !== 1) return false;
+      await tx.insert(venueBookingEventsTable).values({
+        bookingId: id,
+        actorType: "admin",
+        eventType: "status_changed",
+        fromStatus: existing.status,
+        toStatus: status,
+        notes: reason || "تم التحديث من لوحة الإدارة",
+      });
+      return true;
     });
+    if (!changed) {
+      res.status(409).json({ code: "BOOKING_CHANGED", error: "تغيرت حالة الحجز؛ حدّث القائمة وحاول مجددًا" });
+      return;
+    }
     const [row] = await db.select({
       id: venueBookingsTable.id,
       sessionId: venueBookingsTable.customerUserId,
@@ -460,12 +470,12 @@ router.patch("/reservations/:id", async (req, res): Promise<void> => {
       .leftJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
       .where(eq(venueBookingsTable.id, id));
     if (!row) { res.status(404).json({ error: "الحجز غير موجود" }); return; }
-    if (status === "confirmed" || status === "rejected" || status === "cancelled") {
+    if (status === "confirmed" || status === "rejected" || status === "completed") {
       await createCustomerNotification({
         sessionId: String(row.sessionId),
         type: "venue_reservation_status",
-        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "تم إلغاء حجز القاعة",
-        message: status === "confirmed" ? `تم قبول حجز ${row.venueName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.venueName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `تم إلغاء حجز ${row.venueName || "القاعة"}.`,
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "rejected" ? "تم رفض حجز القاعة" : "اكتمل حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.venueName || "القاعة"} والتأكد من التوفر.` : status === "rejected" ? `نعتذر، لم يتم قبول حجز ${row.venueName || "القاعة"} بعد مراجعة التوفر أو الإيصال.` : `اكتمل حجز ${row.venueName || "القاعة"}.`,
         customerName: row.customerName,
         phone: row.customerPhone,
       });

@@ -5,6 +5,7 @@ import { db, pool, storesTable, usersTable, venueOwnersTable, venuesTable, venue
 import { authenticatedUserId } from "../lib/user-session";
 import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
 import { canManageVenueBookings, visibleVenueBookingsPermission } from "../lib/venue-partner-permissions";
+import { paymentStatusForVenueBooking, validateVenueBookingTransition, VENUE_BOOKING_STATUSES } from "../lib/venue-booking-lifecycle";
 
 const router = Router();
 const AUDIENCES = ["women", "men", "both"] as const;
@@ -386,28 +387,36 @@ router.patch("/bookings/:id", async (req, res): Promise<void> => {
     const id = Number.parseInt(req.params.id, 10);
     const status = req.body?.status;
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
-    if (!Number.isInteger(id) || id < 1 || !["confirmed", "rejected"].includes(status)) {
-      res.status(400).json({ error: "حالة الحجز غير صحيحة؛ لا يمكن إلغاء القاعة قبل اعتماد سياسة الإلغاء" }); return;
+    if (!Number.isInteger(id) || id < 1 || !VENUE_BOOKING_STATUSES.includes(status)) {
+      res.status(400).json({ code: "INVALID_STATUS", error: "حالة الحجز غير صحيحة" }); return;
     }
     const [row] = await db.select({ booking: venueBookingsTable, venueOwnerId: venuesTable.ownerId, venueName: venuesTable.nameAr })
       .from(venueBookingsTable).innerJoin(venuesTable, eq(venueBookingsTable.venueId, venuesTable.id))
       .where(eq(venueBookingsTable.id, id));
     if (!row || row.venueOwnerId !== owner.id) { res.status(404).json({ error: "الحجز غير موجود ضمن قاعاتك" }); return; }
-    if (status === "confirmed" && (row.booking.status !== "pending" || !row.booking.expiresAt || row.booking.expiresAt.getTime() <= Date.now())) {
-      res.status(409).json({ error: "انتهت مهلة الحجز؛ لا يمكن تأكيده بعد انتهاء الحجز المؤقت" }); return;
+    const transition = validateVenueBookingTransition(row.booking.status, status, { reason, expiresAt: row.booking.expiresAt });
+    if (!transition.ok) {
+      res.status(transition.code === "HOLD_EXPIRED" || transition.code === "INVALID_TRANSITION" ? 409 : 400).json({ code: transition.code, error: transition.message }); return;
     }
-    await db.update(venueBookingsTable).set({
-      status,
-      expiresAt: null,
-      paymentStatus: status === "confirmed" ? "approved" : "rejected",
-    }).where(eq(venueBookingsTable.id, id));
-    await db.insert(venueBookingEventsTable).values({ bookingId: id, actorUserId: owner.userId, actorType: "venue_owner", eventType: "status_changed", fromStatus: row.booking.status, toStatus: status, notes: reason || null });
-    if (["confirmed", "rejected"].includes(status)) {
+    const changed = await db.transaction(async (tx) => {
+      const updated = await tx.update(venueBookingsTable).set({
+        status,
+        expiresAt: null,
+        paymentStatus: paymentStatusForVenueBooking(status, row.booking.paymentStatus),
+      }).where(and(eq(venueBookingsTable.id, id), eq(venueBookingsTable.status, row.booking.status)));
+      if (Number(updated[0].affectedRows) !== 1) return false;
+      await tx.insert(venueBookingEventsTable).values({ bookingId: id, actorUserId: owner.userId, actorType: "venue_owner", eventType: "status_changed", fromStatus: row.booking.status, toStatus: status, notes: reason || null });
+      return true;
+    });
+    if (!changed) {
+      res.status(409).json({ code: "BOOKING_CHANGED", error: "تغيرت حالة الحجز؛ حدّث القائمة وحاول مجددًا" }); return;
+    }
+    if (["confirmed", "rejected", "completed"].includes(status)) {
       await createCustomerNotification({
         sessionId: String(row.booking.customerUserId),
         type: "venue_reservation_status",
-        title: status === "confirmed" ? "تم قبول حجز القاعة" : "تم رفض حجز القاعة",
-        message: status === "confirmed" ? `تم قبول حجز ${row.venueName}.` : `لم يتم قبول حجز ${row.venueName}.${reason ? ` السبب: ${reason}` : ""}`,
+        title: status === "confirmed" ? "تم قبول حجز القاعة" : status === "completed" ? "اكتمل حجز القاعة" : "تم رفض حجز القاعة",
+        message: status === "confirmed" ? `تم قبول حجز ${row.venueName}.` : status === "completed" ? `اكتمل حجز ${row.venueName}.` : `لم يتم قبول حجز ${row.venueName}.${reason ? ` السبب: ${reason}` : ""}`,
         customerName: row.booking.customerName,
         phone: row.booking.customerPhone,
       });
