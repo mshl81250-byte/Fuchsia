@@ -201,6 +201,13 @@ data class TableReservation(
     val customerPhone: String,
 )
 
+data class VenueBookingEvent(
+    val eventType: String,
+    val fromStatus: String?,
+    val toStatus: String?,
+    val notes: String?,
+    val createdAt: String,
+)
 data class VenueBooking(
     val id: Int,
     val venueId: Int,
@@ -216,6 +223,7 @@ data class VenueBooking(
     val status: String,
     val expiresAt: String?,
     val createdAt: String,
+    val history: List<VenueBookingEvent> = emptyList(),
 )
 
 data class DeliveryAddress(
@@ -917,6 +925,18 @@ object FuchsiaApi {
         status = optString("status").ifBlank { "pending" },
         expiresAt = nullableString("expiresAt"),
         createdAt = optString("createdAt"),
+        history = optJSONArray("history")?.let { events -> buildList {
+            for (index in 0 until events.length()) {
+                val event = events.optJSONObject(index) ?: continue
+                add(VenueBookingEvent(
+                    eventType = event.optString("eventType"),
+                    fromStatus = event.nullableString("fromStatus"),
+                    toStatus = event.nullableString("toStatus"),
+                    notes = event.nullableString("notes"),
+                    createdAt = event.optString("createdAt"),
+                ))
+            }
+        } } ?: emptyList(),
     )
 
     private fun JSONObject.toDeliveryAddress() = DeliveryAddress(
