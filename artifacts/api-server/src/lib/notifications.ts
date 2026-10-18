@@ -50,6 +50,39 @@ function normalizeYemenPhone(phone: string) {
   return value;
 }
 
+export async function sendVenueOwnerCredentials(input: {
+  channel: "email" | "whatsapp";
+  fullName: string;
+  username: string;
+  password: string;
+  email?: string | null;
+  phone?: string | null;
+}): Promise<void> {
+  const settings = await db.select().from(notificationChannelSettingsTable).where(eq(notificationChannelSettingsTable.enabled, true));
+  const setting = settings.find(item => item.channel === input.channel);
+  if (!setting) throw new Error(`قناة ${input.channel} غير مفعلة`);
+
+  const message = `مرحباً ${input.fullName || "بك"}،\nتم إنشاء حسابك في تطبيق أعمال فوشيا.\nاسم المستخدم: ${input.username}\nكلمة المرور المؤقتة: ${input.password}\nيرجى تغيير كلمة المرور بعد أول دخول وعدم مشاركة هذه الرسالة.`;
+  if (input.channel === "email") {
+    if (!input.email || !process.env.RESEND_API_KEY || setting.provider !== "Resend") throw new Error("إعدادات البريد غير مكتملة");
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: setting.sender || process.env.EMAIL_FROM || "notifications@fuchsia.ye", to: [input.email], subject: "بيانات دخول تطبيق أعمال فوشيا", text: message }),
+    });
+    if (!response.ok) throw new Error(`فشل إرسال البريد (${response.status})`);
+    return;
+  }
+
+  if (!input.phone || !process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID || setting.provider !== "WhatsApp Business Cloud API") throw new Error("إعدادات واتساب غير مكتملة");
+  const response = await fetch(`https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to: normalizeYemenPhone(input.phone), type: "text", text: { body: message } }),
+  });
+  if (!response.ok) throw new Error(`فشل إرسال واتساب (${response.status})`);
+}
+
 async function dispatchExternal(input: NotificationInput) {
   const settings = await db.select().from(notificationChannelSettingsTable).where(eq(notificationChannelSettingsTable.enabled, true));
   const whatsapp = settings.find(item => item.channel === "whatsapp");

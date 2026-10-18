@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { BadgeCheck, Building2, CalendarDays, ChevronLeft, CircleDollarSign, Phone, RefreshCw, ShieldOff, UserRoundCheck, Users, X } from "lucide-react";
+import { BadgeCheck, Building2, CalendarDays, ChevronLeft, CircleDollarSign, Mail, MessageCircle, Phone, RefreshCw, ShieldOff, UserRoundCheck, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,8 @@ export function VenueOwnersView() {
   const [selected, setSelected] = useState<OwnerDetails | null>(null);
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [createBusy, setCreateBusy] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState<{ username: string; temporaryPassword: string; venueId: number } | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ userId: number; username: string; temporaryPassword: string; venueId: number; email: string; phone: string } | null>(null);
+  const [sendBusy, setSendBusy] = useState<"email" | "whatsapp" | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch("/api/admin/venue-owners", { credentials: "include", cache: "no-store" });
@@ -88,9 +89,9 @@ export function VenueOwnersView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...createForm, capacity: Number(createForm.capacity), dailyPrice: Number(createForm.dailyPrice) }),
       });
-      const payload = await response.json() as { error?: string; username?: string; temporaryPassword?: string; venueId?: number };
-      if (!response.ok || !payload.username || !payload.temporaryPassword || !payload.venueId) throw new Error(payload.error || "تعذر إنشاء الحساب");
-      setCreatedCredentials({ username: payload.username, temporaryPassword: payload.temporaryPassword, venueId: payload.venueId });
+      const payload = await response.json() as { error?: string; userId?: number; username?: string; temporaryPassword?: string; venueId?: number };
+      if (!response.ok || !payload.userId || !payload.username || !payload.temporaryPassword || !payload.venueId) throw new Error(payload.error || "تعذر إنشاء الحساب");
+      setCreatedCredentials({ userId: payload.userId, username: payload.username, temporaryPassword: payload.temporaryPassword, venueId: payload.venueId, email: createForm.email, phone: createForm.phone });
       setCreateForm(emptyCreateForm);
       await load();
       toast.success("تم إنشاء حساب مالك القاعة وتفعيل دخوله لتطبيق الأعمال");
@@ -98,6 +99,25 @@ export function VenueOwnersView() {
       toast.error(error instanceof Error ? error.message : "تعذر إنشاء الحساب");
     } finally {
       setCreateBusy(false);
+    }
+  };
+  const sendCredentials = async (channel: "email" | "whatsapp") => {
+    if (!createdCredentials) return;
+    setSendBusy(channel);
+    try {
+      const response = await fetch(`/api/admin/venue-owner-accounts/${createdCredentials.userId}/credentials`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, password: createdCredentials.temporaryPassword }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "تعذر الإرسال");
+      toast.success(channel === "email" ? "تم إرسال بيانات الدخول عبر البريد" : "تم إرسال بيانات الدخول عبر واتساب");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "تعذر إرسال بيانات الدخول");
+    } finally {
+      setSendBusy(null);
     }
   };
 
@@ -114,7 +134,7 @@ export function VenueOwnersView() {
         </div>
         <div className="space-y-2"><Label>وصف القاعة (اختياري)</Label><Input value={createForm.description} onChange={(event) => updateCreateForm("description", event.target.value)} /></div>
         <div className="flex justify-end"><Button onClick={() => void createVenueOwner()} disabled={createBusy || !createForm.fullName || !createForm.email || createForm.password.length < 8 || !createForm.businessName || !createForm.venueName || !createForm.city || !createForm.address || !createForm.capacity || !createForm.dailyPrice || !createForm.primaryImageUrl}>{createBusy ? "جارٍ الإنشاء…" : "إنشاء الحساب والقاعة"}</Button></div>
-        {createdCredentials && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">تم الإنشاء — أرسل هذه البيانات للمالك مرة واحدة:</p><p className="mt-2">اسم المستخدم: <b dir="ltr">{createdCredentials.username}</b></p><p>كلمة المرور المؤقتة: <b dir="ltr">{createdCredentials.temporaryPassword}</b></p><p>معرف القاعة: <b>{createdCredentials.venueId}</b></p><p className="mt-2 text-xs">لا تظهر كلمة المرور مرة أخرى بعد مغادرة الصفحة.</p></div>}
+        {createdCredentials && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><p className="font-bold">تم الإنشاء — أرسل بيانات الدخول للمالك مرة واحدة:</p><p className="mt-2">اسم المستخدم: <b dir="ltr">{createdCredentials.username}</b></p><p>كلمة المرور المؤقتة: <b dir="ltr">{createdCredentials.temporaryPassword}</b></p><p>معرف القاعة: <b>{createdCredentials.venueId}</b></p><div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" disabled={sendBusy !== null || !/^\S+@\S+\.\S+$/.test(createdCredentials.email)} onClick={() => void sendCredentials("email")}><Mail className="ml-2 h-4 w-4" />{sendBusy === "email" ? "جارٍ الإرسال…" : "إرسال بالبريد"}</Button><Button variant="outline" disabled={sendBusy !== null || createdCredentials.phone.length < 3} onClick={() => void sendCredentials("whatsapp")}><MessageCircle className="ml-2 h-4 w-4" />{sendBusy === "whatsapp" ? "جارٍ الإرسال…" : "إرسال واتساب"}</Button></div><p className="mt-2 text-xs">لا يتم حفظ كلمة المرور أو تسجيلها، ولا تظهر مرة أخرى بعد مغادرة الصفحة.</p></div>}
       </CardContent>
     </Card>
     <div className="grid gap-4">
