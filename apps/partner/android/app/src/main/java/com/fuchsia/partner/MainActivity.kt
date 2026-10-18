@@ -475,6 +475,7 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
     var selectedBooking by remember { mutableStateOf<PartnerBooking?>(null) }
     var rejectTarget by remember { mutableStateOf<PartnerBooking?>(null) }
     var rejectReason by remember { mutableStateOf("") }
+    var bookingFilter by remember { mutableStateOf("all") }
     var selectedBlackout by remember { mutableStateOf<PartnerBlackout?>(null) }
     var showCloseDialog by remember { mutableStateOf(false) }
     var closeReason by remember { mutableStateOf("") }
@@ -638,6 +639,8 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                 } else if (activeTab == 1) {
                     BookingsContent(
                         bookings = bookings.filter { it.venueId == selectedVenue?.id },
+                        filter = bookingFilter,
+                        onFilter = { bookingFilter = it },
                         loading = loadingBookings,
                         error = bookingsError,
                         onRefresh = { scope.launch { reloadBookings() } },
@@ -676,8 +679,8 @@ private fun PartnerDashboard(token: String?, profile: JSONObject?, preview: Bool
                 else scope.launch {
                     busy = true
                     runCatching { PartnerApi.setBookingStatus(token.orEmpty(), booking.id, status) }
-                        .onSuccess { selectedBooking = null; reloadBookings(); snackbar.showSnackbar(if (status == "confirmed") "تم تأكيد الحجز بعد مراجعة الإيصال" else "تم رفض طلب الحجز") }
-                        .onFailure { snackbar.showSnackbar(it.message ?: "تعذر تحديث الحجز") }
+                        .onSuccess { selectedBooking = null; reloadBookings(); snackbar.showSnackbar(when (status) { "confirmed" -> "تم تأكيد الحجز بعد مراجعة الإيصال"; "completed" -> "تم تسجيل اكتمال الحجز"; else -> "تم تحديث حالة الحجز" }) }
+                        .onFailure { snackbar.showSnackbar(partnerErrorMessage(it, "تعذر تحديث الحجز")) }
                     busy = false
                 }
             },
@@ -1045,16 +1048,22 @@ private fun LegendDot(color: Color, label: String) {
 }
 
 @Composable
-private fun BookingsContent(bookings: List<PartnerBooking>, loading: Boolean, error: String, onRefresh: () -> Unit, onOpen: (PartnerBooking) -> Unit) {
+private fun BookingsContent(bookings: List<PartnerBooking>, filter: String, onFilter: (String) -> Unit, loading: Boolean, error: String, onRefresh: () -> Unit, onOpen: (PartnerBooking) -> Unit) {
+    val visibleBookings = bookings.filter { filter == "all" || it.status == filter }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("طلبات هذه القاعة", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+            Text("طلبات هذه القاعة (${bookings.size})", Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
             TextButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, null); Text("تحديث") }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("all" to "الكل", "pending" to "جديدة", "confirmed" to "مؤكدة", "completed" to "مكتملة", "rejected" to "مرفوضة").forEach { (value, label) ->
+                FilterChip(selected = filter == value, onClick = { onFilter(value) }, label = { Text(label) })
+            }
         }
         if (loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Text("جارٍ تحميل الطلبات…") }
         if (error.isNotBlank()) Notice(error, error = true)
-        if (bookings.isEmpty() && !loading) EmptyBookings()
-        bookings.sortedByDescending { it.reservationAt }.forEach { booking -> BookingCard(booking, onOpen) }
+        if (visibleBookings.isEmpty() && !loading) EmptyBookings()
+        visibleBookings.sortedByDescending { it.reservationAt }.forEach { booking -> BookingCard(booking, onOpen) }
     }
 }
 
@@ -1070,6 +1079,7 @@ private fun BookingCard(booking: PartnerBooking, onOpen: (PartnerBooking) -> Uni
             Text("${booking.partySize} ضيف · المبلغ ${formatMoney(booking.totalAmount)} ر.ي", fontSize = 12.sp)
             if (isBookingExpired(booking)) Text("انتهت مهلة الحجز المؤقت؛ لا يمكن تأكيده الآن.", color = Red, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
             else if (booking.status == "pending") Text("بانتظار مراجعة الطلب والإيصال", color = Amber, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+            else if (booking.status == "completed") Text("تم تسجيل اكتمال الحجز", color = Green, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
         }
     }
 }
@@ -1106,6 +1116,8 @@ private fun BookingDetailsDialog(booking: PartnerBooking, venueName: String, pre
         confirmButton = {
             if (booking.status == "pending" && !isBookingExpired(booking)) TextButton(enabled = !preview && !busy, onClick = { onUpdate("confirmed") }) {
                 Icon(Icons.Rounded.Check, null, tint = Green); Text("تأكيد بعد المراجعة", color = Green)
+            } else if (booking.status == "confirmed") TextButton(enabled = !preview && !busy, onClick = { onUpdate("completed") }) {
+                Icon(Icons.Rounded.Check, null, tint = Green); Text("تسجيل اكتمال الحجز", color = Green)
             }
         },
         dismissButton = {
@@ -1132,7 +1144,7 @@ private fun DetailLine(label: String, value: String) {
 private fun StatusPill(status: String) {
     val tone = when (status) {
         "pending", "rental_pending_confirmation" -> FuchsiaStatusTone.Warning
-        "confirmed", "rental_confirmed", "rental_preparing", "rental_out", "rental_returned" -> FuchsiaStatusTone.Success
+        "confirmed", "completed", "rental_confirmed", "rental_preparing", "rental_out", "rental_returned" -> FuchsiaStatusTone.Success
         "rejected", "cancelled", "expired", "rental_rejected", "rental_cancelled" -> FuchsiaStatusTone.Error
         else -> FuchsiaStatusTone.Neutral
     }
@@ -1272,7 +1284,7 @@ private fun daysFromToday(days: Int): String = SimpleDateFormat("yyyy-MM-dd'T'12
 private fun prettyDate(value: String): String = FuchsiaFormatters.prettyDate(value)
 private fun formatMoney(value: Double): String = FuchsiaFormatters.yemeniRiyal(value)
 private fun audienceLabel(value: String): String = when (value) { "women" -> "النساء"; "men" -> "الرجال"; else -> "النساء والرجال" }
-private fun statusLabel(value: String): String = when (value) { "pending" -> "طلب جديد"; "confirmed" -> "مؤكد"; "rejected" -> "مرفوض"; "cancelled" -> "ملغى"; "expired" -> "انتهت المهلة"; else -> value }
+private fun statusLabel(value: String): String = when (value) { "pending" -> "طلب جديد"; "confirmed" -> "مؤكد"; "completed" -> "مكتمل"; "rejected" -> "مرفوض"; "cancelled" -> "ملغى"; "expired" -> "انتهت المهلة"; else -> value }
 private fun paymentLabel(value: String): String = when (value) { "approved" -> "تمت المراجعة"; "pending_review" -> "بانتظار المراجعة"; "rejected" -> "مرفوض"; else -> value }
 
 private fun isWithinBooking(date: String, booking: PartnerBooking): Boolean {
