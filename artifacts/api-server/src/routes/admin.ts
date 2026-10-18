@@ -185,7 +185,11 @@ router.get("/venue-owners", async (req, res): Promise<void> => {
       status: venueOwnersTable.status,
       createdAt: venueOwnersTable.createdAt,
     }).from(venueOwnersTable).orderBy(desc(venueOwnersTable.createdAt));
-    res.json(owners.map((owner) => ({ ...owner, createdAt: owner.createdAt.toISOString() })));
+    res.json(owners.map((owner) => ({
+      ...owner,
+      venueAccess: owner.status === "active",
+      createdAt: owner.createdAt.toISOString(),
+    })));
   } catch (error) {
     req.log.error({ error }, "Admin list venue owners failed");
     res.status(500).json({ error: "تعذر تحميل طلبات الشراكة" });
@@ -203,7 +207,12 @@ router.patch("/venue-owners/:id", async (req, res): Promise<void> => {
     await db.update(venueOwnersTable).set({ status, updatedAt: new Date() }).where(eq(venueOwnersTable.id, id));
     const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.id, id));
     if (!owner) { res.status(404).json({ error: "طلب الشراكة غير موجود" }); return; }
-    res.json({ ...owner, createdAt: owner.createdAt.toISOString(), updatedAt: owner.updatedAt.toISOString() });
+    res.json({
+      ...owner,
+      venueAccess: owner.status === "active",
+      createdAt: owner.createdAt.toISOString(),
+      updatedAt: owner.updatedAt.toISOString(),
+    });
   } catch (error) {
     req.log.error({ error }, "Admin update venue owner failed");
     res.status(500).json({ error: "تعذر تحديث اعتماد الشريك" });
@@ -235,7 +244,12 @@ router.get("/venue-owners/:id/details", async (req, res): Promise<void> => {
     const confirmedBookings = bookings.filter((booking) => booking.status === "confirmed" || booking.status === "completed");
     res.setHeader("Cache-Control", "no-store");
     res.json({
-      owner: { ...owner, createdAt: owner.createdAt.toISOString(), updatedAt: owner.updatedAt.toISOString() },
+      owner: {
+        ...owner,
+        venueAccess: owner.status === "active",
+        createdAt: owner.createdAt.toISOString(),
+        updatedAt: owner.updatedAt.toISOString(),
+      },
       stats: { venues: venues.length, totalBookings: bookings.length, confirmedBookings: confirmedBookings.length, pendingBookings: bookings.filter((booking) => booking.status === "pending").length, totalRevenue: confirmedBookings.reduce((total, booking) => total + Number(booking.totalAmount || 0), 0) },
       venues: venueStats,
       bookings: bookings.map((booking) => ({ ...booking, reservationAt: booking.reservationAt.toISOString() })),
