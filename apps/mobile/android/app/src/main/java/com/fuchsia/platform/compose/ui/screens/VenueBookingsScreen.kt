@@ -120,9 +120,11 @@ fun VenueBookingsScreen(onBack: () -> Unit, onSignIn: () -> Unit) {
 private fun VenueBookingCard(booking: VenueBooking, venueName: String?) {
     val statusLabel = when (booking.status.lowercase()) {
         "confirmed" -> "مؤكد"
+        "completed" -> "مكتمل"
         "cancelled" -> "ملغي"
         "expired" -> "انتهت المهلة"
         "pending" -> "بانتظار تأكيد القاعة"
+        "rejected" -> "مرفوض"
         else -> booking.status.ifBlank { "قيد المتابعة" }
     }
     val paymentLabel = when (booking.paymentStatus.lowercase()) {
@@ -143,7 +145,7 @@ private fun VenueBookingCard(booking: VenueBooking, venueName: String?) {
                     Text(venueName ?: "قاعة رقم ${booking.venueId}", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                     Text("طلب رقم #${booking.id}", color = FuchsiaColors.Muted, fontSize = 11.sp)
                 }
-                Surface(shape = RoundedCornerShape(12.dp), color = if (booking.status == "confirmed") FuchsiaColors.Success.copy(alpha = .12f) else FuchsiaColors.RoseLight) {
+                Surface(shape = RoundedCornerShape(12.dp), color = if (booking.status == "confirmed" || booking.status == "completed") FuchsiaColors.Success.copy(alpha = .12f) else FuchsiaColors.RoseLight) {
                     Text(statusLabel, Modifier.padding(horizontal = 9.dp, vertical = 6.dp), color = FuchsiaColors.TextAccent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
@@ -160,6 +162,30 @@ private fun VenueBookingCard(booking: VenueBooking, venueName: String?) {
                     Text(paymentLabel, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text("الإجمالي ${formatYemeniRiyal(booking.totalAmount)} · الدفعة المسجلة ${formatYemeniRiyal(booking.paymentAmount)}", color = FuchsiaColors.Ink, fontSize = 11.sp)
                     Text("طريقة الدفع: ${if (booking.paymentType == "full") "كامل المبلغ" else "عربون 30%"}", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                }
+            }
+            val rejection = booking.history.lastOrNull { it.toStatus == "rejected" && !it.notes.isNullOrBlank() }
+            if (rejection != null) {
+                Surface(shape = RoundedCornerShape(14.dp), color = FuchsiaColors.Error.copy(alpha = .10f)) {
+                    Column(Modifier.fillMaxWidth().padding(11.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("سبب رفض الحجز", color = FuchsiaColors.Error, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(rejection.notes.orEmpty(), color = FuchsiaColors.Ink, fontSize = 12.sp)
+                    }
+                }
+            }
+            if (booking.history.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("سجل الحجز", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    booking.history.takeLast(4).asReversed().forEach { event ->
+                        val label = when (event.toStatus) {
+                            "pending" -> "تم إرسال الطلب"
+                            "confirmed" -> "تم تأكيد الحجز من القاعة"
+                            "completed" -> "تم تسجيل اكتمال الحجز"
+                            "rejected" -> "تم رفض الحجز"
+                            else -> event.eventType.ifBlank { "تم تحديث الحجز" }
+                        }
+                        Text("• $label${event.notes?.takeIf { it.isNotBlank() }?.let { " — $it" }.orEmpty()}", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                    }
                 }
             }
         }
