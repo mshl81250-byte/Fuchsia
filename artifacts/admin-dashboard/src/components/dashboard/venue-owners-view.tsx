@@ -11,6 +11,7 @@ type OwnerRequest = {
   businessName: string;
   contactPhone: string;
   status: "pending" | "active" | "suspended";
+  venueAccess: boolean;
   createdAt: string;
 };
 
@@ -65,7 +66,7 @@ export function VenueOwnersView() {
       });
       if (!response.ok) throw new Error("تعذر تحديث اعتماد الشريك");
       await load();
-      toast.success(status === "active" ? "تم اعتماد الشريك" : status === "suspended" ? "تم إيقاف الشريك" : "تم تحديث الحالة");
+      toast.success(status === "active" ? "تم اعتماد الشريك وتفعيل إدارة القاعات" : status === "suspended" ? "تم إيقاف الشريك وتعطيل إدارة القاعات" : "تم تحديث الحالة");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "حدث خطأ");
     } finally {
@@ -75,13 +76,13 @@ export function VenueOwnersView() {
 
   return <div className="space-y-6">
     <div className="flex items-start justify-between gap-3">
-      <div><h2 className="text-2xl font-bold">أصحاب القاعات</h2><p className="text-muted-foreground">راجع طلبات الشراكة واعتمد الحسابات قبل السماح بإضافة القاعات.</p></div>
+      <div><h2 className="text-2xl font-bold">أصحاب القاعات</h2><p className="text-muted-foreground">اعتماد مالك القاعة يفعّل إدارة القاعات في Fuchsia Booking بشكل مستقل عن صلاحيات المتجر.</p></div>
       <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2"><RefreshCw className="h-4 w-4" /> تحديث</Button>
     </div>
     <div className="grid gap-4">
       {owners.map((owner) => <Card key={owner.id} className="cursor-pointer transition hover:-translate-y-0.5 hover:shadow-md" onClick={() => void openDetails(owner.id)}><CardContent className="p-5 flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2"><Building2 className="h-5 w-5 text-primary" /><h3 className="font-bold text-lg">{owner.businessName}</h3><Badge variant={owner.status === "active" ? "default" : "secondary"}>{statusLabel[owner.status]}</Badge></div>
+          <div className="flex flex-wrap items-center gap-2"><Building2 className="h-5 w-5 text-primary" /><h3 className="font-bold text-lg">{owner.businessName}</h3><Badge variant={owner.status === "active" ? "default" : "secondary"}>{statusLabel[owner.status]}</Badge><Badge variant={owner.venueAccess ? "outline" : "secondary"}>{owner.venueAccess ? "إدارة القاعات مفعلة" : "إدارة القاعات غير مفعلة"}</Badge></div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground"><span className="inline-flex items-center gap-1"><Phone className="h-4 w-4" />{owner.contactPhone}</span><span>حساب المستخدم #{owner.userId}</span><span>{new Date(owner.createdAt).toLocaleDateString("ar-YE")}</span></div>
         </div>
         <div className="flex items-center gap-2"><div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
