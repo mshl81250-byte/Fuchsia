@@ -190,7 +190,14 @@ private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) 
             profileError = ""
             runCatching { PartnerApi.profile(token.orEmpty()) }
                 .onSuccess { profile = it }
-                .onFailure { profile = null; profileError = it.message ?: "تعذر تحميل حساب الشريك" }
+                .onFailure {
+                    profile = null
+                    if (it is PartnerApiException && it.statusCode == 401) {
+                        PartnerSession.clear(context)
+                        token = null
+                        profileError = "انتهت جلسة الدخول. سجّل الدخول مجددًا."
+                    } else profileError = it.message ?: "تعذر تحميل حساب الشريك"
+                }
             loading = false
         }
     }
@@ -280,9 +287,13 @@ private fun PartnerRoot(darkMode: Boolean, onDarkModeChange: (Boolean) -> Unit) 
             confirmButton = {
                 Button(onClick = {
                     showLogoutConfirmation = false
-                    PartnerSession.clear(context)
-                    token = null
-                    profile = null
+                    val activeToken = token
+                    scope.launch {
+                        runCatching { if (!activeToken.isNullOrBlank()) PartnerApi.logout(activeToken) }
+                        PartnerSession.clear(context)
+                        token = null
+                        profile = null
+                    }
                 }, colors = ButtonDefaults.buttonColors(containerColor = Fuchsia)) { Text("تسجيل الخروج") }
             },
             dismissButton = { TextButton(onClick = { showLogoutConfirmation = false }) { Text("إلغاء") } },

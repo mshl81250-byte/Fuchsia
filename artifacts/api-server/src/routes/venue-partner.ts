@@ -42,15 +42,15 @@ function venueReady(data: {
 
 async function getOwner(req: Request, res: Response) {
   const userId = await authenticatedUserId(req);
-  if (!userId) { res.status(401).json({ error: "سجّل الدخول بحسابك أولًا" }); return null; }
+  if (!userId) { res.status(401).json({ code: "AUTH_REQUIRED", error: "سجّل الدخول بحسابك أولًا" }); return null; }
   const [account] = await db.select({ accountType: usersTable.accountType, partnerPermissions: usersTable.partnerPermissions }).from(usersTable).where(eq(usersTable.id, userId));
   const [owner] = await db.select().from(venueOwnersTable).where(eq(venueOwnersTable.userId, userId));
   if (!owner || owner.status !== "active") {
-    res.status(403).json({ error: owner?.status === "pending" ? "طلب الشراكة بانتظار اعتماد الإدارة" : "حساب الشريك غير مفعّل" });
+    res.status(403).json({ code: owner?.status === "pending" ? "VENUE_OWNER_PENDING" : "VENUE_OWNER_INACTIVE", error: owner?.status === "pending" ? "طلب الشراكة بانتظار اعتماد الإدارة" : "حساب الشريك غير مفعّل" });
     return null;
   }
   if (!canManageVenueBookings(account?.accountType, account?.partnerPermissions, owner.status)) {
-    res.status(403).json({ error: "حسابك غير مخول لإدارة حجوزات القاعات" }); return null;
+    res.status(403).json({ code: "VENUE_ACCESS_DENIED", error: "حسابك غير مخول لإدارة حجوزات القاعات" }); return null;
   }
   return owner;
 }

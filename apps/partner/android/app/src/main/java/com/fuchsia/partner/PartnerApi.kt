@@ -9,7 +9,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-class PartnerApiException(message: String, val statusCode: Int) : Exception(message)
+class PartnerApiException(message: String, val statusCode: Int, val code: String? = null) : Exception(message)
 
 data class PartnerVenue(
     val id: Int,
@@ -62,6 +62,11 @@ object PartnerApi {
 
     suspend fun profile(token: String): JSONObject = withContext(Dispatchers.IO) {
         JSONObject(request("/api/venue-partner/me", "GET", token = token))
+    }
+
+    suspend fun logout(token: String) = withContext(Dispatchers.IO) {
+        request("/api/auth/logout", "POST", token = token)
+        Unit
     }
 
     suspend fun requestPartner(token: String, businessName: String, phone: String): JSONObject = withContext(Dispatchers.IO) {
@@ -212,8 +217,10 @@ object PartnerApi {
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             if (status !in 200..299) {
-                val message = runCatching { JSONObject(text).optString("error") }.getOrNull().orEmpty()
-                throw PartnerApiException(message.ifBlank { "تعذر الاتصال بالخادم (HTTP $status)" }, status)
+                val error = runCatching { JSONObject(text) }.getOrNull()
+                val message = error?.optString("error").orEmpty()
+                val code = error?.optString("code")?.takeIf(String::isNotBlank)
+                throw PartnerApiException(message.ifBlank { "تعذر الاتصال بالخادم (HTTP $status)" }, status, code)
             }
             text.ifBlank { "{}" }
         } catch (error: PartnerApiException) {
