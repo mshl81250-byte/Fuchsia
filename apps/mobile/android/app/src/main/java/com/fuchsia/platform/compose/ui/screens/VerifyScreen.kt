@@ -68,7 +68,7 @@ fun VerifyScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var code by rememberSaveable { mutableStateOf("") }
+    var code by remember { mutableStateOf("") }
     var secondsLeft by rememberSaveable { mutableIntStateOf(180) }
     var busy by remember { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf("") }
@@ -78,6 +78,7 @@ fun VerifyScreen(
             delay(1_000)
             secondsLeft -= 1
         }
+        code = ""
     }
 
     Column(
@@ -165,6 +166,7 @@ fun VerifyScreen(
                     try {
                         val session = FuchsiaApi.verifyRegistrationCode(email, code)
                         SessionVault.save(context, session.user, session.token)
+                        code = ""
                         onVerified()
                     } catch (failure: Throwable) {
                         error = failure.message ?: "تعذر التحقق من الرمز."
@@ -178,8 +180,9 @@ fun VerifyScreen(
                 .fillMaxWidth()
                 .height(56.dp)
                 .background(Brush.horizontalGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark)), RoundedCornerShape(17.dp)),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(17.dp),
             colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp, focusedElevation = 0.dp, hoveredElevation = 0.dp, disabledElevation = 0.dp),
         ) {
             if (busy) CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp)
             else Text("تأكيد وإنشاء الحساب", fontWeight = FontWeight.Bold)

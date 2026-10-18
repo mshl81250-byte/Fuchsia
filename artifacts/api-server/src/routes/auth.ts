@@ -5,12 +5,9 @@ import { eq, and, lt } from "drizzle-orm";
 import crypto from "crypto";
 import { sendVerificationCodeEmail } from "../lib/notifications";
 import { authenticatedUserId } from "../lib/user-session";
+import { hashPassword, needsPasswordUpgrade, shouldReturnDebugOtp, verifyPassword } from "../lib/auth-security.js";
 
 const router = Router();
-
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password + "fuchsia_salt_2024").digest("hex");
-}
 
 async function generateToken(userId: number): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
@@ -71,8 +68,7 @@ router.post("/register/request-code", async (req, res): Promise<void> => {
       fullName, passwordHash: hashPassword(password), phone, codeHash: hashVerificationCode(code),
       expiresAt: new Date(Date.now() + 3 * 60 * 1000), attempts: 0, createdAt: new Date(),
     } });
-    const debugOtpRequested =
-      process.env.MOBILE_OTP_DEBUG === "true" || req.header("X-Fuchsia-OTP-Debug") === "true";
+    const debugOtpRequested = shouldReturnDebugOtp(process.env.NODE_ENV, process.env.MOBILE_OTP_DEBUG);
     try {
       await sendVerificationCodeEmail({ email, name: fullName, code });
     } catch (emailError) {
@@ -170,9 +166,15 @@ router.post("/login", async (req, res): Promise<void> => {
       return;
     }
 
-    if (user.passwordHash !== hashPassword(password)) {
+    if (!verifyPassword(password, user.passwordHash)) {
       res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
       return;
+    }
+
+    if (needsPasswordUpgrade(user.passwordHash)) {
+      await db.update(usersTable)
+        .set({ passwordHash: hashPassword(password) })
+        .where(eq(usersTable.id, user.id));
     }
 
     res.json({ user: safeUser(user), token: await generateToken(user.id) });

@@ -39,7 +39,6 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingBag
@@ -366,7 +365,6 @@ private fun HomeHeader(name: String?, isGuest: Boolean, onCart: () -> Unit) {
                     Text("صنعاء، اليمن", color = FuchsiaColors.Muted, fontSize = 10.sp)
                 }
             }
-            HeaderIcon(Icons.Rounded.NotificationsNone, "الإشعارات") {}
             HeaderIcon(Icons.Rounded.ShoppingBag, "السلة", onCart)
         }
     }
@@ -449,7 +447,7 @@ private fun QuickService(title: String, icon: androidx.compose.ui.graphics.vecto
 }
 
 @Composable
-internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onOpen: () -> Unit = {}, isFavorite: Boolean = false, onFavorite: () -> Unit = {}, onAdd: () -> Unit) {
+internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, onOpen: () -> Unit = {}, isFavorite: Boolean = false, onFavorite: () -> Unit = {}, isAdding: Boolean = false, addEnabled: Boolean = true, onAdd: () -> Unit) {
     Card(modifier = modifier, shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line), elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)) {
         Column {
             Box(Modifier.fillMaxWidth().height(132.dp).background(FuchsiaColors.RoseLight).clickable(onClick = onOpen)) {
@@ -469,10 +467,14 @@ internal fun ProductCard(product: StoreProduct, modifier: Modifier = Modifier, o
                     if (product.reviewCount > 0) Text("(${product.reviewCount})", color = FuchsiaColors.Muted, fontSize = 9.sp)
                 }
                 Text(if (product.fulfillmentType == "rental") "${formatRiyal(product.rentalDailyPrice ?: product.price)} لليوم" else formatRiyal(product.price), color = FuchsiaColors.TextAccent, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-                Button(onClick = if (product.fulfillmentType == "rental") onOpen else onAdd, modifier = Modifier.fillMaxWidth().height(37.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
-                    Icon(if (product.fulfillmentType == "rental") Icons.Rounded.EventAvailable else Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(15.dp))
+                Button(onClick = if (product.fulfillmentType == "rental") onOpen else onAdd, enabled = product.fulfillmentType == "rental" || (addEnabled && !isAdding), modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 5.dp), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) {
+                    if (isAdding && product.fulfillmentType != "rental") {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
+                    } else {
+                        Icon(if (product.fulfillmentType == "rental") Icons.Rounded.EventAvailable else Icons.Rounded.AddShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
                     Spacer(Modifier.width(3.dp))
-                    Text(if (product.fulfillmentType == "rental") "احجز الإيجار" else "إضافة للسلة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text(if (product.fulfillmentType == "rental") "احجز الإيجار" else if (isAdding) "جارٍ الإضافة" else "إضافة للسلة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

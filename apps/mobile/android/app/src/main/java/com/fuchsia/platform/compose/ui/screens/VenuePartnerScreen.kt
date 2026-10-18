@@ -169,7 +169,7 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                 }
             } else if (ownerStatus == "suspended") {
                 item { CommerceNotice("حساب الشريك موقوف. تواصل مع الإدارة لمراجعة الحالة.", isError = true) }
-            } else {
+            } else if (ownerStatus == "active") {
                 item {
                     PartnerPanel(title = ownerBusinessName.ifBlank { "إدارة القاعات" }) {
                         Text("أدخل بيانات القاعة والسعر اليومي والموقع، وحدد الأقسام وأيام الدوام. لن يُنشأ حجز اعتمادًا على بيانات تجريبية.", color = FuchsiaColors.Muted, fontSize = 12.sp)
@@ -262,6 +262,8 @@ fun VenuePartnerScreen(onBack: () -> Unit) {
                         }
                     }
                 } else item { CommerceNotice("لا توجد قاعات مضافة بعد. ابدأ بقاعة واحدة مكتملة البيانات.") }
+            } else {
+                item { CommerceNotice("حالة حساب الشريك غير معتمدة أو غير معروفة. لا يمكن إدارة القاعات حتى تؤكد الإدارة الاعتماد.", isError = true) }
             }
             if (error.isNotBlank()) item { CommerceNotice(error, isError = true) }
             if (info.isNotBlank()) item { CommerceNotice(info) }

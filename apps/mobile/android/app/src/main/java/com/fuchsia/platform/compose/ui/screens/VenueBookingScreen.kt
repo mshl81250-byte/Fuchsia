@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.PeopleAlt
 import androidx.compose.material.icons.rounded.Remove
@@ -50,6 +51,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,7 +76,7 @@ import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
 import com.fuchsia.platform.compose.data.PaymentWallet
 import com.fuchsia.platform.compose.data.SessionVault
-import com.fuchsia.platform.compose.data.TableReservation
+import com.fuchsia.platform.compose.data.VenueBooking
 import com.fuchsia.platform.compose.data.VenueAvailability
 import com.fuchsia.platform.compose.data.VenueSummary
 import com.fuchsia.platform.compose.ui.theme.FuchsiaColors
@@ -86,10 +88,14 @@ import java.util.Calendar
 import java.util.Locale
 
 @Composable
-fun VenueBookingScreen(onBack: () -> Unit) {
+fun VenueBookingScreen(onBack: () -> Unit, onSignIn: () -> Unit = {}) {
     var selectedVenue by remember { mutableStateOf<VenueSummary?>(null) }
-    if (selectedVenue == null) VenueListScreen(onBack = onBack, onVenue = { selectedVenue = it })
-    else VenueDetailScreen(venue = selectedVenue!!, onBack = { selectedVenue = null })
+    var showingBookings by remember { mutableStateOf(false) }
+    when {
+        showingBookings -> VenueBookingsScreen(onBack = { showingBookings = false }, onSignIn = onSignIn)
+        selectedVenue == null -> VenueListScreen(onBack = onBack, onVenue = { selectedVenue = it }, onBookings = { showingBookings = true })
+        else -> VenueDetailScreen(venue = selectedVenue!!, onBack = { selectedVenue = null }, onBookings = { showingBookings = true }, onSignIn = onSignIn)
+    }
 }
 
 private fun venueErrorMessage(failure: Throwable, fallback: String): String =
@@ -100,7 +106,7 @@ private fun venueErrorMessage(failure: Throwable, fallback: String): String =
     }
 
 @Composable
-private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit) {
+private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit, onBookings: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var audienceFilter by remember { mutableStateOf<String?>(null) }
     var venues by remember { mutableStateOf<List<VenueSummary>>(emptyList()) }
@@ -121,7 +127,18 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = insets.calculateTopPadding() + 8.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
-            item { CommerceHeader("حجز قاعة أعراس", "ابحث عن القاعة المناسبة لمناسبتك", onBack) }
+            item {
+                CommerceHeader(
+                    "حجز قاعة أعراس",
+                    "ابحث عن القاعة المناسبة لمناسبتك",
+                    onBack,
+                    trailing = {
+                        IconButton(onClick = onBookings, modifier = Modifier.size(44.dp)) {
+                            Icon(Icons.Rounded.History, contentDescription = "حجوزاتي", tint = FuchsiaColors.Primary)
+                        }
+                    },
+                )
+            }
             item {
                 OutlinedTextField(
                     value = query,
@@ -176,7 +193,19 @@ private fun VenueListScreen(onBack: () -> Unit, onVenue: (VenueSummary) -> Unit)
                     }
                 }
             }
-            else if (venues.isEmpty()) item { CommerceEmptyState("لا توجد نتائج", "جرّب اسمًا أو منطقة أخرى.", "مسح البحث", { query = "" }) }
+            else if (venues.isEmpty()) item {
+                if (query.isBlank() && audienceFilter == null) {
+                    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = FuchsiaColors.White), border = BorderStroke(1.dp, FuchsiaColors.Line)) {
+                        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.EventAvailable, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(34.dp))
+                            Text("لا توجد قاعات منشورة الآن", color = FuchsiaColors.Ink, fontWeight = FontWeight.ExtraBold)
+                            Text("تُحمّل القاعات مباشرة من الخادم ولوحة الإدارة. ستظهر هنا بعد نشرها؛ لا نعرض حجوزات تجريبية.", color = FuchsiaColors.Muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+                            Button(onClick = { refreshKey++ }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary)) { Text("تحديث القاعات") }
+                            TextButton(onClick = onBookings) { Text("عرض حجوزاتي", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                } else CommerceEmptyState("لا توجد نتائج", "جرّب اسمًا أو منطقة أخرى.", "مسح البحث", { query = "" })
+            }
             else items(venues, key = { it.id }) { venue -> VenueCard(venue, onClick = { onVenue(venue) }) }
         }
     }
@@ -207,7 +236,7 @@ private fun VenueCard(venue: VenueSummary, onClick: () -> Unit) {
 }
 
 @Composable
-private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
+private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit, onBookings: () -> Unit, onSignIn: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bearerToken = remember(context) { SessionVault.token(context) }
@@ -224,7 +253,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     var partySize by remember { mutableStateOf("1") }
     var bookingDays by remember { mutableStateOf(1) }
     var submitting by remember { mutableStateOf(false) }
-    var submitted by remember { mutableStateOf<TableReservation?>(null) }
+    var submitted by remember { mutableStateOf<VenueBooking?>(null) }
     var submitError by remember { mutableStateOf("") }
     var wallets by remember { mutableStateOf<List<PaymentWallet>>(emptyList()) }
     var paymentType by remember { mutableStateOf("deposit") }
@@ -238,7 +267,10 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
     val receiptPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             uploading = true
-            runCatching { FuchsiaApi.uploadReceipt(context, uri).optString("url") }
+            runCatching {
+                val token = bearerToken ?: throw ApiException("يرجى تسجيل الدخول لرفع إيصال الدفع")
+                FuchsiaApi.uploadReceipt(context, uri, token).optString("url")
+            }
                 .onSuccess { receiptUrl = it }
                 .onFailure { submitError = it.message ?: "تعذر رفع الإيصال." }
             uploading = false
@@ -275,6 +307,7 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "رجوع", tint = FuchsiaColors.Ink) }
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) { Text("تفاصيل القاعة", color = FuchsiaColors.Ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold); Text("اختر اليوم المناسب لمناسبتك", color = FuchsiaColors.Muted, fontSize = 12.sp) }
+                    IconButton(onClick = onBookings, modifier = Modifier.size(44.dp)) { Icon(Icons.Rounded.History, contentDescription = "حجوزاتي", tint = FuchsiaColors.Primary) }
                 }
             }
             if (isDemoVenue) item {
@@ -392,7 +425,16 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                             Text("اختر المحفظة للتحويل", color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
                             wallets.forEach { wallet ->
                                 Card(Modifier.fillMaxWidth().clickable { selectedWalletId = wallet.id }, shape = RoundedCornerShape(14.dp), colors = CardDefaults.cardColors(containerColor = if (selectedWalletId == wallet.id) FuchsiaColors.Rose else FuchsiaColors.White), border = BorderStroke(1.dp, if (selectedWalletId == wallet.id) FuchsiaColors.Primary else FuchsiaColors.Line)) {
-                                    Column(Modifier.padding(11.dp)) { Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold); Text("رقم الحساب: ${wallet.accountNumber}", color = FuchsiaColors.TextAccent, fontSize = 12.sp); Text(wallet.instructions, color = FuchsiaColors.Muted, fontSize = 11.sp) }
+                                    Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        PaymentWalletLogo(wallet, Modifier.size(44.dp))
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                                            if (selectedWalletId == wallet.id) {
+                                                Text("رقم الحساب: ${wallet.accountNumber}", color = FuchsiaColors.TextAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                                if (wallet.instructions.isNotBlank()) Text(wallet.instructions, color = FuchsiaColors.Muted, fontSize = 11.sp)
+                                            } else Text("اضغط لعرض بيانات التحويل", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                                        }
+                                    }
                                 }
                             }
                             OutlinedTextField(value = transactionReference, onValueChange = { transactionReference = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("رقم عملية التحويل") }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = FuchsiaColors.Primary, unfocusedBorderColor = FuchsiaColors.Line, focusedLabelColor = FuchsiaColors.TextAccent, unfocusedLabelColor = FuchsiaColors.Muted, focusedTextColor = FuchsiaColors.Ink, unfocusedTextColor = FuchsiaColors.Ink, cursorColor = FuchsiaColors.Primary))
@@ -401,10 +443,11 @@ private fun VenueDetailScreen(venue: VenueSummary, onBack: () -> Unit) {
                             submitted?.let { reservation ->
                                 Text("تم إرسال طلب حجز ${venue.name} رقم #${reservation.id}", color = FuchsiaColors.Success, fontWeight = FontWeight.Bold)
                                 Text("الحالة: بانتظار مراجعة القاعة والتأكد من التوفر", color = FuchsiaColors.Muted, fontSize = 12.sp)
+                                TextButton(onClick = onBookings) { Text("متابعة حالة الحجز", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold) }
                             } ?: Button(onClick = {
                                 val token = bearerToken
                                 val guests = partySize.toIntOrNull() ?: 0
-                                if (token.isNullOrBlank()) submitError = "يرجى تسجيل الدخول لإرسال طلب الحجز."
+                                if (token.isNullOrBlank()) { submitError = "يرجى تسجيل الدخول لإرسال طلب الحجز."; onSignIn() }
                                 else if (customerName.isBlank() || customerPhone.isBlank()) submitError = "أدخل الاسم ورقم الهاتف."
                                 else if (guests < 1) submitError = "أدخل عدد الضيوف."
                                 else if (selectedWalletId == null || transactionReference.isBlank() || receiptUrl.isBlank()) submitError = "اختر المحفظة وأدخل رقم العملية وارفع الإيصال."

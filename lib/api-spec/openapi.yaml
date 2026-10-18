@@ -22,6 +22,98 @@ tags:
   - name: vendor
 
 paths:
+  /orders/offer:
+    get:
+      operationId: getEngagementBoxOffer
+      tags: [orders]
+      summary: Get the fixed engagement-box offer and price
+      responses:
+        "200":
+          description: Current server-authoritative offer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EngagementBoxOffer"
+    post:
+      operationId: createEngagementBoxOrder
+      tags: [orders]
+      summary: Place an engagement-box offer order with payment proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngagementBoxOfferOrderInput"
+      responses:
+        "201":
+          description: Created offer order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "200":
+          description: Existing order returned for an idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /venue-bookings:
+    get:
+      operationId: listVenueBookings
+      tags: [orders]
+      summary: List the authenticated customer's venue bookings
+      responses:
+        "200":
+          description: Venue booking records and payment states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VenueBooking"
+    post:
+      operationId: createVenueBooking
+      tags: [orders]
+      summary: Create a venue booking with payment proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VenueBookingInput"
+      responses:
+        "201":
+          description: Created venue booking pending confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueBooking"
+
+  /delivery/quote:
+    get:
+      operationId: getDeliveryQuote
+      tags: [orders]
+      summary: Calculate delivery fee from coordinates and current delivery settings
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Server-calculated delivery fee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryQuote"
+
   /healthz:
     get:
       operationId: healthCheck
@@ -1302,6 +1394,146 @@ components:
           type: ["string", "null"]
         userId:
           type: ["integer", "null"]
+
+    EngagementBoxOffer:
+      type: object
+      required: [offerId, titleAr, descriptionAr, dimensions, price, paymentOptions]
+      properties:
+        offerId:
+          type: string
+        titleAr:
+          type: string
+        descriptionAr:
+          type: string
+        dimensions:
+          type: string
+        price:
+          type: number
+        paymentOptions:
+          type: array
+          items:
+            type: string
+            enum: [partial, full]
+
+    EngagementBoxOfferOrderInput:
+      type: object
+      required: [sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl, giftMessage, idempotencyKey]
+      properties:
+        sessionId:
+          type: string
+        deliveryAddress:
+          type: string
+        deliveryLatitude:
+          type: number
+          minimum: 15.1
+          maximum: 15.7
+        deliveryLongitude:
+          type: number
+          minimum: 43.8
+          maximum: 44.6
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        paymentType:
+          type: string
+          enum: [partial, full]
+        paymentWalletId:
+          type: integer
+        paymentAmount:
+          type: number
+        transactionReference:
+          type: string
+        paymentReceiptUrl:
+          type: string
+        giftRecipientName:
+          type: string
+        giftMessage:
+          type: string
+        idempotencyKey:
+          type: string
+          minLength: 16
+          maxLength: 128
+
+    VenueBooking:
+      type: object
+      required: [id, venueId, reservationAt, bookingDays, partySize, totalAmount, paymentAmount, paymentStatus, status]
+      properties:
+        id:
+          type: integer
+        venueId:
+          type: integer
+        audience:
+          type: string
+        reservationAt:
+          type: string
+          format: date-time
+        bookingDays:
+          type: integer
+        partySize:
+          type: integer
+        dailyPriceSnapshot:
+          type: number
+        totalAmount:
+          type: number
+        paymentAmount:
+          type: number
+        paymentType:
+          type: string
+        paymentStatus:
+          type: string
+        status:
+          type: string
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    VenueBookingInput:
+      type: object
+      required: [venueId, audience, reservationAt, bookingDays, partySize, customerName, customerPhone, paymentType, paymentAmount, paymentWalletId, transactionReference, paymentReceiptUrl, idempotencyKey]
+      properties:
+        venueId:
+          type: integer
+        audience:
+          type: string
+        reservationAt:
+          type: string
+          format: date-time
+        bookingDays:
+          type: integer
+          minimum: 1
+        partySize:
+          type: integer
+          minimum: 1
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        paymentType:
+          type: string
+          enum: [deposit, full]
+        paymentAmount:
+          type: number
+        paymentWalletId:
+          type: integer
+        transactionReference:
+          type: string
+        paymentReceiptUrl:
+          type: string
+        idempotencyKey:
+          type: string
+
+    DeliveryQuote:
+      type: object
+      required: [fee, distanceKm]
+      properties:
+        fee:
+          type: number
+        distanceKm:
+          type: number
 
     OrderStatusUpdate:
       type: object

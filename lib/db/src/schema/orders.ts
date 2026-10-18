@@ -42,8 +42,12 @@ export const ordersTable = mysqlTable("orders", {
   rentalDepositReason: text("rental_deposit_reason"),
   rentalDepositProcessedAt: timestamp("rental_deposit_processed_at"),
   rentalBookingKey: varchar("rental_booking_key", { length: 128 }),
+  engagementOfferKey: varchar("engagement_offer_key", { length: 128 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => [uniqueIndex("orders_rental_booking_key_uq").on(table.rentalBookingKey)]);
+}, (table) => [
+  uniqueIndex("orders_rental_booking_key_uq").on(table.rentalBookingKey),
+  uniqueIndex("orders_engagement_offer_key_uq").on(table.engagementOfferKey),
+]);
 
 export const orderItemsTable = mysqlTable("order_items", {
   id: int("id").autoincrement().primaryKey(),

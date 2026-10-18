@@ -13,6 +13,7 @@ const REAL_VENUE_CATALOG_MIGRATION_ID = "20261007_real_venue_owner_catalog_v1";
 const DIRECT_RENTAL_BOOKING_MIGRATION_ID = "20261007_direct_rental_booking_v1";
 const PARTNER_OPERATIONS_PHASE3_MIGRATION_ID = "20261009_partner_operations_phase3_v1";
 const PARTNER_ACCOUNTS_MIGRATION_ID = "20261015_partner_accounts_permissions_v1";
+const ENGAGEMENT_OFFER_IDEMPOTENCY_MIGRATION_ID = "20261018_engagement_offer_idempotency_v1";
 const RENTAL_DIMENSIONS_MIGRATION_ID = "20261015_rental_product_dimensions_v1";
 const PRODUCT_IMAGES_LIMIT_MIGRATION_ID = "20261016_product_images_limit_v1";
 const PARTNER_PUSH_TOKENS_MIGRATION_ID = "20261016_partner_push_tokens_v1";
@@ -483,6 +484,22 @@ export async function runMigrations(): Promise<void> {
     }
     await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [DIRECT_RENTAL_BOOKING_MIGRATION_ID]);
     logger.info({ migrationId: DIRECT_RENTAL_BOOKING_MIGRATION_ID }, "Direct rental booking migration completed");
+  }
+
+  const [engagementOfferRows] = await pool.query(
+    "SELECT migration_id FROM fuchsia_schema_migrations WHERE migration_id = ? LIMIT 1",
+    [ENGAGEMENT_OFFER_IDEMPOTENCY_MIGRATION_ID],
+  );
+  if ((engagementOfferRows as Array<{ migration_id: string }>).length === 0) {
+    await addColumnIfMissing("orders", "engagement_offer_key", "VARCHAR(128) NULL");
+    const [offerIndexRows] = await pool.query(
+      "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'orders_engagement_offer_key_uq' LIMIT 1",
+    );
+    if ((offerIndexRows as Array<{ INDEX_NAME: string }>).length === 0) {
+      await pool.query("CREATE UNIQUE INDEX orders_engagement_offer_key_uq ON orders (engagement_offer_key)");
+    }
+    await pool.query("INSERT IGNORE INTO fuchsia_schema_migrations (migration_id) VALUES (?)", [ENGAGEMENT_OFFER_IDEMPOTENCY_MIGRATION_ID]);
+    logger.info({ migrationId: ENGAGEMENT_OFFER_IDEMPOTENCY_MIGRATION_ID }, "Engagement offer idempotency migration completed");
   }
 
   const [phase3Rows] = await pool.query(

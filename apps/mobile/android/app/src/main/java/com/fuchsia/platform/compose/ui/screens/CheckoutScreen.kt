@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.fuchsia.platform.compose.data.ApiException
 import com.fuchsia.platform.compose.data.FuchsiaApi
+import com.fuchsia.platform.compose.data.DeliveryQuote
+import com.fuchsia.platform.compose.data.EngagementBoxOffer
 import com.fuchsia.platform.compose.data.DeliveryAddress
 import com.fuchsia.platform.compose.data.PaymentWallet
 import com.fuchsia.platform.compose.data.CartLine
@@ -84,6 +87,8 @@ fun CheckoutScreen(
     onBack: () -> Unit,
     onOrderPlaced: (Int) -> Unit,
     onManageAddresses: () -> Unit = {},
+    engagementOffer: Boolean = false,
+    onSignIn: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val sessionId = remember(context) { SessionVault.sessionId(context) }
@@ -97,6 +102,10 @@ fun CheckoutScreen(
     var addressServiceError by remember { mutableStateOf("") }
     var showAddressPicker by remember { mutableStateOf(false) }
     var wallets by remember { mutableStateOf<List<PaymentWallet>>(emptyList()) }
+    var offer by remember { mutableStateOf<EngagementBoxOffer?>(null) }
+    var deliveryQuote by remember { mutableStateOf<DeliveryQuote?>(null) }
+    var deliveryQuoteLoading by remember { mutableStateOf(false) }
+    var deliveryQuoteError by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var submitting by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
@@ -120,7 +129,7 @@ fun CheckoutScreen(
     var giftMessage by remember { mutableStateOf("") }
     var hidePrice by remember { mutableStateOf(true) }
 
-    LaunchedEffect(sessionId, userToken, directRental) {
+LaunchedEffect(sessionId, userToken, directRental, engagementOffer) {
         if (sessionId == null) {
             error = "انتهت الجلسة. يرجى تسجيل الدخول أو بدء التصفح دون حساب من جديد."
             loading = false
@@ -155,7 +164,7 @@ fun CheckoutScreen(
                 val dailyPrice = directRental.product.rentalDailyPrice ?: directRental.product.price
                 val subtotal = dailyPrice * directRental.days * directRental.quantity
                 val depositTotal = directRental.product.rentalDeposit * directRental.quantity
-                val deliveryFee = if (directRental.fulfillment == "delivery") 500.0 else 0.0
+                val deliveryFee = 0.0
                 paymentType = "partial"
                 ShoppingCart(
                     sessionId = sessionId,
@@ -184,15 +193,81 @@ fun CheckoutScreen(
                     total = subtotal + depositTotal + deliveryFee,
                     rentalDeposit = depositTotal,
                 )
+            } else if (engagementOffer) {
+                val currentOffer = FuchsiaApi.engagementBoxOffer()
+                offer = currentOffer
+                isGift = true
+                paymentType = "partial"
+                val offerPrice = currentOffer.price
+                ShoppingCart(
+                    sessionId = sessionId,
+                    items = listOf(
+                        CartLine(
+                            id = 0,
+                            productId = 0,
+                            productName = currentOffer.title,
+                            price = offerPrice,
+                            quantity = 1,
+                            imageUrl = null,
+                            giftWrapping = false,
+                            giftMessage = null,
+                            fulfillmentType = "sale",
+                            rentalStartDate = null,
+                            rentalDays = null,
+                            rentalDeposit = 0.0,
+                            rentalFulfillment = null,
+                            rentalTimeSlot = null,
+                            lineTotal = offerPrice,
+                        ),
+                    ),
+                    subtotal = offerPrice,
+                    deliveryFee = 0.0,
+                    discount = 0.0,
+                    total = offerPrice,
+                    rentalDeposit = 0.0,
+                )
             } else FuchsiaApi.getCart(sessionId).also { loadedCart ->
                 if (loadedCart.items.any { it.fulfillmentType == "rental" } && paymentType == "cash_on_delivery") paymentType = "partial"
             }
             wallets = runCatching { FuchsiaApi.paymentWallets() }.getOrDefault(emptyList())
-            if (directRental == null && cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
+            if (directRental == null && !engagementOffer && cart?.items.isNullOrEmpty()) error = "السلة فارغة. يرجى إضافة منتج قبل إتمام الطلب."
         } catch (failure: Throwable) {
             error = failure.message ?: "تعذر تحميل بيانات الطلب."
         } finally {
             loading = false
+        }
+    }
+
+    LaunchedEffect(directRental?.idempotencyKey, directRental?.fulfillment, engagementOffer, latitude, longitude, cart?.items?.firstOrNull()?.productId) {
+        val rental = directRental
+        if (engagementOffer || rental == null || rental.fulfillment != "delivery") {
+            deliveryQuote = null
+            deliveryQuoteError = ""
+            deliveryQuoteLoading = false
+            return@LaunchedEffect
+        }
+        val currentCart = cart
+        if (currentCart == null || currentCart.items.firstOrNull()?.productId != rental.product.id) return@LaunchedEffect
+        val lat = latitude
+        val lng = longitude
+        if (lat == null || lng == null || !isSanaaLocation(lat, lng)) {
+            deliveryQuote = null
+            deliveryQuoteError = if (lat == null || lng == null) "حدد موقع التوصيل لاحتساب الرسوم من الخادم." else "الموقع خارج نطاق التوصيل الحالي في صنعاء."
+            cart = currentCart.copy(deliveryFee = 0.0, total = currentCart.subtotal + currentCart.rentalDeposit)
+            return@LaunchedEffect
+        }
+        deliveryQuoteLoading = true
+        deliveryQuoteError = ""
+        try {
+            val quote = FuchsiaApi.deliveryQuote(lat, lng)
+            deliveryQuote = quote
+            cart = currentCart.copy(deliveryFee = quote.fee, total = currentCart.subtotal + currentCart.rentalDeposit + quote.fee)
+        } catch (failure: Throwable) {
+            deliveryQuote = null
+            deliveryQuoteError = failure.message ?: "تعذر حساب رسوم التوصيل؛ لن نرسل مبلغًا تقديريًا."
+            cart = currentCart.copy(deliveryFee = 0.0, total = currentCart.subtotal + currentCart.rentalDeposit)
+        } finally {
+            deliveryQuoteLoading = false
         }
     }
 
@@ -239,7 +314,8 @@ fun CheckoutScreen(
             scope.launch {
                 uploading = true
                 try {
-                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri).optString("url")
+                    val token = userToken ?: throw ApiException("يرجى تسجيل الدخول لرفع إيصال الدفع")
+                    receiptUrl = FuchsiaApi.uploadReceipt(context, uri, token).optString("url")
                     snackbar.showSnackbar("تم رفع الإيصال إلى الخادم")
                 } catch (failure: Throwable) {
                     receiptUrl = ""
@@ -256,6 +332,19 @@ fun CheckoutScreen(
             val message = "هذه معاينة فقط؛ لم يُرسل طلب الإيجار ولم يُسجل حجز أو دفع. يلزم نشر خدمة الحجز أولًا."
             error = message
             scope.launch { snackbar.showSnackbar(message) }
+            return
+        }
+        if (engagementOffer && userToken.isNullOrBlank()) {
+            error = "يتطلب صندوق الخطوبة تسجيل الدخول لإرفاق إيصال الدفع وتتبع الطلب."
+            onSignIn()
+            return
+        }
+        if (engagementOffer && offer == null) {
+            snackbarShown(scope, snackbar, "تعذر تحميل سعر العرض من الخادم؛ أعد المحاولة قبل إرسال الطلب.")
+            return
+        }
+        if (directRental?.fulfillment == "delivery" && deliveryQuote == null) {
+            snackbarShown(scope, snackbar, deliveryQuoteError.ifBlank { "انتظر احتساب رسوم التوصيل من الخادم قبل الإرسال." })
             return
         }
         val currentSession = sessionId
@@ -285,7 +374,7 @@ fun CheckoutScreen(
             snackbarShown(scope, snackbar, "التوصيل متاح حاليًا داخل نطاق صنعاء فقط.")
             return
         }
-        if (rentalItems.isNotEmpty() && paymentType == "cash_on_delivery") {
+        if ((rentalItems.isNotEmpty() || engagementOffer) && paymentType == "cash_on_delivery") {
             snackbarShown(scope, snackbar, "حجز الإيجار يحتاج دفع العربون أو المبلغ الكامل مقدمًا لتثبيت الموعد.")
             return
         }
@@ -329,17 +418,21 @@ fun CheckoutScreen(
             submitting = true
             error = ""
             try {
-            val order = if (directRental != null) {
-                payload
-                    .put("productId", directRental.product.id)
-                    .put("rentalStartDate", directRental.startDate)
-                    .put("rentalDays", directRental.days)
-                    .put("quantity", directRental.quantity)
-                    .put("rentalFulfillment", directRental.fulfillment)
-                    .put("rentalTimeSlot", directRental.timeSlot)
-                    .put("idempotencyKey", directRental.idempotencyKey)
-                FuchsiaApi.createRentalBooking(payload, userToken)
-            } else FuchsiaApi.createOrder(payload)
+            val order = when {
+                directRental != null -> {
+                    payload
+                        .put("productId", directRental.product.id)
+                        .put("rentalStartDate", directRental.startDate)
+                        .put("rentalDays", directRental.days)
+                        .put("quantity", directRental.quantity)
+                        .put("rentalFulfillment", directRental.fulfillment)
+                        .put("rentalTimeSlot", directRental.timeSlot)
+                        .put("idempotencyKey", directRental.idempotencyKey)
+                    FuchsiaApi.createRentalBooking(payload, userToken)
+                }
+                engagementOffer -> FuchsiaApi.createEngagementBoxOrder(payload, userToken ?: throw ApiException("يرجى تسجيل الدخول لإتمام العرض"))
+                else -> FuchsiaApi.createOrder(payload, userToken)
+            }
                 val orderId = order.optInt("id")
                 if (orderId <= 0) throw IllegalStateException("لم يرجع الخادم رقم الطلب")
                 onOrderPlaced(orderId)
@@ -354,6 +447,8 @@ fun CheckoutScreen(
 
     val outsideSanaa = latitude != null && longitude != null && !isSanaaLocation(latitude!!, longitude!!)
     val isRentalCheckout = cart?.items?.any { it.fulfillmentType == "rental" } == true
+    val isOnlinePaymentRequired = isRentalCheckout || engagementOffer
+    val isDirectRentalDelivery = directRental?.fulfillment == "delivery"
     val isPreviewOnlyRental = directRental?.previewOnly == true
     val needsDelivery = cart?.items?.any {
         it.fulfillmentType != "rental" || it.rentalFulfillment == "delivery"
@@ -365,14 +460,25 @@ fun CheckoutScreen(
         bottomBar = {
             val total = cart?.total
             if (total != null && !cart?.items.isNullOrEmpty()) {
-                androidx.compose.material3.Surface(color = FuchsiaColors.White, shadowElevation = 12.dp) {
+                androidx.compose.material3.Surface(modifier = Modifier.fillMaxWidth().navigationBarsPadding(), color = FuchsiaColors.White, shadowElevation = 12.dp) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         CommerceMoneyRow("المطلوب", total, bold = true, accent = true)
                         CommercePrimaryButton(
-                                text = "${if (isPreviewOnlyRental) "معاينة فقط · لا يُرسل الحجز" else if (isRentalCheckout) "إرسال طلب الحجز" else "تأكيد الطلب"} · ${formatYemeniRiyal(total)}",
+                            text = when {
+                                engagementOffer && userToken.isNullOrBlank() -> "تسجيل الدخول ثم إعادة فتح العرض"
+                                engagementOffer -> "إرسال طلب صندوق الخطوبة · ${formatYemeniRiyal(total)}"
+                                isPreviewOnlyRental -> "معاينة فقط · لا يُرسل الحجز"
+                                isRentalCheckout -> "إرسال طلب الحجز · ${formatYemeniRiyal(total)}"
+                                else -> "تأكيد الطلب · ${formatYemeniRiyal(total)}"
+                            },
                             busy = submitting,
-                            enabled = !loading && !uploading && !outsideSanaa,
-                            onClick = ::submitOrder,
+                            enabled = if (engagementOffer && userToken.isNullOrBlank()) {
+                                !loading && offer != null
+                            } else {
+                                !loading && !uploading && (!needsDelivery || !outsideSanaa) &&
+                                    (!isDirectRentalDelivery || (!deliveryQuoteLoading && deliveryQuote != null))
+                            },
+                            onClick = if (engagementOffer && userToken.isNullOrBlank()) onSignIn else ::submitOrder,
                         )
                     }
                 }
@@ -390,6 +496,9 @@ fun CheckoutScreen(
                     subtitle = if (isRentalCheckout) "راجع الموعد والتوصيل والعربون والضمان قبل الإرسال" else "خطوة آمنة لتأكيد الطلب مع فوشيا",
                     onBack = onBack,
                 )
+            }
+            if (engagementOffer) item {
+                CommerceNotice("${offer?.title ?: "صندوق الخطوبة"} · ${offer?.dimensions ?: "60×40 سم"} · السعر المعتمد ${offer?.price?.let(::formatYemeniRiyal) ?: "جارٍ التحميل"}. يتطلب تسجيل الدخول وإرفاق إيصال دفع؛ بعد تسجيل الدخول أعد فتح العرض لإكمال الطلب.")
             }
             if (isPreviewOnlyRental) item {
                 CommerceNotice("تم فتح هذا المسار للمعاينة لأن خدمة الإيجار على الخادم تعيد 404. لن نرسل أي طلب أو بيانات دفع.", isError = false)
@@ -449,6 +558,11 @@ fun CheckoutScreen(
                                     )
                                 }
                             }
+                            Text(
+                                "تُحمّل الخريطة من OpenFreeMap وقد يكشف مزودها المنطقة التقريبية المعروضة. تُرسل نقطة التوصيل إلى خادم فوشيا لإتمام الطلب.",
+                                color = FuchsiaColors.Muted,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            )
                             MapLocationPicker(
                                 selectedLatitude = latitude,
                                 selectedLongitude = longitude,
@@ -459,15 +573,23 @@ fun CheckoutScreen(
                                 modifier = Modifier.fillMaxWidth().height(46.dp),
                                 shape = RoundedCornerShape(13.dp),
                                 enabled = !locating,
-                                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary),
+                                colors = ButtonDefaults.buttonColors(containerColor = FuchsiaColors.Primary, contentColor = FuchsiaColors.White),
                             ) {
-                                if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.Primary, strokeWidth = 2.dp)
-                                else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.Primary, modifier = Modifier.size(18.dp))
+                                if (locating) CircularProgressIndicator(modifier = Modifier.size(17.dp), color = FuchsiaColors.White, strokeWidth = 2.dp)
+                                else Icon(Icons.Rounded.LocationOn, contentDescription = null, tint = FuchsiaColors.White, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.TextAccent, fontWeight = FontWeight.Bold)
+                                Text(if (latitude == null) "تحديد موقعي الحالي عبر GPS" else "تحديث الموقع عبر GPS", color = FuchsiaColors.White, fontWeight = FontWeight.Bold)
                             }
                             if (locationError.isNotBlank()) CommerceNotice(locationError, isError = true)
-                            if (latitude != null && longitude != null && !outsideSanaa) CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")
+                            if (isDirectRentalDelivery) {
+                                when {
+                                    deliveryQuoteLoading -> CommerceNotice("جارٍ احتساب رسوم التوصيل من الخادم…")
+                                    deliveryQuote != null -> CommerceNotice("رسوم التوصيل المعتمدة: ${formatYemeniRiyal(deliveryQuote!!.fee)} · المسافة ${"%.1f".format(deliveryQuote!!.distanceKm)} كم.")
+                                    else -> CommerceNotice(deliveryQuoteError.ifBlank { "حدد نقطة التوصيل لاحتساب الرسوم قبل الإرسال." }, isError = true)
+                                }
+                            } else if (latitude != null && longitude != null && !outsideSanaa) {
+                                CommerceNotice("الموقع ضمن نطاق التوصيل. يرجى مراجعة العنوان المكتوب أيضًا.")
+                            }
                         }
                     }
                 }
@@ -504,7 +626,7 @@ fun CheckoutScreen(
                 item {
                     CommerceSectionTitle("طريقة الدفع", "اختيار الطريقة المناسبة")
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        if (!isRentalCheckout) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
+                        if (!isOnlinePaymentRequired) PaymentChoice("عند التوصيل", paymentType == "cash_on_delivery", Modifier.weight(1f)) { paymentType = "cash_on_delivery" }
                         PaymentChoice("نصف المبلغ", paymentType == "partial", Modifier.weight(1f)) { paymentType = "partial" }
                         PaymentChoice("كامل المبلغ", paymentType == "full", Modifier.weight(1f)) { paymentType = "full" }
                     }
@@ -676,10 +798,17 @@ private fun WalletChoice(wallet: PaymentWallet, selected: Boolean, onClick: () -
         colors = CardDefaults.cardColors(containerColor = if (selected) FuchsiaColors.RoseLight else FuchsiaColors.White),
         border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) FuchsiaColors.Primary else FuchsiaColors.Line),
     ) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
-            Text(wallet.accountNumber, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.SemiBold)
-            if (wallet.instructions.isNotBlank()) Text(wallet.instructions, color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            PaymentWalletLogo(wallet, Modifier.size(48.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(wallet.name, color = FuchsiaColors.Ink, fontWeight = FontWeight.Bold)
+                if (selected) {
+                    Text(wallet.accountNumber, color = FuchsiaColors.TextAccent, fontWeight = FontWeight.SemiBold)
+                    if (wallet.instructions.isNotBlank()) Text(wallet.instructions, color = FuchsiaColors.Muted, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp))
+                } else {
+                    Text("اضغط لعرض رقم الحساب والتعليمات", color = FuchsiaColors.Muted, fontSize = 11.sp)
+                }
+            }
         }
     }
 }

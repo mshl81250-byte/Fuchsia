@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,7 +94,7 @@ fun AuthScreen(
     var fullName by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
     var busy by rememberSaveable { mutableStateOf(false) }
     var error by rememberSaveable { mutableStateOf("") }
@@ -258,10 +259,12 @@ fun AuthScreen(
                                         FuchsiaApi.requestRegistrationCode(
                                             fullName.trim(), normalizedEmail, password, phone.trim(),
                                         )
+                                        password = ""
                                         onCodeRequested(normalizedEmail, null)
                                     } else {
                                         val session = FuchsiaApi.login(normalizedEmail, password)
                                         SessionVault.save(context, session.user, session.token)
+                                        password = ""
                                         onAuthComplete()
                                     }
                                 } catch (failure: Throwable) {
@@ -280,9 +283,9 @@ fun AuthScreen(
                             Brush.horizontalGradient(listOf(FuchsiaColors.Primary, FuchsiaColors.PrimaryDark)),
                             RoundedCornerShape(17.dp),
                         ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(17.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp, pressedElevation = 1.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp, focusedElevation = 0.dp, hoveredElevation = 0.dp, disabledElevation = 0.dp),
                 ) {
                     if (busy) {
                         CircularProgressIndicator(modifier = Modifier.size(21.dp), color = FuchsiaColors.OnPrimary, strokeWidth = 2.dp)

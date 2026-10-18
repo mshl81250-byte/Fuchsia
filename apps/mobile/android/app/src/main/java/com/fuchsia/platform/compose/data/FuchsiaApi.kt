@@ -107,6 +107,15 @@ data class PaymentWallet(
     val iconUrl: String?,
 )
 
+data class DeliveryQuote(val fee: Double, val distanceKm: Double)
+
+data class EngagementBoxOffer(
+    val title: String,
+    val description: String,
+    val dimensions: String,
+    val price: Double,
+)
+
 data class StoreSummary(
     val id: Int,
     val name: String,
@@ -192,6 +201,23 @@ data class TableReservation(
     val customerPhone: String,
 )
 
+data class VenueBooking(
+    val id: Int,
+    val venueId: Int,
+    val audience: String,
+    val reservationAt: String,
+    val bookingDays: Int,
+    val partySize: Int,
+    val dailyPrice: Double,
+    val totalAmount: Double,
+    val paymentAmount: Double,
+    val paymentType: String,
+    val paymentStatus: String,
+    val status: String,
+    val expiresAt: String?,
+    val createdAt: String,
+)
+
 data class DeliveryAddress(
     val id: Int,
     val label: String,
@@ -255,6 +281,7 @@ class ApiException(message: String, val statusCode: Int = 0) : Exception(message
 object FuchsiaApi {
     private const val CONNECT_TIMEOUT_MS = 18_000
     private const val READ_TIMEOUT_MS = 22_000
+    private const val MAX_RECEIPT_BYTES = 7L * 1024 * 1024
 
     suspend fun login(email: String, password: String): AuthSession =
         parseSession(post("/api/auth/login", JSONObject().put("email", email).put("password", password)))
@@ -271,7 +298,6 @@ object FuchsiaApi {
             .put("email", email)
             .put("password", password)
             .put("phone", phone),
-        includeDebugOtp = BuildConfig.OTP_DEBUG,
     )
 
     suspend fun verifyRegistrationCode(email: String, code: String): AuthSession = parseSession(
@@ -294,12 +320,12 @@ object FuchsiaApi {
         bearerToken = bearerToken,
     )
 
-    suspend fun submitSupport(kind: String, subject: String, message: String, bearerToken: String) {
-        sendJson("/api/support", "POST", JSONObject().put("kind", kind).put("subject", subject).put("message", message), bearerToken = bearerToken)
+    suspend fun submitSupport(category: String, subject: String, message: String, bearerToken: String) {
+        sendJson("/api/support/messages", "POST", JSONObject().put("category", category).put("subject", subject).put("message", message), bearerToken = bearerToken)
     }
 
     suspend fun deleteAccount(reason: String, bearerToken: String) {
-        sendJson("/api/auth/delete-account", "POST", JSONObject().put("reason", reason), bearerToken = bearerToken)
+        sendJson("/api/auth/account", "DELETE", JSONObject().put("reason", reason), bearerToken = bearerToken)
     }
 
 
@@ -407,8 +433,8 @@ object FuchsiaApi {
         ),
     )
 
-    suspend fun removeCartItem(itemId: Int): ShoppingCart =
-        parseCart(sendJson("/api/cart/$itemId", "DELETE"))
+    suspend fun removeCartItem(itemId: Int, sessionId: String): ShoppingCart =
+        parseCart(sendJson("/api/cart/$itemId", "DELETE", JSONObject().put("sessionId", sessionId)))
 
     suspend fun paymentWallets(): List<PaymentWallet> = withContext(Dispatchers.IO) {
         val array = JSONArray(getText("/api/payment-wallets"))
@@ -446,22 +472,20 @@ object FuchsiaApi {
         }
     }
 
+    suspend fun deliveryQuote(latitude: Double, longitude: Double): DeliveryQuote = withContext(Dispatchers.IO) {
+        val response = getJson("/api/delivery/quote?latitude=${urlEncode(latitude.toString())}&longitude=${urlEncode(longitude.toString())}")
+        val fee = response.optDouble("fee", Double.NaN)
+        if (!fee.isFinite() || fee < 0) throw ApiException("تعذر حساب رسوم التوصيل من الخادم")
+        DeliveryQuote(fee, response.optDouble("distanceKm", 0.0))
+    }
+
     suspend fun venues(search: String = "", audience: String? = null): List<VenueSummary> = withContext(Dispatchers.IO) {
         val params = listOfNotNull(
             search.trim().takeIf(String::isNotBlank)?.let { "search=${urlEncode(it)}" },
             audience?.takeIf(String::isNotBlank)?.let { "audience=${urlEncode(it)}" },
         )
         val suffix = if (params.isEmpty()) "" else "?${params.joinToString("&")}"
-        try {
-            parseVenues(JSONArray(getText("/api/venues$suffix")))
-        } catch (failure: ApiException) {
-            if (!BuildConfig.DEBUG || failure.statusCode != 404) throw failure
-            val term = search.trim().lowercase(Locale.forLanguageTag("ar"))
-            demoVenueFixtures.filter { venue ->
-                (audience.isNullOrBlank() || venue.audience == "both" || venue.audience == audience) &&
-                    (term.isBlank() || listOf(venue.name, venue.description, venue.address).any { it.lowercase(Locale.forLanguageTag("ar")).contains(term) })
-            }
-        }
+        parseVenues(JSONArray(getText("/api/venues$suffix")))
     }
 
     suspend fun venue(venueId: Int): VenueSummary = getJson("/api/venues/$venueId").toVenue()
@@ -524,7 +548,6 @@ object FuchsiaApi {
     }
 
     suspend fun venueAvailability(venueId: Int, month: String, audience: String): VenueAvailability = withContext(Dispatchers.IO) {
-        if (BuildConfig.DEBUG && venueId in -1005..-1001) return@withContext demoAvailability(venueId, month, audience)
         val year = month.substring(0, 4).toIntOrNull() ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
         val monthNumber = month.substringAfter('-').toIntOrNull()?.takeIf { it in 1..12 }
             ?: throw IllegalArgumentException("صيغة الشهر غير صحيحة")
@@ -547,7 +570,23 @@ object FuchsiaApi {
         VenueAvailability(current.optInt("venueId", venueId), current.optString("month", month), booked, closed)
     }
 
-    suspend fun createOrder(payload: JSONObject): JSONObject = post("/api/orders", payload)
+    suspend fun createOrder(payload: JSONObject, bearerToken: String? = null): JSONObject =
+        post("/api/orders", payload, bearerToken)
+
+    suspend fun engagementBoxOffer(): EngagementBoxOffer = withContext(Dispatchers.IO) {
+        val response = getJson("/api/orders/offer")
+        val price = response.optDouble("price", Double.NaN)
+        if (!price.isFinite() || price <= 0) throw ApiException("بيانات عرض صندوق الخطوبة غير مكتملة")
+        EngagementBoxOffer(
+            title = response.optString("titleAr").ifBlank { "صندوق خطوبة متوسط" },
+            description = response.optString("descriptionAr"),
+            dimensions = response.optString("dimensions").ifBlank { "60×40 سم" },
+            price = price,
+        )
+    }
+
+    suspend fun createEngagementBoxOrder(payload: JSONObject, bearerToken: String): JSONObject =
+        sendJson("/api/orders/offer", "POST", payload, bearerToken = bearerToken)
 
     suspend fun rentalAvailability(productId: Int, startDate: String, days: Int, quantity: Int = 1, stockQuantity: Int = 1): RentalAvailability = withContext(Dispatchers.IO) {
         val response = try {
@@ -658,27 +697,48 @@ object FuchsiaApi {
     suspend fun createReservation(payload: JSONObject, bearerToken: String): TableReservation =
         sendJson("/api/reservations", "POST", payload, bearerToken = bearerToken).toReservation()
 
-    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): TableReservation =
-        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toReservation()
+    suspend fun venueBookings(bearerToken: String): List<VenueBooking> = withContext(Dispatchers.IO) {
+        val array = JSONArray(getText("/api/venue-bookings", bearerToken))
+        buildList {
+            for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(it.toVenueBooking()) }
+        }
+    }
 
-    suspend fun uploadReceipt(context: Context, uri: Uri): JSONObject = withContext(Dispatchers.IO) {
+    suspend fun createVenueBooking(payload: JSONObject, bearerToken: String): VenueBooking =
+        sendJson("/api/venue-bookings", "POST", payload, bearerToken = bearerToken).toVenueBooking()
+
+    suspend fun uploadReceipt(context: Context, uri: Uri, bearerToken: String): JSONObject = withContext(Dispatchers.IO) {
         val mimeType = context.contentResolver.getType(uri)?.lowercase()
             ?: throw ApiException("تعذر معرفة نوع ملف الإيصال")
         if (mimeType !in setOf("image/jpeg", "image/png", "image/webp")) {
             throw ApiException("يرجى اختيار صورة JPG أو PNG أو WebP")
         }
         val boundary = "Fuchsia-${UUID.randomUUID()}"
-        val connection = open("/api/uploads/receipt", "POST")
+        val connection = open("/api/uploads/receipt", "POST", bearerToken)
         try {
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
             connection.doOutput = true
             connection.outputStream.use { output ->
-                val filename = "receipt.${mimeType.substringAfter('/') .replace("jpeg", "jpg")}"
+                val filename = "receipt.${mimeType.substringAfter('/').replace("jpeg", "jpg")}"
                 output.write("--$boundary\r\n".toByteArray(Charsets.UTF_8))
                 output.write("Content-Disposition: form-data; name=\"receipt\"; filename=\"$filename\"\r\n".toByteArray(Charsets.UTF_8))
                 output.write("Content-Type: $mimeType\r\n\r\n".toByteArray(Charsets.UTF_8))
-                context.contentResolver.openInputStream(uri)?.use { input -> input.copyTo(output) }
+                val input = context.contentResolver.openInputStream(uri)
                     ?: throw ApiException("تعذر فتح صورة الإيصال")
+                var uploadedBytes = 0L
+                input.use { stream ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        uploadedBytes += count
+                        if (uploadedBytes > MAX_RECEIPT_BYTES) {
+                            throw ApiException("يجب ألا يتجاوز حجم إيصال الدفع 7 ميغابايت")
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                }
+                if (uploadedBytes == 0L) throw ApiException("ملف الإيصال فارغ")
                 output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.UTF_8))
             }
             readJson(connection)
@@ -842,6 +902,23 @@ object FuchsiaApi {
         customerPhone = optString("customerPhone"),
     )
 
+    private fun JSONObject.toVenueBooking() = VenueBooking(
+        id = optInt("id"),
+        venueId = optInt("venueId"),
+        audience = optString("audience"),
+        reservationAt = optString("reservationAt"),
+        bookingDays = optInt("bookingDays", 1),
+        partySize = optInt("partySize"),
+        dailyPrice = optDouble("dailyPriceSnapshot", 0.0),
+        totalAmount = optDouble("totalAmount", 0.0),
+        paymentAmount = optDouble("paymentAmount", 0.0),
+        paymentType = optString("paymentType"),
+        paymentStatus = optString("paymentStatus").ifBlank { "pending_review" },
+        status = optString("status").ifBlank { "pending" },
+        expiresAt = nullableString("expiresAt"),
+        createdAt = optString("createdAt"),
+    )
+
     private fun JSONObject.toDeliveryAddress() = DeliveryAddress(
         id = optInt("id"),
         label = optString("label").ifBlank { "عنوان التوصيل" },
@@ -867,23 +944,17 @@ object FuchsiaApi {
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
-    private suspend fun post(
-        path: String,
-        body: JSONObject,
-        includeDebugOtp: Boolean = false,
-        bearerToken: String? = null,
-    ): JSONObject = sendJson(path, "POST", body, includeDebugOtp, bearerToken)
+    private suspend fun post(path: String, body: JSONObject, bearerToken: String? = null): JSONObject =
+        sendJson(path, "POST", body, bearerToken = bearerToken)
 
     private suspend fun sendJson(
         path: String,
         method: String,
         body: JSONObject? = null,
-        includeDebugOtp: Boolean = false,
         bearerToken: String? = null,
     ): JSONObject = withContext(Dispatchers.IO) {
         val connection = open(path, method, bearerToken)
         try {
-            if (includeDebugOtp) connection.setRequestProperty("X-Fuchsia-OTP-Debug", "true")
             if (body != null) {
                 connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 connection.doOutput = true

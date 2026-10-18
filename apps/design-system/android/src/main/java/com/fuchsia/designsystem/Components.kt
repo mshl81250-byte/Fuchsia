@@ -63,14 +63,14 @@ fun FuchsiaPrimaryButton(
                 brush = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, FuchsiaColors.PrimaryDark)),
                 shape = RoundedCornerShape(18.dp),
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onPrimary,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             disabledContentColor = MaterialTheme.colorScheme.onSurface,
         ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp, focusedElevation = 4.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp, pressedElevation = 0.dp, focusedElevation = 0.dp, hoveredElevation = 0.dp, disabledElevation = 0.dp),
     ) {
         if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
         else Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)

@@ -6,6 +6,8 @@ import androidx.compose.animation.core.tween
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
+import com.fuchsia.platform.compose.BuildConfig
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -243,7 +245,11 @@ fun OrdersScreen(
                     item { TrackingDetails(tracking = tracking!!, updatedAt = updatedAt, onCallDriver = { phone ->
                         runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}"))) }
                     }, onOpenReceipt = { url ->
-                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        if (isTrustedReceiptUrl(url)) {
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        } else {
+                            Toast.makeText(context, "رابط الإيصال غير موثوق، تعذر فتحه.", Toast.LENGTH_SHORT).show()
+                        }
                     }) }
                     val selectedOrder = orders.firstOrNull { it.id == selectedOrderId }
                     if (tracking?.rental != null && selectedOrder?.status in setOf("rental_pending_confirmation", "rental_confirmed", "rental_preparing")) {
@@ -545,3 +551,15 @@ private fun paymentMethodLabel(value: String): String = when {
     value.isBlank() -> "طريقة الدفع غير محددة"
     else -> "طريقة الدفع: $value"
 }
+
+private fun isTrustedReceiptUrl(value: String): Boolean = runCatching {
+    val uri = Uri.parse(value)
+    val api = Uri.parse(BuildConfig.API_BASE_URL)
+    val receiptPort = if (uri.port == -1) 443 else uri.port
+    val apiPort = if (api.port == -1) 443 else api.port
+    uri.scheme.equals("https", ignoreCase = true) &&
+        api.scheme.equals("https", ignoreCase = true) &&
+        !uri.host.isNullOrBlank() && uri.host.equals(api.host, ignoreCase = true) &&
+        receiptPort == apiPort && uri.userInfo == null &&
+        uri.path.orEmpty().startsWith("/uploads/receipts/")
+}.getOrDefault(false)

@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
+import { db, pool } from "@workspace/db";
 import { ordersTable, orderItemsTable, cartItemsTable, usersTable, productsTable, storesTable, rewardTransactionsTable, paymentWalletsTable, orderStatusEventsTable, walletTransactionsTable } from "@workspace/db";
 import { eq, desc, asc, sql, and, or, inArray } from "drizzle-orm";
 import { createCustomerNotification, createPartnerNotification } from "../lib/notifications";
@@ -9,6 +10,19 @@ import { deliveryQuote } from "../lib/delivery-pricing";
 
 const router = Router();
 
+const ENGAGEMENT_BOX_OFFER = {
+  offerId: "engagement-box-medium-60x40",
+  titleAr: "صندوق خطوبة وسط",
+  descriptionAr: "عرض صندوق خطوبة متوسط بقياس 60×40 سم، مع رسالة إهداء خاصة.",
+  dimensions: "60×40 سم",
+  price: 45000,
+  paymentOptions: ["partial", "full"],
+} as const;
+
+router.get("/offer", (_req, res): void => {
+  res.setHeader("Cache-Control", "public, max-age=60");
+  res.json(ENGAGEMENT_BOX_OFFER);
+});
 
 function maskPaymentReference(reference: string | null): string | null {
   if (!reference) return null;
@@ -352,51 +366,126 @@ router.post("/", async (req, res): Promise<void> => {
 
 router.post("/offer", async (req, res): Promise<void> => {
   try {
-    const {
-      sessionId, deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
-      paymentMethod, paymentType, paymentWalletId, paymentAmount, transactionReference, paymentReceiptUrl,
-      userId, giftRecipientName, giftMessage,
-    } = req.body;
-    const authenticatedId = await authenticatedUserId(req);
-    if (userId != null && (!authenticatedId || Number(userId) !== authenticatedId)) {
-      res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" });
-      return;
+  const body = req.body as Record<string, unknown>;
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
+  const deliveryAddress = typeof body.deliveryAddress === "string" ? body.deliveryAddress.trim().slice(0, 1000) : "";
+  const customerName = typeof body.customerName === "string" ? body.customerName.trim().slice(0, 200) : "";
+  const customerPhone = typeof body.customerPhone === "string" ? body.customerPhone.trim().slice(0, 40) : "";
+  const giftRecipientName = typeof body.giftRecipientName === "string" ? body.giftRecipientName.trim().slice(0, 200) : "";
+  const giftMessage = typeof body.giftMessage === "string" ? body.giftMessage.trim().slice(0, 1000) : "";
+  const transactionReference = typeof body.transactionReference === "string" ? body.transactionReference.trim().slice(0, 120) : "";
+  const paymentReceiptUrl = typeof body.paymentReceiptUrl === "string" ? body.paymentReceiptUrl.trim() : "";
+  const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
+  const deliveryLatitude = body.deliveryLatitude;
+  const deliveryLongitude = body.deliveryLongitude;
+  const paymentType = body.paymentType;
+  const paymentWalletId = Number(body.paymentWalletId);
+  const requestedPaymentAmount = Number(body.paymentAmount);
+  const authenticatedId = await authenticatedUserId(req);
+  if (body.userId != null && (!authenticatedId || Number(body.userId) !== authenticatedId)) {
+    res.status(403).json({ error: "لا يمكن إنشاء طلب باسم مستخدم آخر" }); return;
+  }
+  const effectiveUserId = authenticatedId;
+
+  if (!sessionId || sessionId.length > 255 || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
+    res.status(400).json({ error: "يرجى إدخال بيانات العميل والعنوان ورسالة الهدية" }); return;
+  }
+  if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
+    res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" }); return;
+  }
+  if (!["full", "partial"].includes(String(paymentType))) {
+    res.status(400).json({ error: "عرض الهدية يقبل الدفع الجزئي أو الكامل فقط" }); return;
+  }
+  if (!Number.isInteger(paymentWalletId) || paymentWalletId < 1 || !transactionReference || !paymentReceiptUrl) {
+    res.status(400).json({ error: "يرجى اختيار المحفظة وإدخال رقم العملية وإرفاق الإيصال" }); return;
+  }
+  if (idempotencyKey.length < 16 || idempotencyKey.length > 128) {
+    res.status(400).json({ error: "مفتاح الطلب غير صالح؛ حدّث التطبيق وحاول مجددًا" }); return;
+  }
+  if (paymentReceiptUrl.length > 2048) { res.status(400).json({ error: "رابط إيصال الدفع غير صالح" }); return; }
+  let receipt: URL;
+  try { receipt = new URL(paymentReceiptUrl); } catch { res.status(400).json({ error: "رابط إيصال الدفع غير صالح" }); return; }
+  if (!["http:", "https:"].includes(receipt.protocol) || !receipt.pathname.startsWith("/uploads/receipts/")) {
+    res.status(400).json({ error: "يجب رفع صورة الإيصال من داخل التطبيق" }); return;
+  }
+  const expectedAmount = paymentType === "full" ? ENGAGEMENT_BOX_OFFER.price : Math.ceil(ENGAGEMENT_BOX_OFFER.price / 2);
+  if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount !== expectedAmount) {
+    res.status(400).json({ error: "مبلغ الدفع لا يطابق نوع الدفع المختار" }); return;
+  }
+  const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable)
+    .where(and(eq(paymentWalletsTable.id, paymentWalletId), eq(paymentWalletsTable.isActive, true)));
+  if (!wallet) { res.status(400).json({ error: "المحفظة المختارة غير متاحة" }); return; }
+
+  const connection = await pool.getConnection();
+  let orderId = 0;
+  try {
+    await connection.beginTransaction();
+    if (idempotencyKey) {
+      const [priorRows] = await connection.query<RowDataPacket[]>(
+        "SELECT id, session_id, user_id FROM orders WHERE engagement_offer_key = ? LIMIT 1 FOR UPDATE",
+        [idempotencyKey],
+      );
+      const prior = priorRows[0];
+      if (prior) {
+        if (String(prior.session_id) !== sessionId || Number(prior.user_id ?? 0) !== Number(effectiveUserId ?? 0)) {
+          await connection.rollback();
+          res.status(409).json({ error: "مفتاح الطلب مستخدم مسبقًا" }); return;
+        }
+        orderId = Number(prior.id);
+        await connection.commit();
+        const [existing] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+        if (!existing) { res.status(500).json({ error: "تعذر استرجاع طلب العرض" }); return; }
+        res.status(200).json(await buildOrder(existing)); return;
+      }
     }
-    const effectiveUserId = authenticatedId;
-    const OFFER_TOTAL = 45000;
-    if (!sessionId || !deliveryAddress || !customerName || !customerPhone || !giftMessage) {
-      res.status(400).json({ error: "يرجى إدخال بيانات العميل والعنوان ورسالة الهدية" }); return;
+
+    const [insertResult] = await connection.query<ResultSetHeader>(
+      `INSERT INTO orders
+       (session_id, user_id, status, total, subtotal, delivery_fee, discount, delivery_address, delivery_latitude, delivery_longitude,
+        customer_name, customer_phone, payment_method, payment_type, payment_status, payment_wallet_id, payment_amount, remaining_amount,
+        transaction_reference, payment_receipt_url, notes, is_gift, gift_recipient_name, gift_message, hide_price, engagement_offer_key)
+       VALUES (?, ?, 'received', ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?, 'pending_review', ?, ?, ?, ?, ?, ?, TRUE, ?, ?, FALSE, ?)`,
+      [sessionId, effectiveUserId, ENGAGEMENT_BOX_OFFER.price, ENGAGEMENT_BOX_OFFER.price, deliveryAddress, deliveryLatitude, deliveryLongitude,
+        customerName, customerPhone, `wallet_${paymentWalletId}`, paymentType, paymentWalletId, expectedAmount,
+        Math.max(0, ENGAGEMENT_BOX_OFFER.price - expectedAmount), transactionReference, paymentReceiptUrl,
+        `طلب عرض ${ENGAGEMENT_BOX_OFFER.titleAr} مقاس ${ENGAGEMENT_BOX_OFFER.dimensions}`, giftRecipientName || null, giftMessage, idempotencyKey || null],
+    );
+    orderId = Number(insertResult.insertId);
+    if (!orderId) throw new Error("Offer order insert did not return an ID");
+    await connection.query(
+      "INSERT INTO order_items (order_id, product_id, product_name, price, quantity, image_url) VALUES (?, 0, ?, ?, 1, ?)",
+      [orderId, `${ENGAGEMENT_BOX_OFFER.titleAr} ${ENGAGEMENT_BOX_OFFER.dimensions}`, ENGAGEMENT_BOX_OFFER.price, "offer://facebook-khitbah-offer"],
+    );
+    await connection.query(
+      "INSERT INTO wallet_transactions (order_id, wallet_id, kind, status, amount, currency, provider, external_id, idempotency_key, reason) VALUES (?, ?, 'payment', 'pending_review', ?, 'YER', 'manual_local_wallet', ?, ?, ?)",
+      [orderId, paymentWalletId, expectedAmount, transactionReference, `payment:${orderId}`, "دفعة عرض صندوق الخطوبة مرتبطة بإيصال التحويل"],
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback().catch(() => undefined);
+    if (idempotencyKey && (error as { code?: string }).code === "ER_DUP_ENTRY") {
+      const [prior] = await db.select().from(ordersTable).where(eq(ordersTable.engagementOfferKey, idempotencyKey));
+      if (prior && prior.sessionId === sessionId && Number(prior.userId ?? 0) === Number(effectiveUserId ?? 0)) {
+        res.status(200).json(await buildOrder(prior)); return;
+      }
+      res.status(409).json({ error: "مفتاح الطلب مستخدم مسبقًا" }); return;
     }
-    if (typeof deliveryLatitude !== "number" || typeof deliveryLongitude !== "number" || deliveryLatitude < 15.1 || deliveryLatitude > 15.7 || deliveryLongitude < 43.8 || deliveryLongitude > 44.6) {
-      res.status(400).json({ error: "موقع التوصيل غير صحيح أو خارج نطاق صنعاء" }); return;
-    }
-    const normalizedPaymentType = paymentType;
-    const requestedPaymentAmount = paymentAmount == null ? 0 : Number(paymentAmount);
-    if (!["full", "partial"].includes(normalizedPaymentType)) { res.status(400).json({ error: "عرض الهدية يقبل الدفع الجزئي أو الكامل فقط" }); return; }
-    if (!paymentWalletId || !transactionReference || !paymentReceiptUrl) { res.status(400).json({ error: "يرجى اختيار المحفظة وإدخال رقم العملية وإرفاق الإيصال" }); return; }
-    const expectedAmount = normalizedPaymentType === "full" ? OFFER_TOTAL : Math.ceil(OFFER_TOTAL / 2);
-    if (!Number.isFinite(requestedPaymentAmount) || requestedPaymentAmount !== expectedAmount) { res.status(400).json({ error: "مبلغ الدفع لا يطابق نوع الدفع المختار" }); return; }
-    const [wallet] = await db.select({ id: paymentWalletsTable.id }).from(paymentWalletsTable).where(and(eq(paymentWalletsTable.id, Number(paymentWalletId)), eq(paymentWalletsTable.isActive, true)));
-    if (!wallet) { res.status(400).json({ error: "المحفظة المختارة غير متاحة" }); return; }
-    if (typeof paymentReceiptUrl !== "string" || paymentReceiptUrl.length > 7 * 1024 * 1024) { res.status(400).json({ error: "حجم الإيصال أكبر من الحد المسموح" }); return; }
-    await db.insert(ordersTable).values({
-      sessionId, userId: effectiveUserId, status: "received", total: OFFER_TOTAL, subtotal: OFFER_TOTAL, deliveryFee: 0, discount: 0,
-      deliveryAddress, deliveryLatitude, deliveryLongitude, customerName, customerPhone,
-      paymentMethod: paymentMethod ?? `wallet_${paymentWalletId}`, paymentType: normalizedPaymentType, paymentStatus: "pending_review",
-      paymentWalletId: Number(paymentWalletId), paymentAmount: expectedAmount, remainingAmount: Math.max(0, OFFER_TOTAL - expectedAmount),
-      transactionReference, paymentReceiptUrl, notes: "طلب عرض صندوق خطوبة وسط مقاس 60×40",
-      isGift: true, giftRecipientName: giftRecipientName || null, giftMessage, hidePrice: false,
-    });
-    const [created] = await db.select({ id: ordersTable.id }).from(ordersTable).where(eq(ordersTable.sessionId, sessionId)).orderBy(desc(ordersTable.id)).limit(1);
-    if (!created) { res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); return; }
-    const orderId = created.id;
-    await appendOrderStatusEvent(orderId, "received");
-    await db.insert(orderItemsTable).values({ orderId, productId: 0, productName: "عرض صندوق خطوبة وسط 60×40", price: OFFER_TOTAL, quantity: 1, imageUrl: "offer://facebook-khitbah-offer" });
-    const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
-    await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
-    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
-    res.status(201).json(await buildOrder(order));
-  } catch (err) { req.log.error({ err }, "Failed to create offer order"); res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); }
+    req.log.error({ error }, "Failed to create offer order");
+    res.status(500).json({ error: "تعذر إنشاء طلب العرض" }); return;
+  } finally {
+    connection.release();
+  }
+
+  await appendOrderStatusEvent(orderId, "received");
+  const [recipient] = effectiveUserId ? await db.select({ email: usersTable.email }).from(usersTable).where(eq(usersTable.id, effectiveUserId)) : [];
+  await createCustomerNotification({ sessionId, orderId, type: "order_received", title: "تم استلام طلب العرض", message: `تم استلام طلب عرض صندوق الخطوبة رقم ${orderId} وسنراجعه قريباً.`, customerName, phone: customerPhone, email: recipient?.email });
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId));
+  if (!order) { res.status(500).json({ error: "تعذر استرجاع طلب العرض" }); return; }
+  res.status(201).json(await buildOrder(order));
+  } catch (error) {
+    req.log.error({ error }, "Failed to prepare engagement box offer order");
+    if (!res.headersSent) res.status(500).json({ error: "تعذر إنشاء طلب العرض" });
+  }
 });
 
 router.patch("/:id", async (req, res): Promise<void> => {

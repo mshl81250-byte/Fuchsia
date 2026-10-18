@@ -9,15 +9,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,6 +46,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun WishlistScreen(
+    onBack: () -> Unit,
     onSignIn: () -> Unit,
     onProduct: (Int) -> Unit,
     onCart: () -> Unit,
@@ -84,7 +88,16 @@ fun WishlistScreen(
             verticalArrangement = Arrangement.spacedBy(13.dp),
         ) {
             item {
-                CommerceHeader("المفضلة", if (products.isEmpty()) "احفظ المنتجات التي أعجبتك" else "${products.size} منتجات محفوظة", onCart)
+                CommerceHeader(
+                    title = "المفضلة",
+                    subtitle = if (products.isEmpty()) "احفظ المنتجات التي أعجبتك" else "${products.size} منتجات محفوظة",
+                    onBack = onBack,
+                    trailing = {
+                        IconButton(onClick = onCart, modifier = Modifier.size(44.dp)) {
+                            Icon(Icons.Rounded.ShoppingBag, contentDescription = "سلة المشتريات", tint = FuchsiaColors.Primary)
+                        }
+                    },
+                )
             }
             if (userId == null) {
                 item {
